@@ -32,8 +32,6 @@ import taxRoutes from './routes/taxes';
 import giftCardRoutes from './routes/giftCards';
 import comboRoutes from './routes/combos';
 import auditRoutes from './routes/audit';
-import adminMenuRoutes from './routes/admin/menu'
-
 const app = Fastify({
   logger: {
     level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
@@ -151,7 +149,6 @@ async function bootstrap() {
   await app.register(comboRoutes,      { prefix: '/api/combos' });
   await app.register(auditRoutes,      { prefix: '/api/audit' });
   await app.register(wsRoutes,         { prefix: '/ws' });
-  await app.register(adminMenuRoutes,         { prefix: '' });
 
   // ââ Start âââââââââââââââââââââââââââââââââââââââââââââââââ
   const port = parseInt(process.env.PORT || '3001');
