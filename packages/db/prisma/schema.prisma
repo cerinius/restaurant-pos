@@ -1,0 +1,861 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// RESTAURANT & MULTI-TENANCY
+// ==========================================
+
+model Restaurant {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  logo        String?
+  address     String?
+  phone       String?
+  email       String?
+  timezone    String      @default("America/New_York")
+  currency    String      @default("USD")
+  serviceMode ServiceMode @default(FULL_SERVICE)
+  settings    Json        @default("{}")
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  locations     Location[]
+  users         User[]
+  categories    MenuCategory[]
+  menuItems     MenuItem[]
+  modifierGroups ModifierGroup[]
+  orders        Order[]
+  taxes         Tax[]
+  discounts     Discount[]
+  stations      Station[]
+  happyHours    HappyHour[]
+  combos        Combo[]
+  workflows     WorkflowConfig[]
+  inventory     InventoryItem[]
+  vendors       Vendor[]
+  giftCards     GiftCard[]
+
+  @@map("restaurants")
+}
+
+model Location {
+  id           String   @id @default(cuid())
+  restaurantId String
+  name         String
+  address      String?
+  phone        String?
+  timezone     String?
+  isActive     Boolean  @default(true)
+  settings     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tables     Table[]
+  orders     Order[]
+  stations   Station[]
+  userLocations UserLocation[]
+
+  @@map("locations")
+}
+
+// ==========================================
+// USERS & AUTH
+// ==========================================
+
+model User {
+  id           String   @id @default(cuid())
+  restaurantId String
+  name         String
+  email        String?
+  pin          String   // hashed
+  role         UserRole
+  isActive     Boolean  @default(true)
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant    Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  locations     UserLocation[]
+  orders        Order[]
+  auditLogs     AuditLog[]
+  clockEvents   ClockEvent[]
+  sessions      UserSession[]
+
+  @@unique([restaurantId, email])
+  @@map("users")
+}
+
+model UserLocation {
+  userId     String
+  locationId String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, locationId])
+  @@map("user_locations")
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+model ClockEvent {
+  id        String         @id @default(cuid())
+  userId    String
+  type      ClockEventType
+  timestamp DateTime       @default(now())
+  notes     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("clock_events")
+}
+
+// ==========================================
+// MENU
+// ==========================================
+
+model MenuCategory {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  description  String?
+  image        String?
+  sortOrder    Int        @default(0)
+  isActive     Boolean    @default(true)
+  dayParts     DayPart[]  @default([ALL_DAY])
+  color        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      MenuItem[]
+  taxes      CategoryTax[]
+  stations   StationCategory[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id           String         @id @default(cuid())
+  restaurantId String
+  categoryId   String
+  name         String
+  description  String?
+  image        String?
+  basePrice    Float
+  status       MenuItemStatus @default(ACTIVE)
+  isPopular    Boolean        @default(false)
+  isFeatured   Boolean        @default(false)
+  prepTime     Int            @default(10)
+  sortOrder    Int            @default(0)
+  sku          String?
+  barcode      String?
+  calories     Int?
+  allergens    String[]       @default([])
+  tags         String[]       @default([])
+  dayParts     DayPart[]      @default([ALL_DAY])
+  stationId    String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category        MenuCategory     @relation(fields: [categoryId], references: [id])
+  modifierGroups  MenuItemModifierGroup[]
+  pricingOverrides PricingOverride[]
+  taxes           MenuItemTax[]
+  orderItems      OrderItem[]
+  inventoryLinks  InventoryItemLink[]
+  quickButtons    QuickButton[]
+  autoPrompts     AutoPrompt[]
+  upsellTriggers  UpsellRule[]     @relation("UpsellTrigger")
+  upsellTargets   UpsellRule[]     @relation("UpsellTarget")
+  comboItems      ComboItem[]
+
+  @@map("menu_items")
+}
+
+model ModifierGroup {
+  id            String       @id @default(cuid())
+  restaurantId  String
+  name          String
+  description   String?
+  type          ModifierType @default(SINGLE)
+  isRequired    Boolean      @default(false)
+  minSelections Int          @default(0)
+  maxSelections Int          @default(1)
+  sortOrder     Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  modifiers   Modifier[]
+  menuItems   MenuItemModifierGroup[]
+  autoPrompts AutoPrompt[]
+
+  @@map("modifier_groups")
+}
+
+model Modifier {
+  id              String  @id @default(cuid())
+  groupId         String
+  name            String
+  priceAdjustment Float   @default(0)
+  isDefault       Boolean @default(false)
+  isAvailable     Boolean @default(true)
+  sortOrder       Int     @default(0)
+  calories        Int?
+
+  group ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("modifiers")
+}
+
+model MenuItemModifierGroup {
+  menuItemId      String
+  modifierGroupId String
+  sortOrder       Int    @default(0)
+
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, modifierGroupId])
+  @@map("menu_item_modifier_groups")
+}
+
+model PricingOverride {
+  id          String   @id @default(cuid())
+  menuItemId  String
+  name        String
+  price       Float
+  startTime   String
+  endTime     String
+  daysOfWeek  Int[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("pricing_overrides")
+}
+
+// ==========================================
+// TAXES & DISCOUNTS
+// ==========================================
+
+model Tax {
+  id           String   @id @default(cuid())
+  restaurantId String
+  name         String
+  type         TaxType  @default(PERCENTAGE)
+  rate         Float
+  isDefault    Boolean  @default(false)
+  appliesToAll Boolean  @default(true)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  restaurant  Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categories  CategoryTax[]
+  menuItems   MenuItemTax[]
+
+  @@map("taxes")
+}
+
+model CategoryTax {
+  categoryId String
+  taxId      String
+
+  category MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tax      Tax          @relation(fields: [taxId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, taxId])
+  @@map("category_taxes")
+}
+
+model MenuItemTax {
+  menuItemId String
+  taxId      String
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  tax      Tax      @relation(fields: [taxId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, taxId])
+  @@map("menu_item_taxes")
+}
+
+model Discount {
+  id                      String       @id @default(cuid())
+  restaurantId            String
+  name                    String
+  type                    DiscountType @default(PERCENTAGE)
+  value                   Float
+  requiresManagerApproval Boolean      @default(false)
+  isActive                Boolean      @default(true)
+  code                    String?
+  maxUses                 Int?
+  useCount                Int          @default(0)
+  expiresAt               DateTime?
+  createdAt               DateTime     @default(now())
+
+  restaurant     Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderDiscounts OrderDiscount[]
+
+  @@map("discounts")
+}
+
+model HappyHour {
+  id            String       @id @default(cuid())
+  restaurantId  String
+  name          String
+  startTime     String
+  endTime       String
+  daysOfWeek    Int[]
+  discountType  DiscountType @default(PERCENTAGE)
+  discountValue Float
+  categoryIds   String[]     @default([])
+  itemIds       String[]     @default([])
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("happy_hours")
+}
+
+// ==========================================
+// TABLES & FLOOR PLAN
+// ==========================================
+
+model Table {
+  id         String      @id @default(cuid())
+  locationId String
+  name       String
+  capacity   Int         @default(4)
+  status     TableStatus @default(AVAILABLE)
+  positionX  Float       @default(0)
+  positionY  Float       @default(0)
+  shape      String      @default("rectangle")
+  section    String?
+  width      Float       @default(80)
+  height     Float       @default(80)
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  orders   Order[]
+
+  @@map("tables")
+}
+
+// ==========================================
+// ORDERS
+// ==========================================
+
+model Order {
+  id             String      @id @default(cuid())
+  restaurantId   String
+  locationId     String
+  tableId        String?
+  tableName      String?
+  serverId       String
+  serverName     String
+  status         OrderStatus @default(OPEN)
+  type           OrderType   @default(DINE_IN)
+  guestCount     Int?
+  subtotal       Float       @default(0)
+  taxTotal       Float       @default(0)
+  discountTotal  Float       @default(0)
+  tipTotal       Float       @default(0)
+  total          Float       @default(0)
+  notes          String?
+  customerName   String?
+  customerPhone  String?
+  customerEmail  String?
+  firedAt        DateTime?
+  paidAt         DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  restaurant  Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location    Location        @relation(fields: [locationId], references: [id])
+  table       Table?          @relation(fields: [tableId], references: [id])
+  server      User            @relation(fields: [serverId], references: [id])
+  items       OrderItem[]
+  payments    Payment[]
+  discounts   OrderDiscount[]
+  kdsTickets  KDSTicket[]
+  auditLogs   AuditLog[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String        @id @default(cuid())
+  orderId        String
+  menuItemId     String
+  menuItemName   String
+  quantity       Int           @default(1)
+  unitPrice      Float
+  totalPrice     Float
+  modifiers      Json          @default("[]")
+  notes          String?
+  status         KDSItemStatus @default(PENDING)
+  courseNumber   Int           @default(1)
+  seatNumber     Int?
+  isFired        Boolean       @default(false)
+  firedAt        DateTime?
+  isVoided       Boolean       @default(false)
+  voidReason     String?
+  voidedBy       String?
+  voidedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderDiscount {
+  id         String  @id @default(cuid())
+  orderId    String
+  discountId String?
+  name       String
+  type       String
+  value      Float
+  amount     Float
+  appliedBy  String
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  discount Discount? @relation(fields: [discountId], references: [id])
+
+  @@map("order_discounts")
+}
+
+// ==========================================
+// PAYMENTS
+// ==========================================
+
+model Payment {
+  id          String        @id @default(cuid())
+  orderId     String
+  method      PaymentMethod
+  status      PaymentStatus @default(PENDING)
+  amount      Float
+  tipAmount   Float         @default(0)
+  referenceId String?
+  processedBy String
+  giftCardId  String?
+  notes       String?
+  processedAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  giftCard GiftCard? @relation(fields: [giftCardId], references: [id])
+
+  @@map("payments")
+}
+
+model GiftCard {
+  id           String   @id @default(cuid())
+  restaurantId String
+  code         String   @unique
+  balance      Float
+  initialValue Float
+  isActive     Boolean  @default(true)
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payments   Payment[]
+
+  @@map("gift_cards")
+}
+
+// ==========================================
+// KDS
+// ==========================================
+
+model KDSTicket {
+  id           String        @id @default(cuid())
+  orderId      String
+  stationId    String
+  status       KDSItemStatus @default(PENDING)
+  priority     String        @default("normal")
+  courseNumber Int           @default(1)
+  items        Json          @default("[]")
+  firedAt      DateTime?
+  bumpedAt     DateTime?
+  recalledAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  station Station @relation(fields: [stationId], references: [id])
+
+  @@map("kds_tickets")
+}
+
+// ==========================================
+// STATIONS
+// ==========================================
+
+model Station {
+  id           String      @id @default(cuid())
+  restaurantId String
+  locationId   String
+  name         String
+  type         StationType @default(KITCHEN)
+  color        String      @default("#3B82F6")
+  isActive     Boolean     @default(true)
+  displayOrder Int         @default(0)
+  createdAt    DateTime    @default(now())
+
+  restaurant  Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location    Location          @relation(fields: [locationId], references: [id])
+  categories  StationCategory[]
+  kdsTickets  KDSTicket[]
+
+  @@map("stations")
+}
+
+model StationCategory {
+  stationId  String
+  categoryId String
+
+  station  Station      @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  category MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([stationId, categoryId])
+  @@map("station_categories")
+}
+
+// ==========================================
+// INVENTORY
+// ==========================================
+
+model InventoryItem {
+  id              String   @id @default(cuid())
+  restaurantId    String
+  name            String
+  unit            String   @default("unit")
+  currentStock    Float    @default(0)
+  minimumStock    Float    @default(0)
+  costPerUnit     Float    @default(0)
+  vendorId        String?
+  lastRestockedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  restaurant    Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  vendor        Vendor?            @relation(fields: [vendorId], references: [id])
+  menuItemLinks InventoryItemLink[]
+  stockMovements StockMovement[]
+
+  @@map("inventory_items")
+}
+
+model InventoryItemLink {
+  inventoryItemId String
+  menuItemId      String
+  quantityPerUnit Float @default(1)
+
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@id([inventoryItemId, menuItemId])
+  @@map("inventory_item_links")
+}
+
+model StockMovement {
+  id              String   @id @default(cuid())
+  inventoryItemId String
+  type            String   // RESTOCK, USAGE, ADJUSTMENT, WASTE
+  quantity        Float
+  notes           String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@map("stock_movements")
+}
+
+model Vendor {
+  id           String @id @default(cuid())
+  restaurantId String
+  name         String
+  email        String?
+  phone        String?
+  website      String?
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  restaurant     Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  inventoryItems InventoryItem[]
+
+  @@map("vendors")
+}
+
+// ==========================================
+// COMBOS
+// ==========================================
+
+model Combo {
+  id           String   @id @default(cuid())
+  restaurantId String
+  name         String
+  description  String?
+  image        String?
+  price        Float
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      ComboItem[]
+
+  @@map("combos")
+}
+
+model ComboItem {
+  id                  String  @id @default(cuid())
+  comboId             String
+  menuItemId          String
+  quantity            Int     @default(1)
+  allowSubstitutions  Boolean @default(false)
+
+  combo    Combo    @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@map("combo_items")
+}
+
+// ==========================================
+// WORKFLOW BUILDER
+// ==========================================
+
+model WorkflowConfig {
+  id           String   @id @default(cuid())
+  restaurantId String
+  role         UserRole
+  screenLayout Json     @default("{}")
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant  Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  quickButtons QuickButton[]
+  autoPrompts  AutoPrompt[]
+  upsellRules  UpsellRule[]
+
+  @@unique([restaurantId, role])
+  @@map("workflow_configs")
+}
+
+model QuickButton {
+  id               String @id @default(cuid())
+  workflowConfigId String
+  menuItemId       String
+  position         Int
+  color            String?
+
+  workflowConfig WorkflowConfig @relation(fields: [workflowConfigId], references: [id], onDelete: Cascade)
+  menuItem       MenuItem       @relation(fields: [menuItemId], references: [id])
+
+  @@map("quick_buttons")
+}
+
+model AutoPrompt {
+  id               String @id @default(cuid())
+  workflowConfigId String
+  triggerItemId    String
+  modifierGroupId  String
+  message          String
+
+  workflowConfig WorkflowConfig @relation(fields: [workflowConfigId], references: [id], onDelete: Cascade)
+  triggerItem    MenuItem       @relation(fields: [triggerItemId], references: [id])
+  modifierGroup  ModifierGroup  @relation(fields: [modifierGroupId], references: [id])
+
+  @@map("auto_prompts")
+}
+
+model UpsellRule {
+  id               String  @id @default(cuid())
+  workflowConfigId String
+  triggerItemId    String
+  message          String
+  isActive         Boolean @default(true)
+
+  workflowConfig  WorkflowConfig @relation(fields: [workflowConfigId], references: [id], onDelete: Cascade)
+  triggerItem     MenuItem       @relation("UpsellTrigger", fields: [triggerItemId], references: [id])
+  suggestedItems  MenuItem[]     @relation("UpsellTarget")
+
+  @@map("upsell_rules")
+}
+
+// ==========================================
+// AUDIT LOG
+// ==========================================
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  restaurantId String
+  userId       String?
+  userName     String?
+  action       String
+  entityType   String
+  entityId     String?
+  details      Json?
+  orderId      String?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  OWNER
+  MANAGER
+  SERVER
+  BARTENDER
+  CASHIER
+  EXPO
+  KDS
+}
+
+enum ServiceMode {
+  FULL_SERVICE
+  QUICK_SERVICE
+  BAR
+  FOOD_TRUCK
+}
+
+enum DayPart {
+  BREAKFAST
+  LUNCH
+  DINNER
+  LATE_NIGHT
+  ALL_DAY
+}
+
+enum MenuItemStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+}
+
+enum ModifierType {
+  SINGLE
+  MULTIPLE
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  DIRTY
+  BLOCKED
+}
+
+enum OrderStatus {
+  DRAFT
+  OPEN
+  SENT
+  IN_PROGRESS
+  READY
+  SERVED
+  PAID
+  VOID
+  REFUNDED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEOUT
+  DELIVERY
+  BAR
+}
+
+enum KDSItemStatus {
+  PENDING
+  IN_PROGRESS
+  READY
+  SERVED
+  VOIDED
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  GIFT_CARD
+  SPLIT
+  COMP
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  VOIDED
+  REFUNDED
+}
+
+enum TaxType {
+  PERCENTAGE
+  FLAT
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FLAT
+  COMP
+}
+
+enum StationType {
+  KITCHEN
+  BAR
+  EXPO
+  GRILL
+  FRY
+  DESSERT
+  CUSTOM
+}
+
+enum ClockEventType {
+  CLOCK_IN
+  CLOCK_OUT
+  BREAK_START
+  BREAK_END
+}

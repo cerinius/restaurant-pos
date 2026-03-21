@@ -1,0 +1,23 @@
+
+{
+  "name": "@pos/db",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+      "generate": "prisma generate --schema=prisma/schema.prisma",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "ts-node --project tsconfig.json prisma/seed.ts",
+    "studio": "prisma studio",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.8.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

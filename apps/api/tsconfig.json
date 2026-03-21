@@ -1,0 +1,22 @@
+
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "strict": false,
+"noImplicitAny": false,
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "../..",
+    "baseUrl": "../..",
+    "paths": {
+      "@pos/db": ["packages/db/src"],
+      "@pos/shared": ["packages/shared/src"]
+    },
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "../../packages/db/src/**/*.ts", "../../packages/shared/src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

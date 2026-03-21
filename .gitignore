@@ -1,0 +1,40 @@
+
+# Dependencies
+node_modules/
+.npm
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Prisma
+packages/db/prisma/migrations/
+
+# PWA
+apps/web/public/sw.js
+apps/web/public/workbox-*.js
+apps/web/public/worker-*.js
+
+# TypeScript
+*.tsbuildinfo

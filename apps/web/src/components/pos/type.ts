@@ -1,0 +1,1 @@
+export type POSView = 'tables' | 'menu' | 'open-orders';
