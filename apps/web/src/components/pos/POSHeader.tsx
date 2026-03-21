@@ -12,6 +12,7 @@ import {
   ArrowLeftOnRectangleIcon,
   Cog6ToothIcon,
   BellIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { posWS } from '@/hooks/useWebSocket';
 
@@ -28,10 +29,15 @@ const NAV: Array<{ id: POSView; label: string; Icon: React.ComponentType<React.S
   { id: 'open-orders', label: 'Open Orders', Icon: ClipboardDocumentListIcon },
 ];
 
+const ADMIN_ROLES = ['OWNER', 'MANAGER'];
+
 export function POSHeader({ view, onViewChange, onNewOrder, hasActiveOrder }: Props) {
   const { user, clearAuth } = useAuthStore();
   const { unreadCount } = useNotificationStore();
   const router = useRouter();
+
+  const canAccessAdmin =
+    !!user?.role && ADMIN_ROLES.includes(String(user.role).toUpperCase());
 
   const handleLogout = async () => {
     try {
@@ -89,6 +95,18 @@ export function POSHeader({ view, onViewChange, onNewOrder, hasActiveOrder }: Pr
       </nav>
 
       <div className="ml-auto flex items-center gap-2">
+        {canAccessAdmin && (
+          <button
+            type="button"
+            onClick={() => router.push('/admin')}
+            className="flex items-center gap-2 px-3 h-9 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white transition"
+            title="Admin Panel"
+          >
+            <ShieldCheckIcon className="w-4 h-4" />
+            <span>Admin</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onNewOrder}
