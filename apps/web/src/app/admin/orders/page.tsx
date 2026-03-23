@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -30,7 +30,7 @@ export default function OrdersAdminPage() {
   const [page,          setPage]          = useState(1);
   const [expandedId,    setExpandedId]    = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['admin-orders', dateFrom, dateTo, statusFilter, typeFilter, page],
     queryFn: () => api.getOrders({
       dateFrom, dateTo,
@@ -39,6 +39,7 @@ export default function OrdersAdminPage() {
       page:   String(page),
       limit:  '30',
     }),
+    placeholderData: keepPreviousData,
   });
 
   const voidMutation = useMutation({
@@ -79,6 +80,11 @@ export default function OrdersAdminPage() {
           <div className="text-xs text-slate-400 self-end pb-2">
             {pagination.total || 0} orders
           </div>
+          {isFetching && !isLoading && (
+            <div className="self-end pb-2 text-xs font-medium text-cyan-300">
+              Updating results...
+            </div>
+          )}
         </div>
       </div>
 

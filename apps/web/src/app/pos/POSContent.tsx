@@ -475,7 +475,7 @@ export default function POSContent({ initialData }: POSContentProps) {
   ]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-950">
+    <div className="flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#07111f_0%,#0c1728_52%,#020617_100%)]">
       <POSHeader
         view={view}
         onViewChange={setView}
@@ -487,7 +487,7 @@ export default function POSContent({ initialData }: POSContentProps) {
       />
 
       {isOffline && (
-        <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-300">
+        <div className="border-b border-amber-300/20 bg-amber-400/10 px-4 py-2 text-xs font-medium text-amber-100">
           Offline mode is active. Existing orders keep working and queued changes will sync when the
           connection returns.
         </div>

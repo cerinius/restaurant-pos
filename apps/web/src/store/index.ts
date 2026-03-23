@@ -2,6 +2,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import { setRememberedRestaurantId } from '@/lib/remembered-restaurant';
+
 const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
 function setSessionCookie(name: string, value: string) {
@@ -51,8 +53,10 @@ export const useAuthStore = create<AuthState>()(
           localStorage.setItem('pos_access_token', accessToken);
           localStorage.setItem('pos_refresh_token', refreshToken);
           localStorage.setItem('pos_user', JSON.stringify(user));
+          setRememberedRestaurantId(user.restaurantId || '');
           setSessionCookie('pos_token', accessToken);
           setSessionCookie('pos_refresh_token', refreshToken);
+          setSessionCookie('pos_restaurant_id', user.restaurantId || '');
           setSessionCookie('pos_location_id', user.locationId || user.locationIds[0] || '');
         }
         set({
@@ -79,6 +83,7 @@ export const useAuthStore = create<AuthState>()(
           localStorage.removeItem('pos_user');
           clearSessionCookie('pos_token');
           clearSessionCookie('pos_refresh_token');
+          clearSessionCookie('pos_restaurant_id');
           clearSessionCookie('pos_location_id');
         }
         set({

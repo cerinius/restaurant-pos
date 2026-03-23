@@ -9,6 +9,7 @@ import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -128,11 +129,31 @@ export default function HappyHoursPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState<any>(null);
 
-  const { data: hhData }  = useQuery({ queryKey: ['happy-hours'],     queryFn: () => api.getHappyHours() });
-  const { data: catData } = useQuery({ queryKey: ['categories-admin'], queryFn: () => api.getCategories() });
+  const { data: hhData, isLoading: happyHoursLoading }  = useQuery({ queryKey: ['happy-hours'],     queryFn: () => api.getHappyHours() });
+  const { data: catData, isLoading: categoriesLoading } = useQuery({ queryKey: ['categories-admin'], queryFn: () => api.getCategories() });
 
   const happyHours: any[] = hhData?.data  || [];
   const categories: any[] = catData?.data || [];
+
+  if ((happyHoursLoading || categoriesLoading) && happyHours.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-40" />
+          <SkeletonBlock className="mt-2 h-4 w-44" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading happy hour rules"
+            description="We are syncing time-based pricing and category eligibility."
+          />
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SkeletonBlock key={index} className="h-24 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteHappyHour(id),

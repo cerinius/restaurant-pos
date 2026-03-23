@@ -1,18 +1,16 @@
 import { redirect } from 'next/navigation';
 
-import KDSShell from './KDSShell';
-import { getKDSBootstrap, getServerSession } from '@/lib/server-api';
+import { getServerSession } from '@/lib/server-api';
+import { getRestaurantKDSPath } from '@/lib/paths';
 
 export const dynamic = 'force-dynamic';
 
 export default async function KDSPage() {
-  const { token, locationId } = getServerSession();
+  const { token, restaurantId } = getServerSession();
 
-  if (!token) {
+  if (!token || !restaurantId) {
     redirect('/login');
   }
 
-  const initialData = await getKDSBootstrap(token, locationId);
-
-  return <KDSShell initialData={initialData} />;
+  redirect(getRestaurantKDSPath(restaurantId));
 }

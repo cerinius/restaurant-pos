@@ -37,6 +37,7 @@ import {
   type FloorTableTemplate,
 } from '@/lib/floor-plan';
 import { useAuthStore } from '@/store';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 const STATUS_STYLES: Record<string, string> = {
   AVAILABLE: 'bg-emerald-900/60 border-emerald-600 text-emerald-200',
@@ -132,19 +133,19 @@ export default function FloorPlanPage() {
   const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
   const [isAddingBarSeats, setIsAddingBarSeats] = useState(false);
 
-  const { data } = useQuery({
+  const { data, isLoading: tablesLoading } = useQuery({
     queryKey: ['tables-floor', locationId],
     queryFn: () => api.getTables({ locationId }),
     enabled: !!locationId,
   });
 
-  const { data: locationsData } = useQuery({
+  const { data: locationsData, isLoading: locationsLoading } = useQuery({
     queryKey: ['locations'],
     queryFn: () => api.getLocations(),
     enabled: !!locationId,
   });
 
-  const { data: staffData } = useQuery({
+  const { data: staffData, isLoading: staffLoading } = useQuery({
     queryKey: ['staff'],
     queryFn: () => api.getStaff(),
     enabled: !!locationId,
@@ -158,6 +159,24 @@ export default function FloorPlanPage() {
     () => coerceFloorPlan(currentLocation?.settings?.floorPlan, tables),
     [currentLocation?.settings?.floorPlan, tables]
   );
+
+  if ((tablesLoading || locationsLoading || staffLoading) && !currentLocation && tables.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-40" />
+          <SkeletonBlock className="mt-2 h-4 w-56" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading floor plan"
+            description="We are pulling rooms, table layouts, sections, and assignments."
+          />
+          <SkeletonBlock className="h-[520px] w-full" />
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!isFloorPlanDirty) {

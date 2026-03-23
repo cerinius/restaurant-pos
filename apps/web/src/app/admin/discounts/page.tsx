@@ -9,6 +9,7 @@ import { PlusIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 function DiscountForm({ discount, onClose, onSaved }: any) {
   const isEdit = !!discount;
@@ -117,8 +118,30 @@ export default function DiscountsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState<any>(null);
 
-  const { data } = useQuery({ queryKey: ['discounts'], queryFn: () => api.getDiscounts() });
+  const { data, isLoading } = useQuery({ queryKey: ['discounts'], queryFn: () => api.getDiscounts() });
   const discounts: any[] = data?.data || [];
+
+  if (isLoading && discounts.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-32" />
+          <SkeletonBlock className="mt-2 h-4 w-32" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading discounts"
+            description="We are pulling manager approvals, codes, and discount rules."
+          />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <SkeletonBlock key={index} className="h-44 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const deactivateMutation = useMutation({
     mutationFn: (id: string) => api.updateDiscount(id, { isActive: false }),

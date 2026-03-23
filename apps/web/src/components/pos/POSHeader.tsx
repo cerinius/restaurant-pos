@@ -19,6 +19,7 @@ import {
 import type { POSView } from '@/components/pos/type';
 import { posWS } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
+import { getRestaurantAdminPath, getRestaurantLoginPath } from '@/lib/paths';
 import { useAuthStore, useNotificationStore } from '@/store';
 
 interface Props {
@@ -87,12 +88,13 @@ export function POSHeader({
 
     clearAuth();
     toast.success('Logged out');
-    router.replace('/login');
+    router.replace(getRestaurantLoginPath(user?.restaurantId || 'restaurant'));
   };
 
   const goToAdmin = () => {
     closeMobileActions();
-    router.push('/admin');
+    if (!user?.restaurantId) return;
+    router.push(getRestaurantAdminPath(user.restaurantId));
   };
 
   const handleNewOrder = () => {
@@ -102,28 +104,28 @@ export function POSHeader({
 
   return (
     <>
-      <header className="relative z-20 shrink-0 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+      <header className="relative z-20 shrink-0 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl">
         <div className="flex min-h-16 items-center gap-3 px-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-sm font-bold text-white">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_16px_34px_rgba(34,211,238,0.18)]">
             POS
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-bold text-slate-100">RestaurantOS</p>
+              <p className="truncate text-sm font-bold text-slate-100">RestaurantOS Service</p>
               {isOffline && (
-                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">
+                <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
                   Offline
                 </span>
               )}
             </div>
-            <p className="truncate text-xs text-slate-500">
+            <p className="truncate text-xs text-slate-400">
               {user?.name || 'Staff'} | {timeLabel}
             </p>
           </div>
 
           <div className="hidden items-center gap-2 md:flex">
-            <nav className="flex items-center gap-1 rounded-2xl border border-slate-800 bg-slate-900/90 p-1">
+            <nav className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
               {NAV_ITEMS.map(({ id, label, Icon }) => {
                 const active = view === id;
 
@@ -135,8 +137,8 @@ export function POSHeader({
                     className={clsx(
                       'touch-target inline-flex items-center gap-2 rounded-xl px-3 text-sm font-medium transition',
                       active
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                        ? 'bg-cyan-300 text-slate-950'
+                        : 'text-slate-200 hover:bg-white/8 hover:text-white',
                     )}
                   >
                     <Icon className="h-4 w-4" />
@@ -151,8 +153,8 @@ export function POSHeader({
                 className={clsx(
                   'touch-target inline-flex items-center gap-2 rounded-xl px-3 text-sm font-medium transition',
                   isOrderPanelOpen
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                    ? 'bg-emerald-400 text-slate-950'
+                    : 'text-slate-200 hover:bg-white/8 hover:text-white',
                 )}
               >
                 <CreditCardIcon className="h-4 w-4" />
@@ -167,8 +169,8 @@ export function POSHeader({
               className={clsx(
                 'touch-target inline-flex items-center gap-2 rounded-2xl px-4 text-sm font-semibold transition',
                 hasActiveOrder
-                  ? 'cursor-not-allowed bg-slate-800 text-slate-500'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-500',
+                  ? 'cursor-not-allowed bg-white/5 text-slate-500'
+                  : 'bg-emerald-400 text-slate-950 hover:bg-emerald-300',
               )}
             >
               <PlusIcon className="h-4 w-4" />
@@ -179,29 +181,29 @@ export function POSHeader({
               <button
                 type="button"
                 onClick={goToAdmin}
-                className="touch-target inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500"
+                className="touch-target inline-flex items-center gap-2 rounded-2xl bg-white/5 px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
               >
                 <ShieldCheckIcon className="h-4 w-4" />
                 Admin
               </button>
             )}
 
-            <div className="hidden items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 px-3 py-2 lg:flex">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-sm font-bold text-white">
+            <div className="hidden items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 lg:flex">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-bold text-slate-950">
                 {user?.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-100">
                   {user?.name || 'User'}
                 </p>
-                <p className="truncate text-xs text-slate-500">{user?.role || 'Staff'}</p>
+                <p className="truncate text-xs text-slate-400">{user?.role || 'Staff'}</p>
               </div>
             </div>
 
             <button
               type="button"
               onClick={handleLogout}
-              className="touch-target inline-flex items-center justify-center rounded-2xl bg-slate-800 px-3 text-slate-300 transition hover:bg-red-600 hover:text-white"
+              className="touch-target inline-flex items-center justify-center rounded-2xl bg-white/5 px-3 text-slate-200 transition hover:bg-red-500/15 hover:text-white"
               aria-label="Log out"
             >
               <ArrowLeftOnRectangleIcon className="h-5 w-5" />
@@ -211,7 +213,7 @@ export function POSHeader({
           <button
             type="button"
             onClick={() => setShowMobileActions(true)}
-            className="touch-target relative inline-flex items-center justify-center rounded-2xl bg-slate-800 px-3 text-slate-100 transition hover:bg-slate-700 md:hidden"
+            className="touch-target relative inline-flex items-center justify-center rounded-2xl bg-white/5 px-3 text-slate-100 transition hover:bg-white/10 md:hidden"
             aria-label="Open POS actions"
           >
             <Bars3Icon className="h-5 w-5" />
@@ -233,27 +235,27 @@ export function POSHeader({
             aria-label="Close POS actions"
           />
 
-          <div className="absolute inset-x-4 top-20 rounded-[28px] border border-slate-700 bg-slate-900/95 p-4 shadow-2xl">
-            <div className="flex items-start gap-3 border-b border-slate-800 pb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-base font-bold text-white">
+          <div className="absolute inset-x-4 top-20 rounded-[28px] border border-white/10 bg-slate-950/95 p-4 shadow-2xl">
+            <div className="flex items-start gap-3 border-b border-white/10 pb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-base font-bold text-slate-950">
                 {user?.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-100">
                   {user?.name || 'User'}
                 </p>
-                <p className="truncate text-xs text-slate-500">{user?.role || 'Staff'}</p>
+                <p className="truncate text-xs text-slate-400">{user?.role || 'Staff'}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium">
-                  <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-1 text-slate-300">
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-200">
                     {timeLabel}
                   </span>
                   {isOffline && (
-                    <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-300">
+                    <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-amber-100">
                       Offline mode
                     </span>
                   )}
                   {unreadCount > 0 && (
-                    <span className="rounded-full border border-red-500/20 bg-red-500/10 px-2 py-1 text-red-300">
+                    <span className="rounded-full border border-red-300/20 bg-red-400/10 px-2 py-1 text-red-100">
                       {unreadCount} unread alerts
                     </span>
                   )}
@@ -262,7 +264,7 @@ export function POSHeader({
               <button
                 type="button"
                 onClick={closeMobileActions}
-                className="touch-target inline-flex items-center justify-center rounded-2xl bg-slate-800 px-3 text-slate-200"
+                className="touch-target inline-flex items-center justify-center rounded-2xl bg-white/5 px-3 text-slate-200"
                 aria-label="Close menu"
               >
                 <XMarkIcon className="h-5 w-5" />
@@ -277,8 +279,8 @@ export function POSHeader({
                 className={clsx(
                   'touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border px-4 text-left text-sm font-semibold transition',
                   hasActiveOrder
-                    ? 'cursor-not-allowed border-slate-800 bg-slate-800 text-slate-500'
-                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+                    ? 'cursor-not-allowed border-white/10 bg-white/5 text-slate-500'
+                    : 'border-emerald-300/20 bg-emerald-400/10 text-emerald-100',
                 )}
               >
                 <PlusIcon className="h-5 w-5 shrink-0" />
@@ -289,7 +291,7 @@ export function POSHeader({
                 <button
                   type="button"
                   onClick={goToAdmin}
-                  className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/10 px-4 text-left text-sm font-semibold text-violet-100 transition"
+                  className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 text-left text-sm font-semibold text-slate-100 transition"
                 >
                   <ShieldCheckIcon className="h-5 w-5 shrink-0" />
                   Admin
@@ -301,7 +303,7 @@ export function POSHeader({
                     closeMobileActions();
                     onViewChange('tables');
                   }}
-                  className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-slate-800 bg-slate-800 px-4 text-left text-sm font-semibold text-slate-200 transition"
+                  className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 text-left text-sm font-semibold text-slate-200 transition"
                 >
                   <TableCellsIcon className="h-5 w-5 shrink-0" />
                   Floor Plan
@@ -314,7 +316,7 @@ export function POSHeader({
                   closeMobileActions();
                   onViewChange('open-orders');
                 }}
-                className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-slate-700 bg-slate-800 px-4 text-left text-sm font-semibold text-slate-100 transition"
+                className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 text-left text-sm font-semibold text-slate-100 transition"
               >
                 <ClipboardDocumentListIcon className="h-5 w-5 shrink-0" />
                 Open Orders
@@ -323,7 +325,7 @@ export function POSHeader({
               <button
                 type="button"
                 onClick={handleLogout}
-                className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 text-left text-sm font-semibold text-red-200 transition"
+                className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-red-300/20 bg-red-400/10 px-4 text-left text-sm font-semibold text-red-100 transition"
               >
                 <ArrowLeftOnRectangleIcon className="h-5 w-5 shrink-0" />
                 Log Out
@@ -333,7 +335,7 @@ export function POSHeader({
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-800 bg-slate-950/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-slate-950/88 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur-xl md:hidden">
         <div className="grid grid-cols-4 gap-2">
           {NAV_ITEMS.map(({ id, label, Icon }) => {
             const active = view === id;
@@ -346,8 +348,8 @@ export function POSHeader({
                 className={clsx(
                   'touch-target flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 text-[11px] font-semibold transition',
                   active
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+                    ? 'bg-cyan-300 text-slate-950'
+                    : 'bg-white/5 text-slate-400 hover:bg-white/8 hover:text-slate-100',
                 )}
               >
                 <Icon className="h-5 w-5" />
@@ -362,8 +364,8 @@ export function POSHeader({
             className={clsx(
               'touch-target flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 text-[11px] font-semibold transition',
               isOrderPanelOpen
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+                ? 'bg-emerald-400 text-slate-950'
+                : 'bg-white/5 text-slate-400 hover:bg-white/8 hover:text-slate-100',
             )}
           >
             <CreditCardIcon className="h-5 w-5" />

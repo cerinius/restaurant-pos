@@ -1,18 +1,16 @@
 import { redirect } from 'next/navigation';
 
-import POSShell from './POSShell';
-import { getPOSBootstrap, getServerSession } from '@/lib/server-api';
+import { getServerSession } from '@/lib/server-api';
+import { getRestaurantPOSPath } from '@/lib/paths';
 
 export const dynamic = 'force-dynamic';
 
 export default async function POSPage() {
-  const { token, locationId } = getServerSession();
+  const { token, restaurantId } = getServerSession();
 
-  if (!token) {
+  if (!token || !restaurantId) {
     redirect('/login');
   }
 
-  const initialData = await getPOSBootstrap(token, locationId);
-
-  return <POSShell initialData={initialData} />;
+  redirect(getRestaurantPOSPath(restaurantId));
 }

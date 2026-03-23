@@ -9,6 +9,7 @@ import { PlusIcon, PencilIcon, TrashIcon, KeyIcon } from '@heroicons/react/24/ou
 import { motion } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 const ROLES = ['OWNER','MANAGER','SERVER','BARTENDER','CASHIER','EXPO','KDS'];
 const ROLE_COLORS: Record<string,string> = {
@@ -134,11 +135,37 @@ export default function StaffPage() {
   const [resetPinFor, setResetPinFor] = useState<any>(null);
   const [newPin, setNewPin] = useState('');
 
-  const { data: staffData }     = useQuery({ queryKey: ['staff'],     queryFn: () => api.getStaff() });
-  const { data: locationsData } = useQuery({ queryKey: ['locations'], queryFn: () => api.getLocations() });
+  const { data: staffData, isLoading: staffLoading }     = useQuery({ queryKey: ['staff'],     queryFn: () => api.getStaff() });
+  const { data: locationsData, isLoading: locationsLoading } = useQuery({ queryKey: ['locations'], queryFn: () => api.getLocations() });
 
   const staffList: any[]  = staffData?.data    || [];
   const locations: any[]  = locationsData?.data || [];
+
+  if ((staffLoading || locationsLoading) && staffList.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-52" />
+          <SkeletonBlock className="mt-2 h-4 w-40" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading staff roster"
+            description="We are syncing team members, roles, and location access."
+          />
+          <div className="card overflow-hidden p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-4 border-b border-slate-800 py-4 last:border-b-0">
+                <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
+                <SkeletonBlock className="h-5 w-40" />
+                <SkeletonBlock className="ml-auto h-5 w-24" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteStaff(id),

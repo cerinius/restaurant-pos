@@ -10,6 +10,7 @@ import swaggerUi from '@fastify/swagger-ui';
 
 import { prisma } from '@pos/db';
 import { wsManager } from './websocket/manager';
+import { isTrialExpired } from './lib/trial';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -32,6 +33,7 @@ import taxRoutes from './routes/taxes';
 import giftCardRoutes from './routes/giftCards';
 import comboRoutes from './routes/combos';
 import auditRoutes from './routes/audit';
+import saasRoutes from './routes/saas';
 
 const KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -146,6 +148,18 @@ async function bootstrap() {
   app.decorate('authenticate', async function (request: any, reply: any) {
     try {
       await request.jwtVerify();
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: request.user.restaurantId },
+        select: { settings: true, isActive: true },
+      });
+
+      if (!restaurant || !restaurant.isActive) {
+        return reply.code(403).send({ success: false, error: 'Restaurant account is not active' });
+      }
+
+      if (isTrialExpired(restaurant.settings)) {
+        return reply.code(403).send({ success: false, error: 'Your 7-day demo has expired' });
+      }
     } catch (err) {
       reply.code(401).send({ success: false, error: 'Unauthorized' });
     }
@@ -189,6 +203,7 @@ async function bootstrap() {
   await app.register(giftCardRoutes,   { prefix: '/api/gift-cards' });
   await app.register(comboRoutes,      { prefix: '/api/combos' });
   await app.register(auditRoutes,      { prefix: '/api/audit' });
+  await app.register(saasRoutes,       { prefix: '/api/saas' });
   await app.register(wsRoutes,         { prefix: '/ws' });
 
   // ââ Start âââââââââââââââââââââââââââââââââââââââââââââââââ

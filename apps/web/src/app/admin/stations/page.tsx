@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 
 import api from '@/lib/api';
 import { useAuthStore } from '@/store';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 const STATION_TYPES = ['KITCHEN', 'BAR', 'EXPO', 'GRILL', 'FRY', 'DESSERT', 'CUSTOM'];
 
@@ -187,17 +188,17 @@ export default function StationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingStation, setEditingStation] = useState<any | null>(null);
 
-  const { data: stationData } = useQuery({
+  const { data: stationData, isLoading: stationsLoading } = useQuery({
     queryKey: ['admin-stations'],
     queryFn: () => api.getStations(),
   });
 
-  const { data: locationData } = useQuery({
+  const { data: locationData, isLoading: locationsLoading } = useQuery({
     queryKey: ['admin-locations'],
     queryFn: () => api.getLocations(),
   });
 
-  const { data: categoryData } = useQuery({
+  const { data: categoryData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['station-categories'],
     queryFn: () => api.getCategories(),
   });
@@ -214,6 +215,28 @@ export default function StationsPage() {
   const stations: any[] = stationData?.data || [];
   const locations: any[] = locationData?.data || [];
   const categories: any[] = categoryData?.data || [];
+
+  if ((stationsLoading || locationsLoading || categoriesLoading) && stations.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-36" />
+          <SkeletonBlock className="mt-2 h-4 w-72" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading KDS stations"
+            description="We are syncing station routing, locations, and category assignments."
+          />
+          <div className="grid gap-4 xl:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <SkeletonBlock key={index} className="h-52 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function getLocationName(id: string) {
     return locations.find((location) => location.id === id)?.name || 'Unknown location';

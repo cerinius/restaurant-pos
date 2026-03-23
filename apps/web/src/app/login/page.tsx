@@ -1,272 +1,142 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store';
-import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
 
-const DEMO_RESTAURANT_ID = process.env.NEXT_PUBLIC_DEMO_RESTAURANT_ID || '';
-const DEMO_LOCATION_ID   = process.env.NEXT_PUBLIC_DEMO_LOCATION_ID   || 'main-location';
+import api from '@/lib/api';
+import { resolveRestaurantHomePath } from '@/lib/paths';
+import { useAuthStore } from '@/store';
 
-const PIN_USERS = [
-  { name: 'Owner',     pin: '1234', role: 'OWNER',     color: 'bg-purple-600' },
-  { name: 'Manager',   pin: '2222', role: 'MANAGER',   color: 'bg-blue-600' },
-  { name: 'Server',    pin: '3333', role: 'SERVER',    color: 'bg-emerald-600' },
-  { name: 'Bartender', pin: '4444', role: 'BARTENDER', color: 'bg-amber-600' },
-];
-
-export default function LoginPage() {
+export default function OwnerLoginPage() {
   const router = useRouter();
-  const { setAuth, isAuthenticated } = useAuthStore();
-  const [pin, setPin] = useState('');
+  const { user, isAuthenticated, setAuth } = useAuthStore();
+  const [form, setForm] = useState({
+    slug: 'demo-restaurant',
+    email: '',
+    password: '',
+  });
   const [loading, setLoading] = useState(false);
-  const [restaurantId, setRestaurantId] = useState(DEMO_RESTAURANT_ID);
-  const [locationId, setLocationId] = useState(DEMO_LOCATION_ID);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-  const [adminForm, setAdminForm] = useState({ email: '', password: '', slug: 'demo-restaurant' });
-  const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) router.push('/pos');
-  }, [isAuthenticated, router]);
-
-  // Fetch restaurant ID from slug on mount
-  useEffect(() => {
-    if (!DEMO_RESTAURANT_ID) {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`)
-        .catch(() => {});
+    if (isAuthenticated && user?.restaurantId) {
+      router.replace(resolveRestaurantHomePath(user));
     }
-  }, []);
+  }, [isAuthenticated, router, user]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    setRedirectPath(params.get('redirect'));
-  }, []);
-
-  const handlePinPress = (digit: string) => {
-    if (pin.length < 6) setPin((p) => p + digit);
-  };
-
-  const handleBackspace = () => setPin((p) => p.slice(0, -1));
-
-  const handlePinLogin = async (pinValue?: string) => {
-    const loginPin = pinValue || pin;
-    if (loginPin.length < 4) {
-      toast.error('PIN must be at least 4 digits');
-      return;
-    }
-
-    // Need restaurantId â fetch via slug first
-    let rid = restaurantId;
-    if (!rid) {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/restaurants/slug/demo-restaurant`
-        );
-        const data = await res.json();
-        rid = data?.data?.id || '';
-        setRestaurantId(rid);
-      } catch {
-        toast.error('Cannot reach server â is the API running?');
-        return;
-      }
-    }
-
+  const handleLogin = async () => {
     setLoading(true);
     try {
-      const result = await api.pinLogin(loginPin, rid, locationId);
-      if (result.success) {
-        setAuth(result.data.user, result.data.accessToken, result.data.refreshToken);
-        toast.success(`Welcome, ${result.data.user.name}!`);
-        router.push(redirectPath || '/pos');
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Invalid PIN');
-      setPin('');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAdminLogin = async () => {
-    setLoading(true);
-    try {
-      const result = await api.login(adminForm.email, adminForm.password, adminForm.slug);
-      if (result.success) {
-        setAuth(result.data.user, result.data.accessToken, result.data.refreshToken);
-        toast.success(`Welcome, ${result.data.user.name}!`);
-        router.push(redirectPath || '/admin');
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Login failed');
+      const result = await api.login(form.email, form.password, form.slug);
+      setAuth(result.data.user, result.data.accessToken, result.data.refreshToken);
+      toast.success(`Welcome back, ${result.data.user.name}`);
+      router.replace(resolveRestaurantHomePath(result.data.user));
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Could not sign in');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/30">
-            <span className="text-3xl">ð½ï¸</span>
+    <main
+      className="flex min-h-screen items-center justify-center px-6 py-8 text-slate-50"
+      style={{
+        background:
+          'radial-gradient(circle at top left, rgba(34,211,238,0.16), transparent 28%), radial-gradient(circle at top right, rgba(245,158,11,0.12), transparent 22%), linear-gradient(180deg, #07111f 0%, #0c1728 52%, #020617 100%)',
+      }}
+    >
+      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="glass-panel p-8">
+          <p className="section-kicker">Owner and manager login</p>
+          <h1 className="mt-3 text-4xl font-black text-white">Sign into your restaurant workspace</h1>
+          <p className="mt-4 text-base leading-8 text-slate-300">
+            Owners enter from the root, then land inside their tenant-scoped admin experience automatically. That keeps the SaaS clean while making the first step simple.
+          </p>
+
+          <div className="mt-6 space-y-3">
+            {[
+              'Root login for owners and managers',
+              'Automatic redirect to the restaurant-scoped admin URL',
+              'Works cleanly with multi-restaurant SaaS growth',
+            ].map((item) => (
+              <div key={item} className="soft-panel p-4 text-sm text-slate-200">
+                {item}
+              </div>
+            ))}
           </div>
-          <h1 className="text-3xl font-bold text-gradient">RestaurantOS</h1>
-          <p className="text-slate-400 mt-1 text-sm">Professional Point of Sale</p>
-        </div>
+        </section>
 
-        <AnimatePresence mode="wait">
-          {!showAdminLogin ? (
-            <motion.div
-              key="pin"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="card p-6 space-y-5"
-            >
-              <h2 className="text-center text-lg font-semibold text-slate-200">Staff PIN Login</h2>
+        <section className="card p-8">
+          <div className="mb-6">
+            <p className="section-kicker">Secure access</p>
+            <h2 className="mt-2 text-3xl font-black text-white">Go to restaurant admin</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-400">
+              Use your restaurant slug, email, and password to jump into the owner dashboard, pricing controls, floor setup, and website settings.
+            </p>
+          </div>
 
-              {/* PIN Display */}
-              <div className="flex justify-center gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
-                      i < pin.length
-                        ? 'bg-blue-600 border-blue-500'
-                        : 'bg-slate-700 border-slate-600'
-                    }`}
-                  >
-                    {i < pin.length && <div className="w-3 h-3 bg-white rounded-full" />}
-                  </div>
-                ))}
-              </div>
+          <div className="space-y-4">
+            <div>
+              <label className="label">Restaurant slug</label>
+              <input
+                value={form.slug}
+                onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
+                className="input w-full"
+                placeholder="demo-restaurant"
+              />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                className="input w-full"
+              />
+            </div>
+            <div>
+              <label className="label">Password or PIN</label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                className="input w-full"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    handleLogin();
+                  }
+                }}
+              />
+            </div>
+          </div>
 
-              {/* Numpad */}
-              <div className="grid grid-cols-3 gap-3">
-                {['1','2','3','4','5','6','7','8','9','','0','â«'].map((key, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      if (key === 'â«') handleBackspace();
-                      else if (key !== '') handlePinPress(key);
-                    }}
-                    disabled={key === '' || loading}
-                    className={`h-14 rounded-xl font-bold text-xl transition-all active:scale-95 select-none ${
-                      key === ''
-                        ? 'opacity-0 cursor-default'
-                        : key === 'â«'
-                        ? 'bg-slate-600 hover:bg-slate-500 text-slate-300'
-                        : 'bg-slate-700 hover:bg-slate-600 text-slate-100'
-                    }`}
-                  >
-                    {key}
-                  </button>
-                ))}
-              </div>
+          <button
+            type="button"
+            onClick={handleLogin}
+            disabled={loading}
+            className="btn-primary mt-6 w-full"
+          >
+            {loading ? 'Signing in...' : 'Go to restaurant admin'}
+          </button>
 
-              {/* Login Button */}
-              <button
-                onClick={() => handlePinLogin()}
-                disabled={pin.length < 4 || loading}
-                className="btn-primary w-full h-14 text-lg"
-              >
-                {loading ? 'Verifying...' : 'Login'}
-              </button>
-
-              {/* Demo quick logins */}
-              <div className="pt-2 border-t border-slate-700">
-                <p className="text-xs text-slate-500 text-center mb-3">Quick demo login</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {PIN_USERS.map((u) => (
-                    <button
-                      key={u.pin}
-                      onClick={() => handlePinLogin(u.pin)}
-                      disabled={loading}
-                      className={`${u.color} hover:opacity-90 text-white text-xs font-semibold py-2.5 rounded-xl transition-all active:scale-95`}
-                    >
-                      {u.name} ({u.pin})
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowAdminLogin(true)}
-                className="w-full text-xs text-slate-500 hover:text-slate-300 text-center pt-1 transition-colors"
-              >
-                Admin / Email Login â
-              </button>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="admin"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="card p-6 space-y-4"
-            >
-              <h2 className="text-center text-lg font-semibold text-slate-200">Admin Login</h2>
-
-              <div>
-                <label className="label">Restaurant Slug</label>
-                <input
-                  type="text"
-                  value={adminForm.slug}
-                  onChange={(e) => setAdminForm({ ...adminForm, slug: e.target.value })}
-                  className="input w-full"
-                  placeholder="demo-restaurant"
-                />
-              </div>
-              <div>
-                <label className="label">Email</label>
-                <input
-                  type="email"
-                  value={adminForm.email}
-                  onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
-                  className="input w-full"
-                  placeholder="owner@example.com"
-                />
-              </div>
-              <div>
-                <label className="label">Password / PIN</label>
-                <input
-                  type="password"
-                  value={adminForm.password}
-                  onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
-                  className="input w-full"
-                  placeholder="â¢â¢â¢â¢"
-                  onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
-                />
-              </div>
-
-              <button
-                onClick={handleAdminLogin}
-                disabled={loading}
-                className="btn-primary w-full h-12"
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-
-              <button
-                onClick={() => setShowAdminLogin(false)}
-                className="w-full text-xs text-slate-500 hover:text-slate-300 text-center transition-colors"
-              >
-                â Back to PIN Login
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <p className="text-center text-xs text-slate-600 mt-6">
-          RestaurantOS v1.0 Â· All rights reserved
-        </p>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+            <Link href="/" className="hover:text-slate-200">
+              Back to homepage
+            </Link>
+            <Link href="/staff" className="hover:text-slate-200">
+              Staff access
+            </Link>
+            <Link href="/demo" className="hover:text-slate-200">
+              Start live demo
+            </Link>
+            <Link href="/admin/login" className="hover:text-slate-200">
+              SaaS admin
+            </Link>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

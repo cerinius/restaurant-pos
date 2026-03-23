@@ -10,6 +10,52 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { MenuItemForm } from '@/components/admin/MenuItemForm';
 import { CategoryForm } from '@/components/admin/CategoryForm';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
+
+const MENU_CATEGORIES_QUERY_KEY = ['categories-admin-with-items'];
+
+function MenuPageSkeleton() {
+  return (
+    <div className="flex flex-1 overflow-hidden">
+      <div className="flex w-52 shrink-0 flex-col border-r border-slate-700 bg-slate-900">
+        <div className="border-b border-slate-700 px-3 py-3">
+          <SkeletonBlock className="h-5 w-24" />
+        </div>
+        <div className="space-y-2 px-2 py-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <SkeletonBlock key={index} className="h-11 w-full" />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-52" />
+          <SkeletonBlock className="mt-2 h-4 w-20" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading menu workspace"
+            description="We are pulling categories, items, and modifier groups now."
+          />
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="card flex items-center gap-4 px-4 py-3">
+              <SkeletonBlock className="h-12 w-12 shrink-0" />
+              <div className="flex-1">
+                <SkeletonBlock className="h-5 w-48" />
+                <SkeletonBlock className="mt-2 h-4 w-72" />
+              </div>
+              <div className="w-20">
+                <SkeletonBlock className="h-5 w-full" />
+                <SkeletonBlock className="mt-2 h-4 w-14" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function MenuAdminPage() {
   const qc = useQueryClient();
@@ -19,8 +65,8 @@ export default function MenuAdminPage() {
   const [showItemForm, setShowItemForm]   = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
 
-  const { data: catData }  = useQuery({ queryKey: ['categories-admin'], queryFn: () => api.getCategories(true) });
-  const { data: modsData } = useQuery({ queryKey: ['modifier-groups'],  queryFn: () => api.getModifierGroups() });
+  const { data: catData, isLoading: categoriesLoading } = useQuery({ queryKey: MENU_CATEGORIES_QUERY_KEY, queryFn: () => api.getCategories(true) });
+  const { data: modsData, isLoading: modifierGroupsLoading } = useQuery({ queryKey: ['modifier-groups'],  queryFn: () => api.getModifierGroups() });
 
   const categories: any[] = catData?.data || [];
   const modGroups: any[]  = modsData?.data || [];
@@ -29,26 +75,30 @@ export default function MenuAdminPage() {
     ? categories.find((c) => c.id === activeCategoryId)
     : categories[0];
 
+  if ((categoriesLoading || modifierGroupsLoading) && categories.length === 0) {
+    return <MenuPageSkeleton />;
+  }
+
   const deleteCatMutation = useMutation({
     mutationFn: (id: string) => api.deleteCategory(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories-admin'] }); toast.success('Category deleted'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: MENU_CATEGORIES_QUERY_KEY }); toast.success('Category deleted'); },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Cannot delete'),
   });
 
   const deleteItemMutation = useMutation({
     mutationFn: (id: string) => api.deleteMenuItem(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories-admin'] }); toast.success('Item deleted'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: MENU_CATEGORIES_QUERY_KEY }); toast.success('Item deleted'); },
   });
 
   const toggleItemMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       status === 'OUT_OF_STOCK' ? api.eightySixItem(id, true) : api.eightySixItem(id, false),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories-admin'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MENU_CATEGORIES_QUERY_KEY }),
   });
 
   const eightySixMutation = useMutation({
     mutationFn: ({ id, restore }: { id: string; restore: boolean }) => api.eightySixItem(id, restore),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories-admin'] }); toast.success('Item status updated'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: MENU_CATEGORIES_QUERY_KEY }); toast.success('Item status updated'); },
   });
 
   return (
@@ -218,7 +268,7 @@ export default function MenuAdminPage() {
           onSaved={() => {
             setShowItemForm(false);
             setEditingItem(null);
-            qc.invalidateQueries({ queryKey: ['categories-admin'] });
+            qc.invalidateQueries({ queryKey: MENU_CATEGORIES_QUERY_KEY });
           }}
         />
       )}
@@ -231,7 +281,7 @@ export default function MenuAdminPage() {
           onSaved={() => {
             setShowCategoryForm(false);
             setEditingCategory(null);
-            qc.invalidateQueries({ queryKey: ['categories-admin'] });
+            qc.invalidateQueries({ queryKey: MENU_CATEGORIES_QUERY_KEY });
           }}
         />
       )}

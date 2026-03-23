@@ -12,6 +12,7 @@ import clsx from 'clsx';
 import { WSEventType } from '@pos/shared';
 
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 export default function InventoryPage() {
   const qc = useQueryClient();
@@ -21,7 +22,7 @@ export default function InventoryPage() {
   const [restockQty, setRestockQty]   = useState('');
   const [restockNote, setRestockNote] = useState('');
 
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['inventory'],
     queryFn: () => api.getInventory(),
     refetchInterval: 60000,
@@ -29,6 +30,33 @@ export default function InventoryPage() {
 
   const items: any[] = data?.data || [];
   const lowStockItems = items.filter((i) => i.currentStock <= i.minimumStock);
+
+  if (isLoading && items.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-36" />
+          <SkeletonBlock className="mt-2 h-4 w-28" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading inventory"
+            description="We are syncing stock levels and low-stock alerts now."
+          />
+          <div className="card overflow-hidden p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-4 border-b border-slate-800 py-4 last:border-b-0">
+                <SkeletonBlock className="h-5 w-44" />
+                <SkeletonBlock className="h-5 w-20" />
+                <SkeletonBlock className="h-5 w-16" />
+                <SkeletonBlock className="ml-auto h-5 w-24" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   useWebSocket(
     {

@@ -26,10 +26,27 @@ async function fetchJSON<T>(path: string, token: string) {
   }
 }
 
+async function fetchPublicJSON<T>(path: string) {
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function getServerSession() {
   const cookieStore = cookies();
   return {
     token: cookieStore.get('pos_token')?.value || null,
+    restaurantId: cookieStore.get('pos_restaurant_id')?.value || null,
     locationId: cookieStore.get('pos_location_id')?.value || null,
   };
 }
@@ -75,4 +92,9 @@ export async function getKDSBootstrap(token: string, locationId?: string | null)
     selectedStationId,
     locationId: locationId || null,
   };
+}
+
+export async function getPublicRestaurantSite(restaurantId: string) {
+  const response = await fetchPublicJSON<any>(`/api/restaurants/public/${restaurantId}/site`);
+  return response?.data || null;
 }

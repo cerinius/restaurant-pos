@@ -1,7 +1,21 @@
 
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
+import { resolveLoginPathFromPathname } from '@/lib/paths';
+import { getSaasAdminToken } from '@/lib/saas-auth';
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+
+function setSessionCookie(name: string, value: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${SESSION_COOKIE_MAX_AGE}; samesite=lax`;
+}
+
+function clearSessionCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; path=/; max-age=0; samesite=lax`;
+}
 
 class ApiClient {
   private client: AxiosInstance;
@@ -35,13 +49,20 @@ class ApiClient {
             const { data } = await axios.post(`${BASE_URL}/api/auth/refresh`, { refreshToken });
             const newToken = data.data.accessToken;
             localStorage.setItem('pos_access_token', newToken);
+            setSessionCookie('pos_token', newToken);
             this.client.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
             return this.client(original);
           } catch {
             localStorage.removeItem('pos_access_token');
             localStorage.removeItem('pos_refresh_token');
             localStorage.removeItem('pos_user');
-            if (typeof window !== 'undefined') window.location.href = '/login';
+            clearSessionCookie('pos_token');
+            clearSessionCookie('pos_refresh_token');
+            clearSessionCookie('pos_restaurant_id');
+            clearSessionCookie('pos_location_id');
+            if (typeof window !== 'undefined') {
+              window.location.href = resolveLoginPathFromPathname(window.location.pathname);
+            }
           }
         }
         return Promise.reject(error);
@@ -56,6 +77,18 @@ class ApiClient {
   }
   async login(email: string, password: string, restaurantSlug: string) {
     const { data } = await this.client.post('/api/auth/login', { email, password, restaurantSlug });
+    return data;
+  }
+  async requestDemoOtp(payload: any) {
+    const { data } = await this.client.post('/api/auth/demo/request-otp', payload);
+    return data;
+  }
+  async verifyDemoOtp(payload: any) {
+    const { data } = await this.client.post('/api/auth/demo/verify-otp', payload);
+    return data;
+  }
+  async contactSales(payload: any) {
+    const { data } = await this.client.post('/api/auth/contact-sales', payload);
     return data;
   }
   async getMe() {
@@ -76,8 +109,34 @@ class ApiClient {
     const { data } = await this.client.get(`/api/restaurants/${id}`);
     return data;
   }
+  async getPublicRestaurant(id: string) {
+    const { data } = await this.client.get(`/api/restaurants/public/${id}`);
+    return data;
+  }
+  async getPublicRestaurantSite(id: string) {
+    const { data } = await this.client.get(`/api/restaurants/public/${id}/site`);
+    return data;
+  }
   async updateRestaurant(id: string, payload: any) {
     const { data } = await this.client.put(`/api/restaurants/${id}`, payload);
+    return data;
+  }
+  async saasAdminLogin(email: string, password: string) {
+    const { data } = await this.client.post('/api/saas/login', { email, password });
+    return data;
+  }
+  async getSaasRestaurants() {
+    const token = getSaasAdminToken();
+    const { data } = await this.client.get('/api/saas/restaurants', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    return data;
+  }
+  async updateSaasRestaurant(id: string, payload: any) {
+    const token = getSaasAdminToken();
+    const { data } = await this.client.patch(`/api/saas/restaurants/${id}`, payload, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     return data;
   }
 

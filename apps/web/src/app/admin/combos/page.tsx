@@ -12,6 +12,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 
 import api from '@/lib/api';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 function ComboForm({
   combo,
@@ -279,12 +280,12 @@ export default function CombosPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingCombo, setEditingCombo] = useState<any | null>(null);
 
-  const { data: comboData } = useQuery({
+  const { data: comboData, isLoading: combosLoading } = useQuery({
     queryKey: ['combos'],
     queryFn: () => api.getCombos(),
   });
 
-  const { data: menuData } = useQuery({
+  const { data: menuData, isLoading: menuItemsLoading } = useQuery({
     queryKey: ['combo-menu-items'],
     queryFn: () => api.getMenuItems(),
   });
@@ -300,6 +301,28 @@ export default function CombosPage() {
 
   const combos: any[] = comboData?.data || [];
   const menuItems: any[] = menuData?.data || [];
+
+  if ((combosLoading || menuItemsLoading) && combos.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-28" />
+          <SkeletonBlock className="mt-2 h-4 w-72" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading combos"
+            description="We are preparing bundle offers and available menu items."
+          />
+          <div className="grid gap-4 xl:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <SkeletonBlock key={index} className="h-64 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">

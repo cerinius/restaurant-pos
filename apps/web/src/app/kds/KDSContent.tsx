@@ -6,8 +6,8 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { WSEventType } from '@pos/shared';
 
-import api from '@/lib/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import api from '@/lib/api';
 import { useAuthStore } from '@/store';
 
 interface KDSContentProps {
@@ -30,20 +30,20 @@ function formatElapsed(seconds?: number) {
 function getTicketTone(ticket: any) {
   const elapsed = ticket.elapsedSeconds ?? 0;
 
-  if (ticket.priority === 'rush') return 'border-red-500 bg-red-950/30';
-  if (elapsed >= 900) return 'border-red-400 bg-red-950/20';
-  if (elapsed >= 600) return 'border-yellow-400 bg-yellow-950/20';
+  if (ticket.priority === 'rush') return 'kds-ticket-rush';
+  if (elapsed >= 900) return 'kds-ticket-danger';
+  if (elapsed >= 600) return 'kds-ticket-warning';
 
-  return 'border-slate-700 bg-slate-900';
+  return 'kds-ticket-normal';
 }
 
 function TicketSkeleton() {
   return (
-    <div className="rounded-3xl border border-slate-800 bg-slate-900 p-5">
-      <div className="mb-4 h-6 animate-pulse rounded-xl bg-slate-800" />
+    <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+      <div className="mb-4 h-6 animate-pulse rounded-xl bg-white/10" />
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="h-16 animate-pulse rounded-2xl bg-slate-800" />
+          <div key={index} className="h-16 animate-pulse rounded-2xl bg-white/10" />
         ))}
       </div>
     </div>
@@ -54,7 +54,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
   const queryClient = useQueryClient();
   const { user, locationId, setLocation } = useAuthStore();
   const [selectedStationId, setSelectedStationId] = useState<string | null>(
-    initialData.selectedStationId,
+    initialData.selectedStationId
   );
 
   const effectiveLocationId = locationId || initialData.locationId || null;
@@ -165,7 +165,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
         ]);
       },
     },
-    [queryClient, refetch],
+    [queryClient, refetch]
   );
 
   const tickets = useMemo(() => {
@@ -184,28 +184,29 @@ export default function KDSContent({ initialData }: KDSContentProps) {
   const stats = statsData?.data || {};
 
   return (
-    <div className="min-h-screen bg-black pb-6 text-white">
-      <div className="border-b border-slate-800 bg-slate-950/80 px-4 py-5 backdrop-blur md:px-6">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#07111f_0%,#0c1728_50%,#020617_100%)] pb-6 text-white">
+      <div className="border-b border-white/10 bg-slate-950/70 px-4 py-5 backdrop-blur-xl md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-black tracking-tight">Kitchen Display System</h1>
-            <p className="mt-1 text-sm text-slate-400">
-              {user?.name || 'Kitchen Staff'} · {stations.length} station(s) available
+            <p className="section-kicker">Kitchen operations</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight">Kitchen Display System</h1>
+            <p className="mt-2 text-sm text-slate-400">
+              {user?.name || 'Kitchen Staff'} / {stations.length} station(s) available
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-3 lg:w-[420px]">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Pending</p>
-              <p className="mt-1 text-2xl font-bold text-amber-300">{stats.pending || 0}</p>
+              <p className="mt-1 text-2xl font-bold text-amber-100">{stats.pending || 0}</p>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">In Progress</p>
-              <p className="mt-1 text-2xl font-bold text-blue-300">{stats.inProgress || 0}</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-100">{stats.inProgress || 0}</p>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Avg Time</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-300">
+              <p className="mt-1 text-2xl font-bold text-emerald-100">
                 {formatElapsed(stats.averageTicketSeconds)}
               </p>
             </div>
@@ -213,7 +214,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
         </div>
       </div>
 
-      <div className="border-b border-slate-900 px-4 py-4 md:px-6">
+      <div className="border-b border-white/10 px-4 py-4 md:px-6">
         <div className="flex flex-wrap gap-2">
           {stations.map((station: any) => (
             <button
@@ -222,12 +223,12 @@ export default function KDSContent({ initialData }: KDSContentProps) {
               className={clsx(
                 'touch-target rounded-2xl border px-4 text-sm font-medium transition-all',
                 selectedStationId === station.id
-                  ? 'border-transparent text-white'
-                  : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500',
+                  ? 'border-transparent text-slate-950 shadow-[0_16px_34px_rgba(34,211,238,0.18)]'
+                  : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20'
               )}
               style={
                 selectedStationId === station.id
-                  ? { backgroundColor: station.color || '#2563EB' }
+                  ? { backgroundColor: station.color || '#67e8f9' }
                   : undefined
               }
             >
@@ -236,7 +237,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
           ))}
 
           {stations.length === 0 && !stationsLoading && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-400">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-400">
               No KDS stations are configured yet. Add one in Admin.
             </div>
           )}
@@ -252,7 +253,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
             <p className="text-sm text-slate-500">{tickets.length} active ticket(s)</p>
           </div>
 
-          <button onClick={() => refetch()} className="touch-target btn-secondary">
+          <button onClick={() => refetch()} className="btn-secondary">
             Refresh
           </button>
         </div>
@@ -264,16 +265,13 @@ export default function KDSContent({ initialData }: KDSContentProps) {
             ))}
           </div>
         ) : tickets.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-950/70 p-12 text-center text-slate-500">
+          <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-12 text-center text-slate-500">
             No active tickets for this station.
           </div>
         ) : (
           <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
             {tickets.map((ticket: any) => (
-              <div
-                key={ticket.id}
-                className={clsx('rounded-3xl border p-5 shadow-xl', getTicketTone(ticket))}
-              >
+              <div key={ticket.id} className={clsx('kds-ticket p-5', getTicketTone(ticket))}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -285,7 +283,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
                         : ticket.order?.type || 'Order'}
                     </h3>
                     <p className="mt-1 text-sm text-slate-300">
-                      {ticket.order?.serverName || 'Unknown server'} · {ticket.order?.guestCount || 0} guests
+                      {ticket.order?.serverName || 'Unknown server'} / {ticket.order?.guestCount || 0} guests
                     </p>
                   </div>
 
@@ -295,7 +293,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
                       {formatElapsed(ticket.elapsedSeconds)}
                     </p>
                     {ticket.priority === 'rush' && (
-                      <span className="mt-2 inline-block rounded-full bg-red-500/20 px-2 py-1 text-xs font-semibold text-red-200">
+                      <span className="mt-2 inline-block rounded-full bg-red-400/10 px-2 py-1 text-xs font-semibold text-red-100">
                         Rush
                       </span>
                     )}
@@ -313,9 +311,9 @@ export default function KDSContent({ initialData }: KDSContentProps) {
                           {Array.isArray(item.modifiers) && item.modifiers.length > 0 && (
                             <p className="mt-1 text-sm text-slate-400">{item.modifiers.join(', ')}</p>
                           )}
-                          {item.notes && <p className="mt-1 text-sm text-amber-300">Note: {item.notes}</p>}
+                          {item.notes && <p className="mt-1 text-sm text-amber-200">Note: {item.notes}</p>}
                         </div>
-                        <span className="rounded-full bg-slate-900/80 px-2 py-1 text-xs text-slate-300">
+                        <span className="rounded-full bg-slate-950/80 px-2 py-1 text-xs text-slate-300">
                           {item.status || 'PENDING'}
                         </span>
                       </div>
@@ -327,21 +325,21 @@ export default function KDSContent({ initialData }: KDSContentProps) {
                   <button
                     onClick={() => rushMutation.mutate(ticket.id)}
                     disabled={rushMutation.isPending}
-                    className="touch-target rounded-2xl border border-red-800/50 bg-red-950/30 px-3 text-sm font-semibold text-red-200 transition-colors hover:bg-red-950/50"
+                    className="rounded-2xl border border-red-300/20 bg-red-400/10 px-3 py-3 text-sm font-semibold text-red-100 transition-colors hover:bg-red-400/15"
                   >
                     Rush
                   </button>
                   <button
                     onClick={() => recallMutation.mutate(ticket.id)}
                     disabled={recallMutation.isPending}
-                    className="touch-target rounded-2xl border border-blue-800/50 bg-blue-950/30 px-3 text-sm font-semibold text-blue-200 transition-colors hover:bg-blue-950/50"
+                    className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-3 text-sm font-semibold text-cyan-100 transition-colors hover:bg-cyan-400/15"
                   >
                     Recall
                   </button>
                   <button
                     onClick={() => bumpMutation.mutate(ticket.id)}
                     disabled={bumpMutation.isPending}
-                    className="touch-target rounded-2xl border border-emerald-800/50 bg-emerald-950/30 px-3 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-950/50"
+                    className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-3 text-sm font-semibold text-emerald-100 transition-colors hover:bg-emerald-400/15"
                   >
                     Bump
                   </button>

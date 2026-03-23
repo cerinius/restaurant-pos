@@ -12,6 +12,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 
 import api from '@/lib/api';
+import { LoadingNotice, SkeletonBlock } from '@/components/ui/LoadingState';
 
 function formatPriceAdjustment(value: number) {
   if (!value) return 'No price change';
@@ -286,7 +287,7 @@ export default function ModifiersPage() {
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showModifierForm, setShowModifierForm] = useState(false);
 
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['modifier-groups'],
     queryFn: () => api.getModifierGroups(),
   });
@@ -301,6 +302,35 @@ export default function ModifiersPage() {
   });
 
   const groups: any[] = data?.data || [];
+
+  if (isLoading && groups.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-36" />
+          <SkeletonBlock className="mt-2 h-4 w-64" />
+        </div>
+
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading modifiers"
+            description="We are preparing option groups and add-ons for the POS."
+          />
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="card p-5">
+              <SkeletonBlock className="h-6 w-44" />
+              <SkeletonBlock className="mt-3 h-4 w-72" />
+              <div className="mt-5 space-y-2">
+                {Array.from({ length: 3 }).map((__, rowIndex) => (
+                  <SkeletonBlock key={rowIndex} className="h-16 w-full" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
