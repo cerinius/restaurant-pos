@@ -134,8 +134,14 @@ export default function HappyHoursPage() {
 
   const happyHours: any[] = hhData?.data  || [];
   const categories: any[] = catData?.data || [];
+  const showHappyHourSkeleton = (happyHoursLoading || categoriesLoading) && happyHours.length === 0;
 
-  if ((happyHoursLoading || categoriesLoading) && happyHours.length === 0) {
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteHappyHour(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['happy-hours'] }); toast.success('Deleted'); },
+  });
+
+  if (showHappyHourSkeleton) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
@@ -154,11 +160,6 @@ export default function HappyHoursPage() {
       </div>
     );
   }
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteHappyHour(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['happy-hours'] }); toast.success('Deleted'); },
-  });
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

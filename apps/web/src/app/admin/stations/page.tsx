@@ -215,8 +215,13 @@ export default function StationsPage() {
   const stations: any[] = stationData?.data || [];
   const locations: any[] = locationData?.data || [];
   const categories: any[] = categoryData?.data || [];
+  const showStationSkeleton = (stationsLoading || locationsLoading || categoriesLoading) && stations.length === 0;
 
-  if ((stationsLoading || locationsLoading || categoriesLoading) && stations.length === 0) {
+  function getLocationName(id: string) {
+    return locations.find((location) => location.id === id)?.name || 'Unknown location';
+  }
+
+  if (showStationSkeleton) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
@@ -236,10 +241,6 @@ export default function StationsPage() {
         </div>
       </div>
     );
-  }
-
-  function getLocationName(id: string) {
-    return locations.find((location) => location.id === id)?.name || 'Unknown location';
   }
 
   return (

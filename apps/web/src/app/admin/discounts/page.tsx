@@ -120,8 +120,20 @@ export default function DiscountsPage() {
 
   const { data, isLoading } = useQuery({ queryKey: ['discounts'], queryFn: () => api.getDiscounts() });
   const discounts: any[] = data?.data || [];
+  const showDiscountSkeleton = isLoading && discounts.length === 0;
 
-  if (isLoading && discounts.length === 0) {
+  const deactivateMutation = useMutation({
+    mutationFn: (id: string) => api.updateDiscount(id, { isActive: false }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['discounts'] }); toast.success('Deactivated'); },
+  });
+
+  const TYPE_BADGE: Record<string, string> = {
+    PERCENTAGE: 'bg-blue-900/50 text-blue-300 border-blue-700/50',
+    FLAT:       'bg-emerald-900/50 text-emerald-300 border-emerald-700/50',
+    COMP:       'bg-red-900/50 text-red-300 border-red-700/50',
+  };
+
+  if (showDiscountSkeleton) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
@@ -142,17 +154,6 @@ export default function DiscountsPage() {
       </div>
     );
   }
-
-  const deactivateMutation = useMutation({
-    mutationFn: (id: string) => api.updateDiscount(id, { isActive: false }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['discounts'] }); toast.success('Deactivated'); },
-  });
-
-  const TYPE_BADGE: Record<string, string> = {
-    PERCENTAGE: 'bg-blue-900/50 text-blue-300 border-blue-700/50',
-    FLAT:       'bg-emerald-900/50 text-emerald-300 border-emerald-700/50',
-    COMP:       'bg-red-900/50 text-red-300 border-red-700/50',
-  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

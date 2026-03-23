@@ -30,8 +30,31 @@ export default function InventoryPage() {
 
   const items: any[] = data?.data || [];
   const lowStockItems = items.filter((i) => i.currentStock <= i.minimumStock);
+  const showInventorySkeleton = isLoading && items.length === 0;
 
-  if (isLoading && items.length === 0) {
+  useWebSocket(
+    {
+      [WSEventType.LOW_STOCK_ALERT]: async (payload) => {
+        await qc.invalidateQueries({ queryKey: ['inventory'] });
+        toast.error(`${payload?.name || 'Item'} is low on stock`, { duration: 5000 });
+      },
+    },
+    [qc],
+  );
+
+  const restockMutation = useMutation({
+    mutationFn: ({ id, qty, notes }: any) => api.restockItem(id, qty, notes),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      toast.success('Stock updated!');
+      setRestockItem(null);
+      setRestockQty('');
+      setRestockNote('');
+    },
+    onError: () => toast.error('Restock failed'),
+  });
+
+  if (showInventorySkeleton) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
@@ -57,28 +80,6 @@ export default function InventoryPage() {
       </div>
     );
   }
-
-  useWebSocket(
-    {
-      [WSEventType.LOW_STOCK_ALERT]: async (payload) => {
-        await qc.invalidateQueries({ queryKey: ['inventory'] });
-        toast.error(`${payload?.name || 'Item'} is low on stock`, { duration: 5000 });
-      },
-    },
-    [qc],
-  );
-
-  const restockMutation = useMutation({
-    mutationFn: ({ id, qty, notes }: any) => api.restockItem(id, qty, notes),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['inventory'] });
-      toast.success('Stock updated!');
-      setRestockItem(null);
-      setRestockQty('');
-      setRestockNote('');
-    },
-    onError: () => toast.error('Restock failed'),
-  });
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

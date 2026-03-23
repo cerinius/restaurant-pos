@@ -70,14 +70,11 @@ export default function MenuAdminPage() {
 
   const categories: any[] = catData?.data || [];
   const modGroups: any[]  = modsData?.data || [];
+  const showMenuSkeleton = (categoriesLoading || modifierGroupsLoading) && categories.length === 0;
 
   const activeCategory = activeCategoryId
     ? categories.find((c) => c.id === activeCategoryId)
     : categories[0];
-
-  if ((categoriesLoading || modifierGroupsLoading) && categories.length === 0) {
-    return <MenuPageSkeleton />;
-  }
 
   const deleteCatMutation = useMutation({
     mutationFn: (id: string) => api.deleteCategory(id),
@@ -100,6 +97,10 @@ export default function MenuAdminPage() {
     mutationFn: ({ id, restore }: { id: string; restore: boolean }) => api.eightySixItem(id, restore),
     onSuccess: () => { qc.invalidateQueries({ queryKey: MENU_CATEGORIES_QUERY_KEY }); toast.success('Item status updated'); },
   });
+
+  if (showMenuSkeleton) {
+    return <MenuPageSkeleton />;
+  }
 
   return (
     <div className="flex-1 flex overflow-hidden">

@@ -10,6 +10,7 @@ import {
   CANVAS_PADDING,
   coerceFloorPlan,
   getBarSeatCountForRoom,
+  getBarWalkwayDisplaySegments,
   getCanvasBounds,
   getRoomCenter,
   getTableAssignment,
@@ -154,47 +155,6 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     if (room.type !== 'bar' || !room.bar?.enabled) return null;
 
     const bar = room.bar;
-    const walkwayStyle =
-      bar.style === 'straight'
-        ? null
-        : (() => {
-            const laneWidth = Math.max(24, Math.round(Math.min(56, bar.aisleWidth * 0.45)));
-
-            switch (bar.openingSide) {
-              case 'north':
-                return {
-                  position: 'absolute' as const,
-                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
-                  top: 0,
-                  width: laneWidth,
-                  height: bar.counterY + 6,
-                };
-              case 'south':
-                return {
-                  position: 'absolute' as const,
-                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
-                  top: bar.counterY + bar.counterHeight - 6,
-                  width: laneWidth,
-                  height: room.height - (bar.counterY + bar.counterHeight) + 6,
-                };
-              case 'east':
-                return {
-                  position: 'absolute' as const,
-                  left: bar.counterX + bar.counterWidth - 6,
-                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
-                  width: room.width - (bar.counterX + bar.counterWidth) + 6,
-                  height: laneWidth,
-                };
-              default:
-                return {
-                  position: 'absolute' as const,
-                  left: 0,
-                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
-                  width: bar.counterX + 6,
-                  height: laneWidth,
-                };
-            }
-          })();
 
     return (
       <>
@@ -213,12 +173,13 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
             Bar
           </div>
         </div>
-        {walkwayStyle && (
+        {getBarWalkwayDisplaySegments(room).map((walkway) => (
           <div
-            style={walkwayStyle}
+            key={walkway.id}
+            style={walkway.style}
             className="pointer-events-none rounded-full border border-dashed border-amber-300/30 bg-amber-100/5"
           />
-        )}
+        ))}
       </>
     );
   };

@@ -149,34 +149,99 @@ export default function HomePage() {
       <div className="relative">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:72px_72px] opacity-30" />
 
-        <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/65 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-            <Link href="/" className={`${displayFont.className} text-lg font-black tracking-[0.28em] text-white`}>
-              RESTAURANTOS
-            </Link>
-            <nav className="hidden items-center gap-6 text-sm text-slate-300 lg:flex">
-              <a href="#platform" className="hover:text-white">Platform</a>
-              <a href="#demo-flow" className="hover:text-white">Demo</a>
-              <a href="#pricing" className="hover:text-white">Pricing</a>
-              <a href="#compare" className="hover:text-white">Compare</a>
-              <Link href="/staff" className="hover:text-white">Staff access</Link>
-              <Link href="/contact-sales" className="hover:text-white">Contact sales</Link>
-            </nav>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link href="/staff" className="btn-secondary">
-                Staff access
+        <header className="relative z-20">
+          <div className="border-b border-cyan-300/15 bg-cyan-300/10">
+            <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-3 text-sm text-cyan-50 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-cyan-100">
+                  Live Sales
+                </span>
+                <p className="leading-6 text-cyan-50/90">
+                  Don&apos;t miss out on the number one POS built for service, kitchen, and guest experience.
+                </p>
+              </div>
+              <Link href="/contact-sales" className="text-sm font-semibold text-cyan-100 transition hover:text-white">
+                Book a walkthrough
               </Link>
-              <Link href="/login" className="btn-secondary">
-                Login
+            </div>
+          </div>
+
+          <div className="mx-auto max-w-7xl px-6 py-5">
+            <div className="glass-panel flex items-center justify-between gap-4 px-5 py-4">
+              <Link href="/" className={`${displayFont.className} text-lg font-black tracking-[0.28em] text-white`}>
+                RESTAURANTOS
               </Link>
-              <Link href="/demo" className="btn-primary">
-                Start live demo
-              </Link>
+
+              <nav className="hidden items-center gap-6 text-sm text-slate-300 lg:flex">
+                <a href="#platform" className="hover:text-white">Platform</a>
+                <a href="#demo-flow" className="hover:text-white">Demo</a>
+                <a href="#pricing" className="hover:text-white">Pricing</a>
+                <a href="#compare" className="hover:text-white">Compare</a>
+                <Link href="/staff" className="hover:text-white">Staff access</Link>
+                <Link href="/contact-sales" className="hover:text-white">Contact sales</Link>
+              </nav>
+
+              <div className="hidden items-center gap-3 lg:flex">
+                <Link href="/staff" className="btn-secondary">
+                  Staff access
+                </Link>
+                <Link href="/login" className="btn-secondary">
+                  Login
+                </Link>
+                <Link href="/demo" className="btn-primary">
+                  Start live demo
+                </Link>
+              </div>
+
+              <details className="relative lg:hidden">
+                <summary className="list-none rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/10">
+                  Menu
+                </summary>
+                <div className="absolute right-0 mt-3 w-[min(22rem,calc(100vw-3rem))] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/95 p-3 shadow-[0_24px_80px_rgba(2,6,23,0.55)] backdrop-blur-xl">
+                  <div className="space-y-1">
+                    {[
+                      { href: '#platform', label: 'Platform' },
+                      { href: '#demo-flow', label: 'Demo flow' },
+                      { href: '#pricing', label: 'Pricing' },
+                      { href: '#compare', label: 'Compare' },
+                    ].map((item) => (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5 hover:text-white"
+                      >
+                        {item.label}
+                      </a>
+                    ))}
+                    <Link
+                      href="/staff"
+                      className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5 hover:text-white"
+                    >
+                      Staff access
+                    </Link>
+                    <Link
+                      href="/contact-sales"
+                      className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5 hover:text-white"
+                    >
+                      Contact sales
+                    </Link>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
+                    <Link href="/login" className="btn-secondary block text-center">
+                      Login
+                    </Link>
+                    <Link href="/demo" className="btn-primary block text-center">
+                      Start live demo
+                    </Link>
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
         </header>
 
-        <section className="mx-auto max-w-7xl px-6 pb-24 pt-14 lg:pt-20">
+        <section className="mx-auto max-w-7xl px-6 pb-24 pt-10 lg:pt-14">
           <div className="grid gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
             <div>
               <LandingWarmupStatus />

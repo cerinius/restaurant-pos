@@ -140,8 +140,21 @@ export default function StaffPage() {
 
   const staffList: any[]  = staffData?.data    || [];
   const locations: any[]  = locationsData?.data || [];
+  const showStaffSkeleton = (staffLoading || locationsLoading) && staffList.length === 0;
 
-  if ((staffLoading || locationsLoading) && staffList.length === 0) {
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteStaff(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff'] }); toast.success('Staff deactivated'); },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Failed'),
+  });
+
+  const resetPinMutation = useMutation({
+    mutationFn: ({ id, pin }: { id: string; pin: string }) => api.resetPin(id, pin),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff'] }); toast.success('PIN reset'); setResetPinFor(null); setNewPin(''); },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Failed'),
+  });
+
+  if (showStaffSkeleton) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
@@ -166,18 +179,6 @@ export default function StaffPage() {
       </div>
     );
   }
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteStaff(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff'] }); toast.success('Staff deactivated'); },
-    onError: (e: any) => toast.error(e?.response?.data?.error || 'Failed'),
-  });
-
-  const resetPinMutation = useMutation({
-    mutationFn: ({ id, pin }: { id: string; pin: string }) => api.resetPin(id, pin),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff'] }); toast.success('PIN reset'); setResetPinFor(null); setNewPin(''); },
-    onError: (e: any) => toast.error(e?.response?.data?.error || 'Failed'),
-  });
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

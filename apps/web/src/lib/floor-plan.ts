@@ -11,6 +11,18 @@ export type BarStyle = 'straight' | 'rectangle' | 'circle';
 export type BarOpeningSide = 'north' | 'south' | 'east' | 'west';
 export type FloorTableKind = 'standard' | 'bar-seat';
 
+export interface BarWalkway {
+  id: string;
+  side: BarOpeningSide;
+  width: number;
+}
+
+export interface BarWalkwayInput {
+  id?: string | null;
+  side?: BarOpeningSide | string | null;
+  width?: number | null;
+}
+
 export interface FloorTableTemplate {
   id: string;
   name: string;
@@ -37,6 +49,7 @@ export interface BarLayout {
   style: BarStyle;
   openingSide: BarOpeningSide;
   aisleWidth: number;
+  walkways: BarWalkway[];
   counterX: number;
   counterY: number;
   counterWidth: number;
@@ -81,6 +94,8 @@ const DEFAULT_BAR_SEATS = 8;
 const DEFAULT_BAR_STYLE: BarStyle = 'straight';
 const DEFAULT_BAR_OPENING_SIDE: BarOpeningSide = 'south';
 const DEFAULT_BAR_AISLE_WIDTH = 88;
+const MIN_BAR_WALKWAY_WIDTH = 64;
+const MAX_BAR_WALKWAY_WIDTH = 140;
 
 export const DEFAULT_TABLE_TEMPLATES: FloorTableTemplate[] = [
   { id: 'two-top-round', name: '2 Top Round', shape: 'circle', width: 72, height: 72, capacity: 2 },
@@ -137,6 +152,132 @@ function sanitizeOpeningSide(value?: string | null): BarOpeningSide {
   return value === 'north' || value === 'south' || value === 'east' || value === 'west'
     ? value
     : DEFAULT_BAR_OPENING_SIDE;
+}
+
+function sanitizeBarWalkwayWidth(value?: number | null) {
+  const next = Number(value ?? DEFAULT_BAR_AISLE_WIDTH);
+  if (!Number.isFinite(next)) return DEFAULT_BAR_AISLE_WIDTH;
+  return clamp(Math.round(next), MIN_BAR_WALKWAY_WIDTH, MAX_BAR_WALKWAY_WIDTH);
+}
+
+function createBarWalkway(rawWalkway?: BarWalkwayInput | null, fallbackSide?: string | null, fallbackWidth?: number | null) {
+  const side = sanitizeOpeningSide(rawWalkway?.side ?? fallbackSide);
+
+  return {
+    id: String(rawWalkway?.id || `walkway-${side}`),
+    side,
+    width: sanitizeBarWalkwayWidth(rawWalkway?.width ?? fallbackWidth),
+  } as BarWalkway;
+}
+
+function normalizeBarWalkways(
+  rawWalkways?: BarWalkwayInput[] | null,
+  fallbackSide?: string | null,
+  fallbackWidth?: number | null
+) {
+  const source =
+    Array.isArray(rawWalkways) && rawWalkways.length > 0
+      ? rawWalkways
+      : [{ side: fallbackSide, width: fallbackWidth }];
+  const seenSides = new Set<BarOpeningSide>();
+  const walkways: BarWalkway[] = [];
+
+  source.forEach((rawWalkway) => {
+    const walkway = createBarWalkway(rawWalkway, fallbackSide, fallbackWidth);
+    if (seenSides.has(walkway.side)) return;
+    seenSides.add(walkway.side);
+    walkways.push(walkway);
+  });
+
+  if (walkways.length === 0) {
+    walkways.push(createBarWalkway(undefined, fallbackSide, fallbackWidth));
+  }
+
+  return walkways.slice(0, 4);
+}
+
+function getPrimaryBarWalkway(walkways: BarWalkway[]) {
+  return walkways[0] || createBarWalkway();
+}
+
+function getMaxWalkwayWidth(walkways: BarWalkway[]) {
+  return walkways.reduce((maxWidth, walkway) => Math.max(maxWidth, walkway.width), DEFAULT_BAR_AISLE_WIDTH);
+}
+
+function walkwayWidthToLaneWidth(width: number) {
+  return Math.max(24, Math.round(Math.min(56, sanitizeBarWalkwayWidth(width) * 0.45)));
+}
+
+function walkwayWidthToAngleSpan(width: number) {
+  return clamp(
+    Math.round(52 + (sanitizeBarWalkwayWidth(width) - MIN_BAR_WALKWAY_WIDTH) * 0.75),
+    52,
+    110
+  );
+}
+
+function angularDistance(first: number, second: number) {
+  const distance = Math.abs(first - second) % 360;
+  return Math.min(distance, 360 - distance);
+}
+
+export function getBarWalkways(bar?: Pick<BarLayout, 'walkways' | 'openingSide' | 'aisleWidth'> | null) {
+  return normalizeBarWalkways(bar?.walkways, bar?.openingSide, bar?.aisleWidth);
+}
+
+export function getBarWalkwayDisplaySegments(room: FloorPlanRoom) {
+  if (room.type !== 'bar' || !room.bar?.enabled || room.bar.style === 'straight') return [];
+
+  return getBarWalkways(room.bar).map((walkway) => {
+    const laneWidth = walkwayWidthToLaneWidth(walkway.width);
+
+    switch (walkway.side) {
+      case 'north':
+        return {
+          ...walkway,
+          style: {
+            position: 'absolute' as const,
+            left: room.bar!.counterX + room.bar!.counterWidth / 2 - laneWidth / 2,
+            top: 0,
+            width: laneWidth,
+            height: room.bar!.counterY + 6,
+          },
+        };
+      case 'south':
+        return {
+          ...walkway,
+          style: {
+            position: 'absolute' as const,
+            left: room.bar!.counterX + room.bar!.counterWidth / 2 - laneWidth / 2,
+            top: room.bar!.counterY + room.bar!.counterHeight - 6,
+            width: laneWidth,
+            height: room.height - (room.bar!.counterY + room.bar!.counterHeight) + 6,
+          },
+        };
+      case 'east':
+        return {
+          ...walkway,
+          style: {
+            position: 'absolute' as const,
+            left: room.bar!.counterX + room.bar!.counterWidth - 6,
+            top: room.bar!.counterY + room.bar!.counterHeight / 2 - laneWidth / 2,
+            width: room.width - (room.bar!.counterX + room.bar!.counterWidth) + 6,
+            height: laneWidth,
+          },
+        };
+      default:
+        return {
+          ...walkway,
+          style: {
+            position: 'absolute' as const,
+            left: 0,
+            top: room.bar!.counterY + room.bar!.counterHeight / 2 - laneWidth / 2,
+            width: room.bar!.counterX + 6,
+            height: laneWidth,
+          },
+        };
+    }
+  });
 }
 
 function normalizeTemplate(rawTemplate: any, fallbackIndex: number): FloorTableTemplate {
@@ -250,12 +391,14 @@ export function buildBarLayout(
     style?: BarStyle | string | null;
     openingSide?: BarOpeningSide | string | null;
     aisleWidth?: number | null;
+    walkways?: BarWalkwayInput[] | null;
   }
 ) {
   const safeSeatCount = sanitizeBarSeatCount(seatCount);
   const style = sanitizeBarStyle(options?.style);
-  const openingSide = sanitizeOpeningSide(options?.openingSide);
-  const aisleWidth = clamp(Number(options?.aisleWidth || DEFAULT_BAR_AISLE_WIDTH), 64, 140);
+  const walkways = normalizeBarWalkways(options?.walkways, options?.openingSide, options?.aisleWidth);
+  const primaryWalkway = getPrimaryBarWalkway(walkways);
+  const aisleWidth = getMaxWalkwayWidth(walkways);
 
   if (style === 'rectangle') {
     const counterWidth = clamp(220 + Math.min(10, safeSeatCount) * 8, 240, 360);
@@ -269,8 +412,9 @@ export function buildBarLayout(
       bar: {
         enabled: true,
         style,
-        openingSide,
+        openingSide: primaryWalkway.side,
         aisleWidth,
+        walkways,
         counterX: (width - counterWidth) / 2,
         counterY: (height - counterHeight) / 2,
         counterWidth,
@@ -292,8 +436,9 @@ export function buildBarLayout(
       bar: {
         enabled: true,
         style,
-        openingSide,
+        openingSide: primaryWalkway.side,
         aisleWidth,
+        walkways,
         counterX: (width - diameter) / 2,
         counterY: (height - diameter) / 2,
         counterWidth: diameter,
@@ -317,8 +462,9 @@ export function buildBarLayout(
     bar: {
       enabled: true,
       style,
-      openingSide: 'south',
+      openingSide: primaryWalkway.side,
       aisleWidth,
+      walkways,
       counterX: 36,
       counterY: 28,
       counterWidth,
@@ -351,6 +497,7 @@ export function createFloorRoom(
     barStyle?: BarStyle | string | null;
     openingSide?: BarOpeningSide | string | null;
     aisleWidth?: number | null;
+    walkways?: BarWalkwayInput[] | null;
   }
 ): FloorPlanRoom {
   if (type !== 'bar') {
@@ -361,6 +508,7 @@ export function createFloorRoom(
     style: options?.barStyle,
     openingSide: options?.openingSide,
     aisleWidth: options?.aisleWidth,
+    walkways: options?.walkways,
   });
 
   return {
@@ -385,10 +533,17 @@ function normalizeSavedRoom(savedRoom: any, fallbackName: string, fallbackOrder:
     barStyle: savedRoom?.bar?.style,
     openingSide: savedRoom?.bar?.openingSide,
     aisleWidth: savedRoom?.bar?.aisleWidth,
+    walkways: savedRoom?.bar?.walkways,
   });
   const width = clamp(Number(savedRoom?.width || baseRoom.width), 260, 900);
   const height = clamp(Number(savedRoom?.height || baseRoom.height), 180, 720);
   const barSeatCount = sanitizeBarSeatCount(savedRoom?.bar?.seatCount ?? baseRoom.bar?.seatCount);
+  const walkways = normalizeBarWalkways(
+    savedRoom?.bar?.walkways,
+    savedRoom?.bar?.openingSide ?? baseRoom.bar?.openingSide,
+    savedRoom?.bar?.aisleWidth ?? baseRoom.bar?.aisleWidth
+  );
+  const primaryWalkway = getPrimaryBarWalkway(walkways);
 
   return {
     ...baseRoom,
@@ -403,12 +558,9 @@ function normalizeSavedRoom(savedRoom: any, fallbackName: string, fallbackOrder:
         ? {
             enabled: savedRoom?.bar?.enabled !== false,
             style: sanitizeBarStyle(savedRoom?.bar?.style),
-            openingSide: sanitizeOpeningSide(savedRoom?.bar?.openingSide),
-            aisleWidth: clamp(
-              Number(savedRoom?.bar?.aisleWidth || baseRoom.bar?.aisleWidth || DEFAULT_BAR_AISLE_WIDTH),
-              64,
-              140
-            ),
+            openingSide: primaryWalkway.side,
+            aisleWidth: getMaxWalkwayWidth(walkways),
+            walkways,
             counterX: Number.isFinite(Number(savedRoom?.bar?.counterX))
               ? Number(savedRoom.bar.counterX)
               : (baseRoom.bar?.counterX || 0),
@@ -567,13 +719,21 @@ export function resizeBarRoomForSeatCount(
     style?: BarStyle | string | null;
     openingSide?: BarOpeningSide | string | null;
     aisleWidth?: number | null;
+    walkways?: BarWalkwayInput[] | null;
   }
 ) {
+  const walkways = normalizeBarWalkways(
+    options?.walkways || room.bar?.walkways,
+    options?.openingSide || room.bar?.openingSide,
+    options?.aisleWidth || room.bar?.aisleWidth
+  );
+  const primaryWalkway = getPrimaryBarWalkway(walkways);
   const nextRoom = createFloorRoom(room.name, room.order, 'bar', {
     seatCount,
     barStyle: options?.style || room.bar?.style,
-    openingSide: options?.openingSide || room.bar?.openingSide,
-    aisleWidth: options?.aisleWidth || room.bar?.aisleWidth,
+    openingSide: primaryWalkway.side,
+    aisleWidth: getMaxWalkwayWidth(walkways),
+    walkways,
   });
 
   return {
@@ -585,8 +745,9 @@ export function resizeBarRoomForSeatCount(
       ...(nextRoom.bar as BarLayout),
       ...(room.bar || {}),
       style: sanitizeBarStyle(options?.style || room.bar?.style),
-      openingSide: sanitizeOpeningSide(options?.openingSide || room.bar?.openingSide),
-      aisleWidth: clamp(Number(options?.aisleWidth || room.bar?.aisleWidth || DEFAULT_BAR_AISLE_WIDTH), 64, 140),
+      openingSide: primaryWalkway.side,
+      aisleWidth: getMaxWalkwayWidth(walkways),
+      walkways,
       seatCount: sanitizeBarSeatCount(seatCount ?? room.bar?.seatCount),
       counterWidth: nextRoom.bar?.counterWidth || room.bar?.counterWidth || 180,
       counterHeight: nextRoom.bar?.counterHeight || room.bar?.counterHeight || 56,
@@ -623,6 +784,7 @@ function spreadPositions(count: number, length: number) {
 export function getBarSeatDraftPositions(room: FloorPlanRoom, seatCount: number) {
   const bar = room.bar;
   if (!bar) return [];
+  const walkways = getBarWalkways(bar);
 
   if (bar.style === 'circle') {
     const centerX = bar.counterX + bar.counterWidth / 2;
@@ -634,12 +796,17 @@ export function getBarSeatDraftPositions(room: FloorPlanRoom, seatCount: number)
       west: 180,
       north: 270,
     };
-    const openingAngle = openingAngles[bar.openingSide];
-    const walkwayGapDegrees = 78;
-    const step = (360 - walkwayGapDegrees) / seatCount;
+    const blockedRanges = walkways.map((walkway) => ({
+      center: openingAngles[walkway.side],
+      span: walkwayWidthToAngleSpan(walkway.width),
+    }));
+    const availableAngles = Array.from({ length: 360 }, (_, angle) => angle).filter((angle) =>
+      blockedRanges.every((range) => angularDistance(angle, range.center) > range.span / 2)
+    );
+    const anglePool = availableAngles.length > 0 ? availableAngles : Array.from({ length: 360 }, (_, angle) => angle);
 
     return Array.from({ length: seatCount }).map((_, index) => {
-      const angleDeg = openingAngle + walkwayGapDegrees / 2 + step / 2 + index * step;
+      const angleDeg = anglePool[Math.floor(((index + 0.5) / seatCount) * anglePool.length) % anglePool.length];
       const angle = (angleDeg * Math.PI) / 180;
 
       return {
@@ -651,10 +818,10 @@ export function getBarSeatDraftPositions(room: FloorPlanRoom, seatCount: number)
 
   if (bar.style === 'rectangle') {
     const seatOffset = 18;
-    const allowedEdges = (['north', 'east', 'south', 'west'] as BarOpeningSide[]).filter(
-      (edge) => edge !== bar.openingSide
-    );
-    const seatCounts = distributeSeats(seatCount, allowedEdges);
+    const blockedEdges = new Set(walkways.map((walkway) => walkway.side));
+    const allEdges = ['north', 'east', 'south', 'west'] as BarOpeningSide[];
+    const allowedEdges = allEdges.filter((edge) => !blockedEdges.has(edge));
+    const seatCounts = distributeSeats(seatCount, allowedEdges.length > 0 ? allowedEdges : allEdges);
     const positions: Array<{ x: number; y: number }> = [];
 
     const topPositions = spreadPositions(seatCounts.get('north') || 0, bar.counterWidth);
@@ -721,6 +888,7 @@ export function buildBarSeatDrafts(
     style?: BarStyle | string | null;
     openingSide?: BarOpeningSide | string | null;
     aisleWidth?: number | null;
+    walkways?: BarWalkwayInput[] | null;
   }
 ) {
   const safeSeatCount = sanitizeBarSeatCount(seatCount);
@@ -732,6 +900,7 @@ export function buildBarSeatDrafts(
           barStyle: options?.style,
           openingSide: options?.openingSide,
           aisleWidth: options?.aisleWidth,
+          walkways: options?.walkways,
         })
       : resizeBarRoomForSeatCount(roomOrName, totalSeats, options);
   const positions = getBarSeatDraftPositions(room, totalSeats);

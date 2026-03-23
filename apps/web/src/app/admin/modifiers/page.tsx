@@ -302,8 +302,9 @@ export default function ModifiersPage() {
   });
 
   const groups: any[] = data?.data || [];
+  const showModifierSkeleton = isLoading && groups.length === 0;
 
-  if (isLoading && groups.length === 0) {
+  if (showModifierSkeleton) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">

@@ -19,6 +19,8 @@ import {
   getCanvasBounds,
   getBarSeatCountForRoom,
   getBarSeatDraftPositions,
+  getBarWalkwayDisplaySegments,
+  getBarWalkways,
   getRoomCenter,
   getTableAssignment,
   getTableMetadata,
@@ -30,6 +32,7 @@ import {
   sortFloorRooms,
   type BarOpeningSide,
   type BarStyle,
+  type BarWalkway,
   type FloorPlanRoom,
   type FloorPlanSettings,
   type FloorRoomType,
@@ -122,6 +125,7 @@ export default function FloorPlanPage() {
   const [barSeatCount, setBarSeatCount] = useState(8);
   const [barStyleDraft, setBarStyleDraft] = useState<BarStyle>('straight');
   const [barOpeningSideDraft, setBarOpeningSideDraft] = useState<BarOpeningSide>('south');
+  const [barWalkwayWidthDraft, setBarWalkwayWidthDraft] = useState(88);
   const [extraBarSeats, setExtraBarSeats] = useState(4);
   const [templateForm, setTemplateForm] = useState<FloorTableTemplate>(EMPTY_TEMPLATE_FORM);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -159,24 +163,8 @@ export default function FloorPlanPage() {
     () => coerceFloorPlan(currentLocation?.settings?.floorPlan, tables),
     [currentLocation?.settings?.floorPlan, tables]
   );
-
-  if ((tablesLoading || locationsLoading || staffLoading) && !currentLocation && tables.length === 0) {
-    return (
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
-          <SkeletonBlock className="h-7 w-40" />
-          <SkeletonBlock className="mt-2 h-4 w-56" />
-        </div>
-        <div className="space-y-4 p-6">
-          <LoadingNotice
-            title="Loading floor plan"
-            description="We are pulling rooms, table layouts, sections, and assignments."
-          />
-          <SkeletonBlock className="h-[520px] w-full" />
-        </div>
-      </div>
-    );
-  }
+  const isInitialFloorLoading =
+    (tablesLoading || locationsLoading || staffLoading) && !currentLocation && tables.length === 0;
 
   useEffect(() => {
     if (!isFloorPlanDirty) {
@@ -229,6 +217,7 @@ export default function FloorPlanPage() {
   const selectedRoom =
     rooms.find((room) => room.name === selectedRoomName) ||
     (activeRoom ? roomMap.get(activeRoom) || null : null);
+  const selectedRoomWalkways = selectedRoom?.type === 'bar' ? getBarWalkways(selectedRoom.bar) : [];
   const roomOptions = rooms.length > 0 ? rooms.map((room) => room.name) : [DEFAULT_TABLE.section];
   const visibleRooms = activeRoom ? rooms.filter((room) => room.name === activeRoom) : rooms;
   const singleVisibleRoom = visibleRooms[0] || null;
@@ -364,6 +353,24 @@ export default function FloorPlanPage() {
     onError: (error: any) => toast.error(error?.response?.data?.error || 'Failed to update status'),
   });
 
+  if (isInitialFloorLoading) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b border-slate-700 bg-slate-950/50 px-6 py-4">
+          <SkeletonBlock className="h-7 w-40" />
+          <SkeletonBlock className="mt-2 h-4 w-56" />
+        </div>
+        <div className="space-y-4 p-6">
+          <LoadingNotice
+            title="Loading floor plan"
+            description="We are pulling rooms, table layouts, sections, and assignments."
+          />
+          <SkeletonBlock className="h-[520px] w-full" />
+        </div>
+      </div>
+    );
+  }
+
   const getTablePos = (table: any) => positions[table.id] || { x: table.positionX, y: table.positionY };
 
   const getCanvasPointer = (event: React.MouseEvent | MouseEvent) => {
@@ -468,6 +475,7 @@ export default function FloorPlanPage() {
       style?: BarStyle;
       openingSide?: BarOpeningSide;
       aisleWidth?: number;
+      walkways?: BarWalkway[];
     }
   ) => {
     const roomTables = tablesByRoom.get(room.name) || [];
@@ -499,6 +507,60 @@ export default function FloorPlanPage() {
         return nextPositions;
       });
     }
+  };
+
+  const addBarWalkway = (room: FloorPlanRoom) => {
+    const currentWalkways = getBarWalkways(room.bar);
+    const nextSide = BAR_OPENING_SIDES.find(
+      (side) => !currentWalkways.some((walkway) => walkway.side === side)
+    );
+
+    if (!nextSide) {
+      toast.error('All bar sides already have a staff walkway');
+      return;
+    }
+
+    updateBarRoomLayout(room, {
+      walkways: [
+        ...currentWalkways,
+        {
+          id: `walkway-${nextSide}`,
+          side: nextSide,
+          width: room.bar?.aisleWidth || 88,
+        },
+      ],
+    });
+  };
+
+  const updateBarWalkway = (
+    room: FloorPlanRoom,
+    walkwayId: string,
+    patch: Partial<Pick<BarWalkway, 'side' | 'width'>>
+  ) => {
+    const currentWalkways = getBarWalkways(room.bar);
+    const nextWalkways = currentWalkways.map((walkway) =>
+      walkway.id === walkwayId ? { ...walkway, ...patch } : walkway
+    );
+
+    if (new Set(nextWalkways.map((walkway) => walkway.side)).size !== nextWalkways.length) {
+      toast.error('Each walkway needs its own side');
+      return;
+    }
+
+    updateBarRoomLayout(room, { walkways: nextWalkways });
+  };
+
+  const removeBarWalkway = (room: FloorPlanRoom, walkwayId: string) => {
+    const currentWalkways = getBarWalkways(room.bar);
+
+    if (currentWalkways.length <= 1) {
+      toast.error('Keep at least one staff walkway');
+      return;
+    }
+
+    updateBarRoomLayout(room, {
+      walkways: currentWalkways.filter((walkway) => walkway.id !== walkwayId),
+    });
   };
 
   const beginTemplateEdit = (template?: FloorTableTemplate | null) => {
@@ -775,6 +837,7 @@ export default function FloorPlanPage() {
       seatCount: roomDraftType === 'bar' ? barSeatCount : undefined,
       barStyle: roomDraftType === 'bar' ? barStyleDraft : undefined,
       openingSide: roomDraftType === 'bar' ? barOpeningSideDraft : undefined,
+      aisleWidth: roomDraftType === 'bar' ? barWalkwayWidthDraft : undefined,
     });
     const nextFloorPlan = coerceFloorPlan(
       {
@@ -797,6 +860,7 @@ export default function FloorPlanPage() {
         const seatPayloads = buildBarSeatDrafts(nextRoom, 0, barSeatCount, {
           style: barStyleDraft,
           openingSide: barOpeningSideDraft,
+          aisleWidth: barWalkwayWidthDraft,
         });
         const createdSeats = await Promise.all(
           seatPayloads.map((seat) => api.createTable({ ...seat, locationId }))
@@ -835,6 +899,7 @@ export default function FloorPlanPage() {
       setBarSeatCount(8);
       setBarStyleDraft('straight');
       setBarOpeningSideDraft('south');
+      setBarWalkwayWidthDraft(88);
       setShowAddRoomForm(false);
     } catch {
       // Errors are surfaced by the mutations above.
@@ -868,6 +933,7 @@ export default function FloorPlanPage() {
         style: updatedRoom.bar?.style,
         openingSide: updatedRoom.bar?.openingSide,
         aisleWidth: updatedRoom.bar?.aisleWidth,
+        walkways: updatedRoom.bar?.walkways,
       });
       const createdSeats = await Promise.all(seatPayloads.map((seat) => api.createTable({ ...seat, locationId })));
       const nextFloorPlanWithMetadata = coerceFloorPlan(
@@ -936,48 +1002,6 @@ export default function FloorPlanPage() {
       borderRadius: bar.style === 'circle' ? '999px' : `${Math.max(24, Math.round(bar.counterRadius))}px`,
     };
 
-    const walkwayStyle =
-      bar.style === 'straight'
-        ? null
-        : (() => {
-            const laneWidth = Math.max(24, Math.round(Math.min(56, bar.aisleWidth * 0.45)));
-
-            switch (bar.openingSide) {
-              case 'north':
-                return {
-                  position: 'absolute' as const,
-                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
-                  top: 0,
-                  width: laneWidth,
-                  height: bar.counterY + 6,
-                };
-              case 'south':
-                return {
-                  position: 'absolute' as const,
-                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
-                  top: bar.counterY + bar.counterHeight - 6,
-                  width: laneWidth,
-                  height: room.height - (bar.counterY + bar.counterHeight) + 6,
-                };
-              case 'east':
-                return {
-                  position: 'absolute' as const,
-                  left: bar.counterX + bar.counterWidth - 6,
-                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
-                  width: room.width - (bar.counterX + bar.counterWidth) + 6,
-                  height: laneWidth,
-                };
-              default:
-                return {
-                  position: 'absolute' as const,
-                  left: 0,
-                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
-                  width: bar.counterX + 6,
-                  height: laneWidth,
-                };
-            }
-          })();
-
     return (
       <>
         <div
@@ -989,16 +1013,17 @@ export default function FloorPlanPage() {
           </div>
         </div>
 
-        {walkwayStyle && (
+        {getBarWalkwayDisplaySegments(room).map((walkway) => (
           <div
-            style={walkwayStyle}
+            key={walkway.id}
+            style={walkway.style}
             className="pointer-events-none rounded-full border border-dashed border-amber-300/30 bg-amber-100/5"
           >
             <div className="flex h-full items-center justify-center text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-100/60">
               Staff lane
             </div>
           </div>
-        )}
+        ))}
       </>
     );
   };
@@ -1673,44 +1698,76 @@ export default function FloorPlanPage() {
                             </div>
                           </div>
 
-                          {selectedRoom.bar?.style !== 'straight' && (
-                            <div>
-                              <label className="label text-xs">Walkway Opening</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                {BAR_OPENING_SIDES.map((side) => (
-                                  <button
-                                    key={side}
-                                    type="button"
-                                    onClick={() => updateBarRoomLayout(selectedRoom, { openingSide: side })}
-                                    className={clsx(
-                                      'rounded-xl border px-2 py-2 text-[11px] font-semibold uppercase transition-all',
-                                      selectedRoom.bar?.openingSide === side
-                                        ? 'border-amber-400 bg-amber-500/10 text-amber-100'
-                                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
-                                    )}
+                          {selectedRoom.bar?.style !== 'straight' ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <label className="label text-xs">Server Walkways</label>
+                                <button
+                                  type="button"
+                                  onClick={() => addBarWalkway(selectedRoom)}
+                                  className="btn-secondary px-3 py-1.5 text-[11px]"
+                                >
+                                  Add Walkway
+                                </button>
+                              </div>
+
+                              <div className="space-y-2">
+                                {selectedRoomWalkways.map((walkway) => (
+                                  <div
+                                    key={walkway.id}
+                                    className="rounded-2xl border border-slate-700 bg-slate-800/70 p-3"
                                   >
-                                    {side}
-                                  </button>
+                                    <div className="grid gap-3 sm:grid-cols-[1fr_112px_auto]">
+                                      <select
+                                        value={walkway.side}
+                                        onChange={(event) =>
+                                          updateBarWalkway(selectedRoom, walkway.id, {
+                                            side: event.target.value as BarOpeningSide,
+                                          })
+                                        }
+                                        className="input w-full text-xs uppercase"
+                                      >
+                                        {BAR_OPENING_SIDES.map((side) => (
+                                          <option key={side} value={side}>
+                                            {side}
+                                          </option>
+                                        ))}
+                                      </select>
+
+                                      <input
+                                        type="number"
+                                        value={walkway.width}
+                                        onChange={(event) =>
+                                          updateBarWalkway(selectedRoom, walkway.id, {
+                                            width: clamp(parseNumberInput(event.target.value, walkway.width), 64, 140),
+                                          })
+                                        }
+                                        className="input w-full text-xs"
+                                        min="64"
+                                        max="140"
+                                      />
+
+                                      <button
+                                        type="button"
+                                        onClick={() => removeBarWalkway(selectedRoom, walkway.id)}
+                                        className="btn-secondary px-3 py-2 text-[11px]"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
                                 ))}
                               </div>
-                            </div>
-                          )}
 
-                          <div>
-                            <label className="label text-xs">Aisle Width</label>
-                            <input
-                              type="number"
-                              value={selectedRoom.bar?.aisleWidth || 88}
-                              onChange={(event) =>
-                                updateBarRoomLayout(selectedRoom, {
-                                  aisleWidth: clamp(parseNumberInput(event.target.value, selectedRoom.bar?.aisleWidth || 88), 64, 140),
-                                })
-                              }
-                              className="input w-full"
-                              min="64"
-                              max="140"
-                            />
-                          </div>
+                              <p className="text-[11px] leading-5 text-slate-400">
+                                Use multiple walkways to keep bartender entry and exit clear while still wrapping seats around the bar.
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="rounded-2xl border border-slate-700 bg-slate-800/70 px-3 py-3 text-[11px] leading-5 text-slate-400">
+                              Straight bars keep a fixed working lane behind the counter. Switch to rectangle or circle bars to place multiple configurable walkways.
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -2184,26 +2241,45 @@ export default function FloorPlanPage() {
                   </div>
 
                   {barStyleDraft !== 'straight' && (
-                    <div>
-                      <label className="label">Walkway Opening</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {BAR_OPENING_SIDES.map((side) => (
-                          <button
-                            key={side}
-                            type="button"
-                            onClick={() => setBarOpeningSideDraft(side)}
-                            className={clsx(
-                              'rounded-xl border px-3 py-2 text-xs font-semibold uppercase transition-all',
-                              barOpeningSideDraft === side
-                                ? 'border-amber-400 bg-amber-500/10 text-amber-100'
-                                : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
-                            )}
-                          >
-                            {side}
-                          </button>
-                        ))}
+                    <>
+                      <div>
+                        <label className="label">Initial Staff Walkway</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {BAR_OPENING_SIDES.map((side) => (
+                            <button
+                              key={side}
+                              type="button"
+                              onClick={() => setBarOpeningSideDraft(side)}
+                              className={clsx(
+                                'rounded-xl border px-3 py-2 text-xs font-semibold uppercase transition-all',
+                                barOpeningSideDraft === side
+                                  ? 'border-amber-400 bg-amber-500/10 text-amber-100'
+                                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                              )}
+                            >
+                              {side}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+
+                      <div>
+                        <label className="label">Initial Walkway Width</label>
+                        <input
+                          type="number"
+                          value={barWalkwayWidthDraft}
+                          onChange={(event) =>
+                            setBarWalkwayWidthDraft(clamp(parseNumberInput(event.target.value, 88), 64, 140))
+                          }
+                          className="input w-full"
+                          min="64"
+                          max="140"
+                        />
+                        <p className="mt-2 text-xs text-slate-400">
+                          You can add more walkways after the bar room is created.
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -2221,6 +2297,7 @@ export default function FloorPlanPage() {
                   setBarSeatCount(8);
                   setBarStyleDraft('straight');
                   setBarOpeningSideDraft('south');
+                  setBarWalkwayWidthDraft(88);
                   setShowAddRoomForm(false);
                 }}
                 className="btn-secondary flex-1"
