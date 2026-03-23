@@ -57,23 +57,47 @@ class POSWebSocket {
   //   }
   // }
 
+  connect(token: string) {
+    if (typeof window === 'undefined') return;
+    if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) return;
 
-  // Inside your POSWebSocket class...
-connect(token: string) {
-  // Prevent execution during Next.js server-side rendering
-  if (typeof window === 'undefined') return;
+    this.token = token;
+    this.isConnecting = true;
 
-  if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) return;
-  this.token = token;
-  this.isConnecting = true;
+    try {
+      this.ws = new WebSocket(`${WS_URL}/ws/live`);
 
-  try {
-    this.ws = new WebSocket(`${WS_URL}/ws/live`);
-    // ... rest of your existing logic
-  } catch (e) {
-    this.isConnecting = false;
+      this.ws.onopen = () => {
+        this.isConnecting = false;
+        this.reconnectDelay = 2000;
+        this.ws?.send(JSON.stringify({ type: 'AUTH', token }));
+        this.startPing();
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          this.emit(message.type, message.payload);
+        } catch {
+          console.warn('WS: Failed to parse message');
+        }
+      };
+
+      this.ws.onclose = () => {
+        this.isConnecting = false;
+        this.stopPing();
+        this.ws = null;
+        this.scheduleReconnect();
+      };
+
+      this.ws.onerror = () => {
+        this.isConnecting = false;
+      };
+    } catch {
+      this.isConnecting = false;
+      this.scheduleReconnect();
+    }
   }
-}
   disconnect() {
     this.stopPing();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);

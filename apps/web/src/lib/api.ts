@@ -164,6 +164,18 @@ class ApiClient {
     const { data } = await this.client.delete(`/api/menu/modifiers/${id}`);
     return data;
   }
+  async createPricingOverride(itemId: string, payload: any) {
+    const { data } = await this.client.post(`/api/menu/items/${itemId}/pricing-overrides`, payload);
+    return data;
+  }
+  async updatePricingOverride(id: string, payload: any) {
+    const { data } = await this.client.put(`/api/menu/pricing-overrides/${id}`, payload);
+    return data;
+  }
+  async deletePricingOverride(id: string) {
+    const { data } = await this.client.delete(`/api/menu/pricing-overrides/${id}`);
+    return data;
+  }
 
   // Orders
   async getOrders(params?: any) {
@@ -442,6 +454,10 @@ class ApiClient {
     const { data } = await this.client.put(`/api/stations/${id}`, payload);
     return data;
   }
+  async deleteStation(id: string) {
+    const { data } = await this.client.delete(`/api/stations/${id}`);
+    return data;
+  }
 
   // Combos
   async getCombos() {
@@ -456,6 +472,10 @@ class ApiClient {
     const { data } = await this.client.put(`/api/combos/${id}`, payload);
     return data;
   }
+  async deleteCombo(id: string) {
+    const { data } = await this.client.delete(`/api/combos/${id}`);
+    return data;
+  }
 
   // Gift Cards
   async getGiftCards() {
@@ -468,6 +488,10 @@ class ApiClient {
   }
   async getGiftCardBalance(code: string) {
     const { data } = await this.client.get(`/api/gift-cards/${code}/balance`);
+    return data;
+  }
+  async deactivateGiftCard(id: string) {
+    const { data } = await this.client.patch(`/api/gift-cards/${id}/deactivate`);
     return data;
   }
 

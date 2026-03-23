@@ -32,6 +32,9 @@ import taxRoutes from './routes/taxes';
 import giftCardRoutes from './routes/giftCards';
 import comboRoutes from './routes/combos';
 import auditRoutes from './routes/audit';
+
+const KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
+
 const app = Fastify({
   logger: {
     level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
@@ -40,6 +43,49 @@ const app = Fastify({
       : undefined,
   },
   trustProxy: true,
+});
+
+let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
+
+function startKeepAliveWorker(port: number) {
+  if (keepAliveInterval) return;
+
+  const healthUrl = `http://127.0.0.1:${port}/health`;
+
+  const pingHealth = async () => {
+    try {
+      const response = await fetch(healthUrl, { method: 'GET' });
+
+      if (!response.ok) {
+        app.log.warn(
+          { healthUrl, statusCode: response.status },
+          'Internal keep-alive ping returned a non-OK status'
+        );
+      }
+    } catch (error) {
+      app.log.warn(
+        {
+          healthUrl,
+          error: error instanceof Error ? error.message : 'Unknown keep-alive error',
+        },
+        'Internal keep-alive ping failed'
+      );
+    }
+  };
+
+  keepAliveInterval = setInterval(() => {
+    void pingHealth();
+  }, KEEP_ALIVE_INTERVAL_MS);
+
+  keepAliveInterval.unref?.();
+  void pingHealth();
+}
+
+app.addHook('onClose', async () => {
+  if (!keepAliveInterval) return;
+
+  clearInterval(keepAliveInterval);
+  keepAliveInterval = null;
 });
 
 async function bootstrap() {
@@ -119,13 +165,8 @@ async function bootstrap() {
   });
 
   // ââ Health Check âââââââââââââââââââââââââââââââââââââââââ
-  app.get('/health', async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      return { status: 'ok', db: 'connected', timestamp: new Date().toISOString() };
-    } catch {
-      return { status: 'degraded', db: 'disconnected', timestamp: new Date().toISOString() };
-    }
+  app.get('/health', async (_request, reply) => {
+    return reply.send({ status: 'ok' });
   });
 
   // ââ Routes ââââââââââââââââââââââââââââââââââââââââââââââââ
@@ -155,6 +196,7 @@ async function bootstrap() {
   const host = process.env.HOST || '0.0.0.0';
 
   await app.listen({ port, host });
+  startKeepAliveWorker(port);
   console.log(`\nð POS API running on http://${host}:${port}`);
   console.log(`ð Swagger docs: http://${host}:${port}/docs`);
   console.log(`ð WebSocket: ws://${host}:${port}/ws/live\n`);

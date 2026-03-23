@@ -101,7 +101,8 @@ export default async function menuRoutes(app: FastifyInstance) {
 
   app.get('/items', auth, async (request, reply) => {
     const user = (request as any).user;
-    const { categoryId, status, search, dayPart } = request.query as Record<string, string>;
+    const { categoryId, status, search, dayPart, includeInactivePricing } =
+      request.query as Record<string, string>;
 
     const where: any = { restaurantId: user.restaurantId };
     if (categoryId) where.categoryId = categoryId;
@@ -117,7 +118,8 @@ export default async function menuRoutes(app: FastifyInstance) {
           include: { modifierGroup: { include: { modifiers: { orderBy: { sortOrder: 'asc' } } } } },
           orderBy: { sortOrder: 'asc' },
         },
-        pricingOverrides: { where: { isActive: true } },
+        pricingOverrides:
+          includeInactivePricing === 'true' ? true : { where: { isActive: true } },
       },
       orderBy: [{ category: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     });
@@ -463,6 +465,41 @@ export default async function menuRoutes(app: FastifyInstance) {
     });
 
     return reply.code(201).send({ success: true, data: override });
+  });
+
+  app.put('/pricing-overrides/:id', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+    if (!['OWNER', 'MANAGER'].includes(user.role)) {
+      return reply.code(403).send({ success: false, error: 'Insufficient permissions' });
+    }
+    const { name, price, startTime, endTime, daysOfWeek, isActive } = request.body as any;
+
+    const override = await prisma.pricingOverride.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(price !== undefined && { price }),
+        ...(startTime !== undefined && { startTime }),
+        ...(endTime !== undefined && { endTime }),
+        ...(daysOfWeek !== undefined && { daysOfWeek }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+
+    return reply.send({ success: true, data: override });
+  });
+
+  app.delete('/pricing-overrides/:id', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+    if (!['OWNER', 'MANAGER'].includes(user.role)) {
+      return reply.code(403).send({ success: false, error: 'Insufficient permissions' });
+    }
+
+    await prisma.pricingOverride.delete({ where: { id } });
+
+    return reply.send({ success: true, message: 'Pricing override deleted' });
   });
 
   // Get full menu (for POS terminal)

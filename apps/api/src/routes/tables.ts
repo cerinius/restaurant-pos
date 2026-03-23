@@ -3,6 +3,9 @@ import { prisma } from '@pos/db';
 import { WSEventType } from '@pos/shared';
 import { wsManager } from '../websocket/manager';
 
+const ACTIVE_ORDER_STATUSES = ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] as const;
+const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'DIRTY', 'BLOCKED'] as const;
+
 export default async function tableRoutes(app: FastifyInstance) {
   const auth = {
     preHandler: [async (request: any, reply: any) => app.authenticate(request, reply)],
@@ -22,7 +25,7 @@ export default async function tableRoutes(app: FastifyInstance) {
       },
       include: {
         orders: {
-          where: { status: { in: ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] } },
+          where: { status: { in: ACTIVE_ORDER_STATUSES as any } },
           include: {
             items: {
               where: { isVoided: false },
@@ -54,7 +57,7 @@ export default async function tableRoutes(app: FastifyInstance) {
       where: { id, location: { restaurantId: user.restaurantId } },
       include: {
         orders: {
-          where: { status: { in: ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] } },
+          where: { status: { in: ACTIVE_ORDER_STATUSES as any } },
           include: {
             items: { where: { isVoided: false } },
             payments: true,
@@ -102,6 +105,80 @@ export default async function tableRoutes(app: FastifyInstance) {
     return reply.code(201).send({ success: true, data: table });
   });
 
+  app.put('/bulk-positions', auth, async (request, reply) => {
+    const user = (request as any).user;
+
+    if (!['OWNER', 'MANAGER'].includes(user.role)) {
+      return reply.code(403).send({ success: false, error: 'Insufficient permissions' });
+    }
+
+    const { positions } = (request.body as { positions?: Array<{ id: string; positionX: number; positionY: number }> }) || {};
+
+    if (!Array.isArray(positions) || positions.length === 0) {
+      return reply.send({ success: true, data: [] });
+    }
+
+    const dedupedPositions = Array.from(
+      positions.reduce((map, position) => {
+        if (!position?.id) return map;
+
+        map.set(position.id, {
+          id: position.id,
+          positionX: Number(position.positionX),
+          positionY: Number(position.positionY),
+        });
+
+        return map;
+      }, new Map<string, { id: string; positionX: number; positionY: number }>())
+        .values()
+    );
+
+    if (dedupedPositions.length === 0) {
+      return reply.code(400).send({ success: false, error: 'No valid table positions provided' });
+    }
+
+    const hasInvalidPosition = dedupedPositions.some(
+      (position) => !Number.isFinite(position.positionX) || !Number.isFinite(position.positionY)
+    );
+
+    if (hasInvalidPosition) {
+      return reply.code(400).send({ success: false, error: 'Invalid table positions provided' });
+    }
+
+    const tableIds = dedupedPositions.map((position) => position.id);
+
+    const existingTables = await prisma.table.findMany({
+      where: {
+        id: { in: tableIds },
+        isActive: true,
+        location: { restaurantId: user.restaurantId },
+      },
+      select: { id: true },
+    });
+
+    if (existingTables.length !== tableIds.length) {
+      return reply.code(404).send({ success: false, error: 'One or more tables were not found' });
+    }
+
+    const updatedTables = await prisma.$transaction(
+      dedupedPositions.map((position) =>
+        prisma.table.update({
+          where: { id: position.id },
+          data: {
+            positionX: position.positionX,
+            positionY: position.positionY,
+          },
+        })
+      )
+    );
+
+    updatedTables.forEach((table) => {
+      wsManager.broadcast(user.restaurantId, WSEventType.TABLE_UPDATED, table, table.locationId);
+    });
+
+    return reply.send({ success: true, data: updatedTables });
+  });
+
   app.put('/:id', auth, async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = (request as any).user;
@@ -141,6 +218,86 @@ export default async function tableRoutes(app: FastifyInstance) {
     });
 
     wsManager.broadcast(user.restaurantId, WSEventType.TABLE_UPDATED, table, table.locationId);
+
+    return reply.send({ success: true, data: table });
+  });
+
+  app.patch('/:id/status', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+
+    if (!['OWNER', 'MANAGER'].includes(user.role)) {
+      return reply.code(403).send({ success: false, error: 'Insufficient permissions' });
+    }
+
+    const { status } = (request.body as { status?: string }) || {};
+
+    if (!status || !TABLE_STATUSES.includes(status as (typeof TABLE_STATUSES)[number])) {
+      return reply.code(400).send({ success: false, error: 'Invalid table status' });
+    }
+
+    const existingTable = await prisma.table.findFirst({
+      where: {
+        id,
+        isActive: true,
+        location: { restaurantId: user.restaurantId },
+      },
+      select: { id: true },
+    });
+
+    if (!existingTable) {
+      return reply.code(404).send({ success: false, error: 'Table not found' });
+    }
+
+    const table = await prisma.table.update({
+      where: { id },
+      data: { status: status as any },
+    });
+
+    wsManager.broadcast(user.restaurantId, WSEventType.TABLE_UPDATED, table, table.locationId);
+
+    return reply.send({ success: true, data: table });
+  });
+
+  app.delete('/:id', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+
+    if (!['OWNER', 'MANAGER'].includes(user.role)) {
+      return reply.code(403).send({ success: false, error: 'Insufficient permissions' });
+    }
+
+    const existingTable = await prisma.table.findFirst({
+      where: {
+        id,
+        isActive: true,
+        location: { restaurantId: user.restaurantId },
+      },
+      select: { id: true, locationId: true },
+    });
+
+    if (!existingTable) {
+      return reply.code(404).send({ success: false, error: 'Table not found' });
+    }
+
+    const openOrders = await prisma.order.count({
+      where: {
+        tableId: id,
+        restaurantId: user.restaurantId,
+        status: { in: ACTIVE_ORDER_STATUSES as any },
+      },
+    });
+
+    if (openOrders > 0) {
+      return reply.code(409).send({ success: false, error: 'Cannot delete table with active orders' });
+    }
+
+    const table = await prisma.table.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    wsManager.broadcast(user.restaurantId, WSEventType.TABLE_UPDATED, table, existingTable.locationId);
 
     return reply.send({ success: true, data: table });
   });

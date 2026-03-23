@@ -46,14 +46,29 @@ export default async function comboRoutes(app: FastifyInstance) {
     if (!['OWNER', 'MANAGER'].includes(user.role)) {
       return reply.code(403).send({ success: false, error: 'Insufficient permissions' });
     }
-    const { name, description, price, isActive } = request.body as any;
+    const { name, description, image, price, isActive, items } = request.body as any;
     const combo = await prisma.combo.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
         ...(description !== undefined && { description }),
+        ...(image !== undefined && { image }),
         ...(price !== undefined && { price }),
         ...(isActive !== undefined && { isActive }),
+        ...(items !== undefined && {
+          items: {
+            deleteMany: {},
+            ...(items.length > 0
+              ? {
+                  create: items.map((item: any) => ({
+                    menuItemId: item.menuItemId,
+                    quantity: item.quantity || 1,
+                    allowSubstitutions: item.allowSubstitutions || false,
+                  })),
+                }
+              : {}),
+          },
+        }),
       },
       include: { items: { include: { menuItem: true } } },
     });
