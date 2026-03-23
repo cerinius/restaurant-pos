@@ -9,11 +9,15 @@ import api from '@/lib/api';
 import {
   CANVAS_PADDING,
   coerceFloorPlan,
+  getBarSeatCountForRoom,
   getCanvasBounds,
   getRoomCenter,
+  getTableAssignment,
   getTableRoomName,
+  isBarSeatTable,
   sortFloorRooms,
 } from '@/lib/floor-plan';
+import { useAuthStore } from '@/store';
 
 interface Props {
   locationId: string;
@@ -51,7 +55,13 @@ function formatCurrency(amount?: number) {
 }
 
 export function TableMap({ locationId, onTableSelect, selectedTableId, initialTables = [] }: Props) {
+  const { user } = useAuthStore();
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [blockedTable, setBlockedTable] = useState<{
+    table: any;
+    assignment: ReturnType<typeof getTableAssignment>;
+    order: any;
+  } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['tables', locationId],
@@ -99,11 +109,118 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
         height: Math.max(600, activeRoom.height + CANVAS_PADDING * 2),
       }
     : getCanvasBounds(rooms);
+  const assignmentSummary = useMemo(() => {
+    const counts = new Map<string, { serverId: string; serverName: string; assigned: number; open: number }>();
+
+    floorPlan.tableAssignments.forEach((assignment) => {
+      const table = tables.find((entry) => entry.id === assignment.tableId);
+      if (!table) return;
+
+      const current = counts.get(assignment.serverId) || {
+        serverId: assignment.serverId,
+        serverName: assignment.serverName,
+        assigned: 0,
+        open: 0,
+      };
+
+      current.assigned += 1;
+      if (table.status === 'AVAILABLE') current.open += 1;
+      counts.set(assignment.serverId, current);
+    });
+
+    return Array.from(counts.values()).sort((left, right) => left.serverName.localeCompare(right.serverName));
+  }, [floorPlan.tableAssignments, tables]);
+  const isRestrictedRole = ['SERVER', 'BARTENDER'].includes(String(user?.role || '').toUpperCase());
 
   const counts = {
     available: tables.filter((table: any) => table.status === 'AVAILABLE').length,
     occupied: tables.filter((table: any) => table.status === 'OCCUPIED').length,
     dirty: tables.filter((table: any) => table.status === 'DIRTY').length,
+  };
+
+  const handleTablePress = (table: any) => {
+    const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
+    const order = table.orders?.[0] || null;
+
+    if (isRestrictedRole && assignment?.serverId !== user?.id) {
+      setBlockedTable({ table, assignment, order });
+      return;
+    }
+
+    onTableSelect(table);
+  };
+
+  const renderBarFeature = (room: any) => {
+    if (room.type !== 'bar' || !room.bar?.enabled) return null;
+
+    const bar = room.bar;
+    const walkwayStyle =
+      bar.style === 'straight'
+        ? null
+        : (() => {
+            const laneWidth = Math.max(24, Math.round(Math.min(56, bar.aisleWidth * 0.45)));
+
+            switch (bar.openingSide) {
+              case 'north':
+                return {
+                  position: 'absolute' as const,
+                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
+                  top: 0,
+                  width: laneWidth,
+                  height: bar.counterY + 6,
+                };
+              case 'south':
+                return {
+                  position: 'absolute' as const,
+                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
+                  top: bar.counterY + bar.counterHeight - 6,
+                  width: laneWidth,
+                  height: room.height - (bar.counterY + bar.counterHeight) + 6,
+                };
+              case 'east':
+                return {
+                  position: 'absolute' as const,
+                  left: bar.counterX + bar.counterWidth - 6,
+                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
+                  width: room.width - (bar.counterX + bar.counterWidth) + 6,
+                  height: laneWidth,
+                };
+              default:
+                return {
+                  position: 'absolute' as const,
+                  left: 0,
+                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
+                  width: bar.counterX + 6,
+                  height: laneWidth,
+                };
+            }
+          })();
+
+    return (
+      <>
+        <div
+          style={{
+            position: 'absolute',
+            left: bar.counterX,
+            top: bar.counterY,
+            width: Math.min(room.width - 56, bar.counterWidth),
+            height: bar.counterHeight,
+            borderRadius: bar.style === 'circle' ? '999px' : `${Math.max(24, Math.round(bar.counterRadius))}px`,
+          }}
+          className="border border-amber-400/35 bg-amber-500/10"
+        >
+          <div className="flex h-full items-center justify-center text-xs font-black uppercase tracking-[0.35em] text-amber-100/80">
+            Bar
+          </div>
+        </div>
+        {walkwayStyle && (
+          <div
+            style={walkwayStyle}
+            className="pointer-events-none rounded-full border border-dashed border-amber-300/30 bg-amber-100/5"
+          />
+        )}
+      </>
+    );
   };
 
   if (isLoading) {
@@ -131,6 +248,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     const roomTables = (tablesByRoom.get(room.name) || []).sort((a, b) =>
       String(a.name || '').localeCompare(String(b.name || ''))
     );
+    const barSeatCount = room.type === 'bar' ? getBarSeatCountForRoom(room, roomTables, floorPlan.tableMetadata) : 0;
 
     return (
       <div
@@ -154,33 +272,20 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           {room.name}
         </div>
         <div className="absolute right-4 top-4 z-[2] rounded-full bg-slate-950/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-          {room.type === 'bar' ? `${room.bar?.seatCount || roomTables.length} seats` : `${roomTables.length} tables`}
+          {room.type === 'bar' ? `${barSeatCount} stools · ${roomTables.length - barSeatCount} tables` : `${roomTables.length} tables`}
         </div>
 
-        {room.type === 'bar' && room.bar?.enabled && (
-          <div
-            style={{
-              position: 'absolute',
-              left: room.bar.counterX,
-              top: room.bar.counterY,
-              width: Math.min(room.width - 56, room.bar.counterWidth),
-              height: room.bar.counterHeight,
-            }}
-            className="rounded-[24px] border border-amber-400/35 bg-amber-500/10"
-          >
-            <div className="flex h-full items-center justify-center text-xs font-black uppercase tracking-[0.35em] text-amber-100/80">
-              Bar
-            </div>
-          </div>
-        )}
+        {renderBarFeature(room)}
 
         {roomTables.map((table: any) => {
           const isSelected = table.id === selectedTableId;
           const hasOrder = table.orders && table.orders.length > 0;
           const order = hasOrder ? table.orders[0] : null;
+          const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
           const elapsed = order
             ? Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000)
             : 0;
+          const isBarSeat = isBarSeatTable(table, room, floorPlan.tableMetadata);
 
           return (
             <motion.button
@@ -189,7 +294,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               whileTap={{ scale: 0.96 }}
-              onClick={() => onTableSelect(table)}
+              onClick={() => handleTablePress(table)}
               style={{
                 position: 'absolute',
                 left: table.positionX,
@@ -206,6 +311,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               className={`border-2 flex flex-col items-center justify-center transition-all
                 ${STATUS_STYLES[table.status] || 'table-available'}
                 ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-900' : ''}
+                ${isBarSeat ? 'border-amber-300/80' : ''}
                 ${table.status === 'BLOCKED' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:brightness-110'}
               `}
             >
@@ -219,6 +325,11 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               {order && (
                 <span className="mt-0.5 truncate px-1 text-xs leading-none opacity-75">
                   {formatCurrency(order.total)}
+                </span>
+              )}
+              {assignment && (
+                <span className="mt-1 max-w-[88%] truncate text-[10px] font-semibold leading-none text-blue-100/80">
+                  {assignment.serverName}
                 </span>
               )}
             </motion.button>
@@ -269,6 +380,21 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
             </button>
           ))}
         </div>
+
+        {assignmentSummary.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {assignmentSummary.map((summary) => (
+              <div
+                key={summary.serverId}
+                className="rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300"
+              >
+                <span className="font-semibold text-slate-100">{summary.serverName}</span>
+                <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
+                <span className="ml-2 text-emerald-300">{summary.open} open</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto p-4 md:hidden">
@@ -279,6 +405,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                 const isSelected = table.id === selectedTableId;
                 const hasOrder = table.orders && table.orders.length > 0;
                 const order = hasOrder ? table.orders[0] : null;
+                const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
                 const elapsed = order
                   ? Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000)
                   : 0;
@@ -287,7 +414,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                   <button
                     key={table.id}
                     type="button"
-                    onClick={() => onTableSelect(table)}
+                    onClick={() => handleTablePress(table)}
                     className={`touch-target flex min-h-[112px] flex-col rounded-[28px] border-2 p-4 text-left transition
                       ${STATUS_STYLES[table.status] || 'table-available'}
                       ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-950' : ''}
@@ -301,6 +428,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                           {getTableRoomName(table)}
                           {table.capacity ? ` | ${table.capacity} seats` : ''}
                         </p>
+                        {assignment && <p className="mt-1 text-xs font-semibold text-blue-100/80">{assignment.serverName}</p>}
                       </div>
                       <span className={`text-xs font-semibold ${STATUS_ACCENTS[table.status] || 'text-slate-300'}`}>
                         {STATUS_LABELS[table.status] || table.status}
@@ -333,6 +461,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               const roomTables = (tablesByRoom.get(room.name) || []).sort((a, b) =>
                 String(a.name || '').localeCompare(String(b.name || ''))
               );
+              const barSeatCount = room.type === 'bar' ? getBarSeatCountForRoom(room, roomTables, floorPlan.tableMetadata) : 0;
 
               return (
                 <section key={room.name} className="rounded-[28px] border border-slate-800 bg-slate-900/70 p-4">
@@ -340,7 +469,9 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                     <div>
                       <h3 className="text-sm font-semibold text-slate-100">{room.name}</h3>
                       <p className="text-xs text-slate-500">
-                        {room.type === 'bar' ? 'Bar map' : 'Room map'} · {roomTables.length} tables
+                        {room.type === 'bar'
+                          ? `Bar map · ${barSeatCount} stools · ${roomTables.length - barSeatCount} tables`
+                          : `Room map · ${roomTables.length} tables`}
                       </p>
                     </div>
                     <button
@@ -358,12 +489,13 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                         const isSelected = table.id === selectedTableId;
                         const hasOrder = table.orders && table.orders.length > 0;
                         const order = hasOrder ? table.orders[0] : null;
+                        const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
 
                         return (
                           <button
                             key={table.id}
                             type="button"
-                            onClick={() => onTableSelect(table)}
+                            onClick={() => handleTablePress(table)}
                             className={`touch-target flex min-h-[104px] flex-col rounded-[24px] border-2 p-4 text-left transition
                               ${STATUS_STYLES[table.status] || 'table-available'}
                               ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-950' : ''}
@@ -373,6 +505,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                               <div>
                                 <p className="text-sm font-semibold">{table.name}</p>
                                 <p className="mt-1 text-xs opacity-80">{table.capacity || 0} seats</p>
+                                {assignment && <p className="mt-1 text-xs font-semibold text-blue-100/80">{assignment.serverName}</p>}
                               </div>
                               <span className={`text-xs font-semibold ${STATUS_ACCENTS[table.status] || 'text-slate-300'}`}>
                                 {STATUS_LABELS[table.status] || table.status}
@@ -451,6 +584,49 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           </div>
         ))}
       </div>
+
+      {blockedTable && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[28px] border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-100">Table Not In Your Section</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Table {blockedTable.table.name} is currently{' '}
+              <span className="font-semibold text-slate-200">
+                {STATUS_LABELS[blockedTable.table.status] || blockedTable.table.status}
+              </span>
+              .
+            </p>
+            <div className="mt-4 rounded-2xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-300">
+              <p>
+                Assigned to:{' '}
+                <span className="font-semibold text-slate-100">
+                  {blockedTable.assignment?.serverName || 'No one yet'}
+                </span>
+              </p>
+              <p className="mt-2">
+                Current check:{' '}
+                <span className="font-semibold text-slate-100">
+                  {blockedTable.order ? formatCurrency(blockedTable.order.total) : 'No open check'}
+                </span>
+              </p>
+              {blockedTable.order?.serverName && (
+                <p className="mt-2">
+                  Active server: <span className="font-semibold text-slate-100">{blockedTable.order.serverName}</span>
+                </p>
+              )}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setBlockedTable(null)}
+                className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

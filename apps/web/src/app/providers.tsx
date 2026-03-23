@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 
+import { ApiKeepAlive } from '@/components/ApiKeepAlive';
+
 export default function Providers({
   children,
 }: {
@@ -23,6 +25,7 @@ export default function Providers({
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ApiKeepAlive />
       {children}
       <Toaster
         position="top-right"

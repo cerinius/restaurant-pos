@@ -8,22 +8,33 @@ import toast from 'react-hot-toast';
 
 import api from '@/lib/api';
 import {
+  BAR_SEAT_SIZE,
   CANVAS_PADDING,
   ROOM_INNER_PADDING,
+  applyTemplateToDraft,
   applyAutoLayoutToFloorPlan,
   buildBarSeatDrafts,
   coerceFloorPlan,
   createFloorRoom,
   getCanvasBounds,
+  getBarSeatCountForRoom,
+  getBarSeatDraftPositions,
   getRoomCenter,
+  getTableAssignment,
+  getTableMetadata,
   getTableRoomName,
+  isBarSeatTable,
   makeConnectionId,
   normalizeRoomName,
   resizeBarRoomForSeatCount,
   sortFloorRooms,
+  type BarOpeningSide,
+  type BarStyle,
   type FloorPlanRoom,
   type FloorPlanSettings,
   type FloorRoomType,
+  type FloorTableMetadata,
+  type FloorTableTemplate,
 } from '@/lib/floor-plan';
 import { useAuthStore } from '@/store';
 
@@ -37,6 +48,8 @@ const STATUS_STYLES: Record<string, string> = {
 
 const SHAPES = ['rectangle', 'square', 'circle'];
 const STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'DIRTY', 'BLOCKED'];
+const BAR_STYLES: BarStyle[] = ['straight', 'rectangle', 'circle'];
+const BAR_OPENING_SIDES: BarOpeningSide[] = ['north', 'east', 'south', 'west'];
 const DEFAULT_TABLE = {
   name: '',
   capacity: 4,
@@ -44,8 +57,17 @@ const DEFAULT_TABLE = {
   section: 'Main',
   width: 100,
   height: 80,
+  templateId: '',
 };
 const EMPTY_FLOOR_PLAN = coerceFloorPlan(null, []);
+const EMPTY_TEMPLATE_FORM: FloorTableTemplate = {
+  id: '',
+  name: '',
+  shape: 'rectangle',
+  width: 100,
+  height: 80,
+  capacity: 4,
+};
 
 function parseNumberInput(value: string, fallback: number) {
   const parsed = Number.parseInt(value, 10);
@@ -54,6 +76,10 @@ function parseNumberInput(value: string, fallback: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function createTemplateId() {
+  return `template-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function reorderRooms(rooms: FloorPlanRoom[], roomName: string, targetOrder: number) {
@@ -88,11 +114,17 @@ export default function FloorPlanPage() {
   const [selectedRoomName, setSelectedRoomName] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showAddRoomForm, setShowAddRoomForm] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [newTable, setNewTable] = useState(DEFAULT_TABLE);
   const [roomDraft, setRoomDraft] = useState('');
   const [roomDraftType, setRoomDraftType] = useState<FloorRoomType>('room');
   const [barSeatCount, setBarSeatCount] = useState(8);
+  const [barStyleDraft, setBarStyleDraft] = useState<BarStyle>('straight');
+  const [barOpeningSideDraft, setBarOpeningSideDraft] = useState<BarOpeningSide>('south');
   const [extraBarSeats, setExtraBarSeats] = useState(4);
+  const [templateForm, setTemplateForm] = useState<FloorTableTemplate>(EMPTY_TEMPLATE_FORM);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [bulkAssignedServerId, setBulkAssignedServerId] = useState('');
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draftFloorPlan, setDraftFloorPlan] = useState<FloorPlanSettings>(EMPTY_FLOOR_PLAN);
@@ -112,8 +144,15 @@ export default function FloorPlanPage() {
     enabled: !!locationId,
   });
 
+  const { data: staffData } = useQuery({
+    queryKey: ['staff'],
+    queryFn: () => api.getStaff(),
+    enabled: !!locationId,
+  });
+
   const tables: any[] = data?.data || [];
   const locations: any[] = locationsData?.data || [];
+  const staffList: any[] = staffData?.data || [];
   const currentLocation = locations.find((location) => location.id === locationId) || null;
   const persistedFloorPlan = useMemo(
     () => coerceFloorPlan(currentLocation?.settings?.floorPlan, tables),
@@ -138,10 +177,19 @@ export default function FloorPlanPage() {
     }
   }, [draftFloorPlan.rooms, selectedRoomName]);
 
+  useEffect(() => {
+    setBulkAssignedServerId('');
+  }, [selectedRoomName]);
+
   const rooms = useMemo(() => sortFloorRooms(draftFloorPlan.rooms), [draftFloorPlan.rooms]);
   const roomMap = useMemo(
     () => new Map(rooms.map((room) => [room.name, room] as const)),
     [rooms]
+  );
+  const tableTemplates = draftFloorPlan.tableTemplates || [];
+  const tableMetadata = draftFloorPlan.tableMetadata || [];
+  const assignableStaff = staffList.filter((member) =>
+    member?.isActive !== false && ['SERVER', 'BARTENDER'].includes(String(member?.role || '').toUpperCase())
   );
   const tablesByRoom = useMemo(() => {
     const grouped = new Map<string, any[]>();
@@ -155,6 +203,10 @@ export default function FloorPlanPage() {
     return grouped;
   }, [tables]);
   const selected = tables.find((table) => table.id === selectedId) || null;
+  const selectedMetadata = selected ? getTableMetadata(tableMetadata, selected.id) : null;
+  const selectedTemplate =
+    selectedMetadata?.templateId ? tableTemplates.find((template) => template.id === selectedMetadata.templateId) || null : null;
+  const selectedAssignment = selected ? getTableAssignment(draftFloorPlan.tableAssignments, selected.id) : null;
   const selectedRoom =
     rooms.find((room) => room.name === selectedRoomName) ||
     (activeRoom ? roomMap.get(activeRoom) || null : null);
@@ -182,6 +234,27 @@ export default function FloorPlanPage() {
 
     return getCanvasBounds(rooms);
   }, [rooms, singleVisibleRoom]);
+  const assignmentSummary = useMemo(() => {
+    const counts = new Map<string, { serverId: string; serverName: string; assigned: number; open: number }>();
+
+    draftFloorPlan.tableAssignments.forEach((assignment) => {
+      const table = tables.find((entry) => entry.id === assignment.tableId);
+      if (!table) return;
+
+      const current = counts.get(assignment.serverId) || {
+        serverId: assignment.serverId,
+        serverName: assignment.serverName,
+        assigned: 0,
+        open: 0,
+      };
+
+      current.assigned += 1;
+      if (table.status === 'AVAILABLE') current.open += 1;
+      counts.set(assignment.serverId, current);
+    });
+
+    return Array.from(counts.values()).sort((left, right) => left.serverName.localeCompare(right.serverName));
+  }, [draftFloorPlan.tableAssignments, tables]);
 
   const saveLayoutMutation = useMutation({
     mutationFn: async ({
@@ -293,9 +366,210 @@ export default function FloorPlanPage() {
     setIsFloorPlanDirty(true);
   };
 
-  const persistFloorPlan = async (nextFloorPlan: FloorPlanSettings, successMessage: string) => {
+  const persistFloorPlan = async (nextFloorPlan: FloorPlanSettings, successMessage?: string) => {
     await saveLayoutMutation.mutateAsync({ nextFloorPlan });
-    toast.success(successMessage);
+    if (successMessage) {
+      toast.success(successMessage);
+    }
+  };
+
+  const updateTableMetadataEntry = (tableId: string, patch: Partial<FloorTableMetadata> | null) => {
+    updateDraftPlan((current) => {
+      const existing = current.tableMetadata.find((entry) => entry.tableId === tableId);
+      const nextMetadata = current.tableMetadata.filter((entry) => entry.tableId !== tableId);
+
+      if (!patch) {
+        return {
+          ...current,
+          tableMetadata: nextMetadata,
+        };
+      }
+
+      nextMetadata.push({
+        tableId,
+        kind: patch.kind === 'bar-seat' ? 'bar-seat' : existing?.kind || 'standard',
+        templateId: patch.templateId === undefined ? existing?.templateId : patch.templateId || undefined,
+      });
+
+      return {
+        ...current,
+        tableMetadata: nextMetadata,
+      };
+    });
+  };
+
+  const setTableAssignment = (tableId: string, serverId: string) => {
+    updateDraftPlan((current) => {
+      const nextAssignments = current.tableAssignments.filter((assignment) => assignment.tableId !== tableId);
+      const staffMember = assignableStaff.find((member) => member.id === serverId);
+
+      if (staffMember) {
+        nextAssignments.push({
+          tableId,
+          serverId: staffMember.id,
+          serverName: staffMember.name || 'Assigned Server',
+        });
+      }
+
+      return {
+        ...current,
+        tableAssignments: nextAssignments,
+      };
+    });
+  };
+
+  const setRoomAssignments = (roomName: string, serverId: string) => {
+    const roomTables = tablesByRoom.get(roomName) || [];
+
+    updateDraftPlan((current) => {
+      const roomTableIds = new Set(roomTables.map((table) => table.id));
+      const nextAssignments = current.tableAssignments.filter((assignment) => !roomTableIds.has(assignment.tableId));
+      const staffMember = assignableStaff.find((member) => member.id === serverId);
+
+      if (staffMember) {
+        roomTables.forEach((table) => {
+          nextAssignments.push({
+            tableId: table.id,
+            serverId: staffMember.id,
+            serverName: staffMember.name || 'Assigned Server',
+          });
+        });
+      }
+
+      return {
+        ...current,
+        tableAssignments: nextAssignments,
+      };
+    });
+  };
+
+  const updateBarRoomLayout = (
+    room: FloorPlanRoom,
+    options: {
+      style?: BarStyle;
+      openingSide?: BarOpeningSide;
+      aisleWidth?: number;
+    }
+  ) => {
+    const roomTables = tablesByRoom.get(room.name) || [];
+    const existingBarSeats = roomTables
+      .filter((table) => isBarSeatTable(table, room, tableMetadata))
+      .sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+    const nextRoom = resizeBarRoomForSeatCount(room, existingBarSeats.length || room.bar?.seatCount || 0, options);
+    const nextSeatPositions = getBarSeatDraftPositions(nextRoom, existingBarSeats.length);
+
+    updateDraftPlan((current) => ({
+      ...current,
+      rooms: current.rooms.map((entry) => (entry.name === room.name ? nextRoom : entry)),
+    }));
+
+    if (existingBarSeats.length > 0) {
+      setPositions((current) => {
+        const nextPositions = { ...current };
+
+        existingBarSeats.forEach((table, index) => {
+          const seatPosition = nextSeatPositions[index];
+          if (!seatPosition) return;
+
+          nextPositions[table.id] = {
+            x: Math.round(seatPosition.x),
+            y: Math.round(seatPosition.y),
+          };
+        });
+
+        return nextPositions;
+      });
+    }
+  };
+
+  const beginTemplateEdit = (template?: FloorTableTemplate | null) => {
+    if (template) {
+      setEditingTemplateId(template.id);
+      setTemplateForm(template);
+      return;
+    }
+
+    setEditingTemplateId(null);
+    setTemplateForm(EMPTY_TEMPLATE_FORM);
+  };
+
+  const saveTemplate = () => {
+    const name = templateForm.name.trim();
+
+    if (!name) {
+      toast.error('Enter a template name');
+      return;
+    }
+
+    const nextTemplate: FloorTableTemplate = {
+      id: editingTemplateId || createTemplateId(),
+      name,
+      shape: templateForm.shape,
+      width: clamp(Number(templateForm.width || 100), 40, 260),
+      height: clamp(Number(templateForm.height || 80), 40, 260),
+      capacity: clamp(Number(templateForm.capacity || 4), 1, 20),
+    };
+
+    updateDraftPlan((current) => {
+      const nextTemplates = current.tableTemplates.filter((template) => template.id !== nextTemplate.id);
+      nextTemplates.push(nextTemplate);
+
+      return {
+        ...current,
+        tableTemplates: nextTemplates,
+      };
+    });
+
+    toast.success(editingTemplateId ? 'Template updated' : 'Template added');
+    beginTemplateEdit();
+  };
+
+  const deleteTemplate = (templateId: string) => {
+    updateDraftPlan((current) => ({
+      ...current,
+      tableTemplates: current.tableTemplates.filter((template) => template.id !== templateId),
+      tableMetadata: current.tableMetadata.map((entry) =>
+        entry.templateId === templateId
+          ? {
+              ...entry,
+              templateId: undefined,
+            }
+          : entry
+      ),
+    }));
+
+    if (newTable.templateId === templateId) {
+      setNewTable((current) => ({
+        ...current,
+        templateId: '',
+      }));
+    }
+
+    if (editingTemplateId === templateId) {
+      beginTemplateEdit();
+    }
+  };
+
+  const applyTemplateSelection = (templateId: string) => {
+    if (!templateId) {
+      setNewTable((current) => ({
+        ...current,
+        templateId: '',
+      }));
+      return;
+    }
+
+    const template = tableTemplates.find((entry) => entry.id === templateId);
+    if (!template) return;
+
+    setNewTable((current) => ({
+      ...applyTemplateToDraft(
+        template,
+        normalizeRoomName(current.section) || activeRoom || selectedRoomName || DEFAULT_TABLE.section
+      ),
+      name: current.name,
+      templateId: template.id,
+    }));
   };
 
   const saveAllChanges = () => {
@@ -433,7 +707,7 @@ export default function FloorPlanPage() {
     setShowAddForm(true);
   };
 
-  const handleCreateTable = () => {
+  const handleCreateTable = async () => {
     const name = newTable.name.trim();
     const roomName = normalizeRoomName(newTable.section) || DEFAULT_TABLE.section;
     const targetRoom = roomMap.get(roomName);
@@ -445,13 +719,24 @@ export default function FloorPlanPage() {
       return;
     }
 
-    createMutation.mutate({
-      ...newTable,
-      name,
-      section: roomName,
-      positionX: defaultX,
-      positionY: defaultY,
-    });
+    try {
+      const response = await createMutation.mutateAsync({
+        ...newTable,
+        name,
+        section: roomName,
+        positionX: defaultX,
+        positionY: defaultY,
+      });
+
+      if (response?.data?.id) {
+        updateTableMetadataEntry(response.data.id, {
+          kind: 'standard',
+          templateId: newTable.templateId || undefined,
+        });
+      }
+    } catch {
+      // Error toast comes from the mutation.
+    }
   };
 
   const handleAddRoom = async () => {
@@ -469,6 +754,8 @@ export default function FloorPlanPage() {
 
     const nextRoom = createFloorRoom(roomName, rooms.length + 1, roomDraftType, {
       seatCount: roomDraftType === 'bar' ? barSeatCount : undefined,
+      barStyle: roomDraftType === 'bar' ? barStyleDraft : undefined,
+      openingSide: roomDraftType === 'bar' ? barOpeningSideDraft : undefined,
     });
     const nextFloorPlan = coerceFloorPlan(
       {
@@ -484,14 +771,36 @@ export default function FloorPlanPage() {
       setDraftFloorPlan(nextFloorPlan);
       await persistFloorPlan(
         nextFloorPlan,
-        roomDraftType === 'bar' ? 'Bar room added' : 'Room added'
+        roomDraftType === 'bar' ? undefined : 'Room added'
       );
 
       if (roomDraftType === 'bar' && locationId) {
-        const seatPayloads = buildBarSeatDrafts(roomName, 0, barSeatCount);
-        await Promise.all(
+        const seatPayloads = buildBarSeatDrafts(nextRoom, 0, barSeatCount, {
+          style: barStyleDraft,
+          openingSide: barOpeningSideDraft,
+        });
+        const createdSeats = await Promise.all(
           seatPayloads.map((seat) => api.createTable({ ...seat, locationId }))
         );
+        const nextFloorPlanWithMetadata = coerceFloorPlan(
+          {
+            ...nextFloorPlan,
+            tableMetadata: [
+              ...nextFloorPlan.tableMetadata,
+              ...createdSeats
+                .map((response: any) => response?.data?.id)
+                .filter(Boolean)
+                .map((tableId: string) => ({
+                  tableId,
+                  kind: 'bar-seat' as const,
+                })),
+            ],
+          },
+          tables
+        );
+
+        setDraftFloorPlan(nextFloorPlanWithMetadata);
+        await persistFloorPlan(nextFloorPlanWithMetadata, 'Bar room added');
         await Promise.all([
           qc.invalidateQueries({ queryKey: ['tables-floor', locationId] }),
           qc.invalidateQueries({ queryKey: ['tables', locationId] }),
@@ -505,6 +814,8 @@ export default function FloorPlanPage() {
       setRoomDraft('');
       setRoomDraftType('room');
       setBarSeatCount(8);
+      setBarStyleDraft('straight');
+      setBarOpeningSideDraft('south');
       setShowAddRoomForm(false);
     } catch {
       // Errors are surfaced by the mutations above.
@@ -517,7 +828,8 @@ export default function FloorPlanPage() {
     if (!selectedRoom || selectedRoom.type !== 'bar' || !locationId) return;
 
     const existingRoomTables = tablesByRoom.get(selectedRoom.name) || [];
-    const nextSeatTotal = existingRoomTables.length + extraBarSeats;
+    const existingSeatCount = getBarSeatCountForRoom(selectedRoom, existingRoomTables, tableMetadata);
+    const nextSeatTotal = existingSeatCount + extraBarSeats;
     const updatedRoom = resizeBarRoomForSeatCount(selectedRoom, nextSeatTotal);
     const nextFloorPlan = coerceFloorPlan(
       {
@@ -533,8 +845,31 @@ export default function FloorPlanPage() {
       setDraftFloorPlan(nextFloorPlan);
       await persistFloorPlan(nextFloorPlan, 'Bar layout updated');
 
-      const seatPayloads = buildBarSeatDrafts(selectedRoom.name, existingRoomTables.length, extraBarSeats);
-      await Promise.all(seatPayloads.map((seat) => api.createTable({ ...seat, locationId })));
+      const seatPayloads = buildBarSeatDrafts(selectedRoom, existingSeatCount, extraBarSeats, {
+        style: updatedRoom.bar?.style,
+        openingSide: updatedRoom.bar?.openingSide,
+        aisleWidth: updatedRoom.bar?.aisleWidth,
+      });
+      const createdSeats = await Promise.all(seatPayloads.map((seat) => api.createTable({ ...seat, locationId })));
+      const nextFloorPlanWithMetadata = coerceFloorPlan(
+        {
+          ...nextFloorPlan,
+          tableMetadata: [
+            ...nextFloorPlan.tableMetadata,
+            ...createdSeats
+              .map((response: any) => response?.data?.id)
+              .filter(Boolean)
+              .map((tableId: string) => ({
+                tableId,
+                kind: 'bar-seat' as const,
+              })),
+          ],
+        },
+        tables
+      );
+
+      setDraftFloorPlan(nextFloorPlanWithMetadata);
+      await persistFloorPlan(nextFloorPlanWithMetadata);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['tables-floor', locationId] }),
         qc.invalidateQueries({ queryKey: ['tables', locationId] }),
@@ -569,11 +904,92 @@ export default function FloorPlanPage() {
     });
   };
 
+  const renderBarFeature = (room: FloorPlanRoom) => {
+    if (room.type !== 'bar' || !room.bar?.enabled) return null;
+
+    const bar = room.bar;
+    const baseStyle = {
+      position: 'absolute' as const,
+      left: bar.counterX,
+      top: bar.counterY,
+      width: Math.min(room.width - 56, bar.counterWidth),
+      height: bar.counterHeight,
+      borderRadius: bar.style === 'circle' ? '999px' : `${Math.max(24, Math.round(bar.counterRadius))}px`,
+    };
+
+    const walkwayStyle =
+      bar.style === 'straight'
+        ? null
+        : (() => {
+            const laneWidth = Math.max(24, Math.round(Math.min(56, bar.aisleWidth * 0.45)));
+
+            switch (bar.openingSide) {
+              case 'north':
+                return {
+                  position: 'absolute' as const,
+                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
+                  top: 0,
+                  width: laneWidth,
+                  height: bar.counterY + 6,
+                };
+              case 'south':
+                return {
+                  position: 'absolute' as const,
+                  left: bar.counterX + bar.counterWidth / 2 - laneWidth / 2,
+                  top: bar.counterY + bar.counterHeight - 6,
+                  width: laneWidth,
+                  height: room.height - (bar.counterY + bar.counterHeight) + 6,
+                };
+              case 'east':
+                return {
+                  position: 'absolute' as const,
+                  left: bar.counterX + bar.counterWidth - 6,
+                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
+                  width: room.width - (bar.counterX + bar.counterWidth) + 6,
+                  height: laneWidth,
+                };
+              default:
+                return {
+                  position: 'absolute' as const,
+                  left: 0,
+                  top: bar.counterY + bar.counterHeight / 2 - laneWidth / 2,
+                  width: bar.counterX + 6,
+                  height: laneWidth,
+                };
+            }
+          })();
+
+    return (
+      <>
+        <div
+          style={baseStyle}
+          className="border border-amber-400/35 bg-amber-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+        >
+          <div className="flex h-full items-center justify-center text-xs font-black uppercase tracking-[0.35em] text-amber-100/80">
+            Bar
+          </div>
+        </div>
+
+        {walkwayStyle && (
+          <div
+            style={walkwayStyle}
+            className="pointer-events-none rounded-full border border-dashed border-amber-300/30 bg-amber-100/5"
+          >
+            <div className="flex h-full items-center justify-center text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-100/60">
+              Staff lane
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
   const renderRoom = (room: FloorPlanRoom) => {
     const roomOrigin = getRoomOrigin(room);
     const roomTables = (tablesByRoom.get(room.name) || []).sort((a, b) =>
       String(a.name || '').localeCompare(String(b.name || ''))
     );
+    const roomBarSeatCount = room.type === 'bar' ? getBarSeatCountForRoom(room, roomTables, tableMetadata) : 0;
     const isRoomSelected = selectedRoom?.name === room.name && !selected;
 
     return (
@@ -614,31 +1030,19 @@ export default function FloorPlanPage() {
 
         <div className="absolute right-4 top-4 z-[2] rounded-full bg-slate-950/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
           {room.type === 'bar'
-            ? `${room.bar?.seatCount || roomTables.length} bar seats`
+            ? `${roomBarSeatCount} stools · ${roomTables.length - roomBarSeatCount} tables`
             : `${roomTables.length} tables`}
         </div>
 
-        {room.type === 'bar' && room.bar?.enabled && (
-          <div
-            style={{
-              position: 'absolute',
-              left: room.bar.counterX,
-              top: room.bar.counterY,
-              width: Math.min(room.width - 56, room.bar.counterWidth),
-              height: room.bar.counterHeight,
-            }}
-            className="rounded-[24px] border border-amber-400/35 bg-amber-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-          >
-            <div className="flex h-full items-center justify-center text-xs font-black uppercase tracking-[0.35em] text-amber-100/80">
-              Bar
-            </div>
-          </div>
-        )}
+        {renderBarFeature(room)}
 
         {roomTables.map((table) => {
           const pos = getTablePos(table);
           const isSelected = selected?.id === table.id;
           const isPending = !!positions[table.id];
+          const metadata = getTableMetadata(tableMetadata, table.id);
+          const assignment = getTableAssignment(draftFloorPlan.tableAssignments, table.id);
+          const isBarSeat = isBarSeatTable(table, room, tableMetadata);
 
           return (
             <div
@@ -659,11 +1063,18 @@ export default function FloorPlanPage() {
                 'border-2 flex flex-col items-center justify-center transition-shadow backdrop-blur-sm',
                 STATUS_STYLES[table.status] || STATUS_STYLES.AVAILABLE,
                 isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-950 shadow-xl' : '',
+                isBarSeat ? 'border-amber-300/80 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : '',
                 isPending ? 'opacity-80' : ''
               )}
             >
               <span className="font-black text-sm">{table.name}</span>
               <span className="text-xs opacity-70">{table.capacity}p</span>
+              {assignment && <span className="mt-1 max-w-[90%] truncate text-[10px] font-semibold text-blue-100/85">{assignment.serverName}</span>}
+              {metadata?.templateId && (
+                <span className="max-w-[90%] truncate text-[9px] uppercase tracking-[0.18em] text-slate-300/75">
+                  {tableTemplates.find((template) => template.id === metadata.templateId)?.name || 'Template'}
+                </span>
+              )}
             </div>
           );
         })}
@@ -737,6 +1148,17 @@ export default function FloorPlanPage() {
             Add Room
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              beginTemplateEdit();
+              setShowTemplateManager(true);
+            }}
+            className="btn-secondary text-sm"
+          >
+            Templates
+          </button>
+
           <button onClick={openAddTableForm} className="btn-primary flex items-center gap-2 text-sm">
             <PlusIcon className="w-4 h-4" />
             Add Table
@@ -783,6 +1205,22 @@ export default function FloorPlanPage() {
             >
               {room.name}
             </button>
+          ))}
+        </div>
+      )}
+
+      {assignmentSummary.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-950/30 px-6 py-3 shrink-0">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Sections</span>
+          {assignmentSummary.map((summary) => (
+            <div
+              key={summary.serverId}
+              className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-300"
+            >
+              <span className="font-semibold text-slate-100">{summary.serverName}</span>
+              <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
+              <span className="ml-2 text-emerald-300">{summary.open} open</span>
+            </div>
           ))}
         </div>
       )}
@@ -899,6 +1337,51 @@ export default function FloorPlanPage() {
                         Size: {selected.width}x{selected.height}px
                       </p>
                     </div>
+                  </div>
+
+                  <div className="border-t border-slate-700 pt-2">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs text-slate-500">Template</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          beginTemplateEdit({
+                            id: selectedTemplate?.id || '',
+                            name: selectedTemplate?.name || `${selected.name} Template`,
+                            shape: selected.shape,
+                            width: selected.width,
+                            height: selected.height,
+                            capacity: selected.capacity,
+                          });
+                          setShowTemplateManager(true);
+                        }}
+                        className="text-xs text-blue-300 hover:text-blue-200"
+                      >
+                        Save as Template
+                      </button>
+                    </div>
+                    <div className="rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-300">
+                      {selectedTemplate ? selectedTemplate.name : 'No template linked yet'}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-700 pt-2">
+                    <label className="label text-xs">Assigned Server</label>
+                    <select
+                      value={selectedAssignment?.serverId || ''}
+                      onChange={(event) => setTableAssignment(selected.id, event.target.value)}
+                      className="input w-full"
+                    >
+                      <option value="">Unassigned</option>
+                      {assignableStaff.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name} ({member.role})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Servers and bartenders can only open tables assigned to them.
+                    </p>
                   </div>
 
                   <button
@@ -1065,6 +1548,53 @@ export default function FloorPlanPage() {
                   )}
 
                   <div className="border-t border-slate-700 pt-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Section Assignment
+                      </p>
+                      <span className="text-xs text-slate-400">
+                        {(tablesByRoom.get(selectedRoom.name) || []).length} tables
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <select
+                        value={bulkAssignedServerId}
+                        onChange={(event) => setBulkAssignedServerId(event.target.value)}
+                        className="input w-full"
+                      >
+                        <option value="">Choose a server or bartender</option>
+                        {assignableStaff.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name} ({member.role})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!bulkAssignedServerId) {
+                              toast.error('Pick a staff member first');
+                              return;
+                            }
+                            setRoomAssignments(selectedRoom.name, bulkAssignedServerId);
+                          }}
+                          className="btn-primary text-xs"
+                        >
+                          Assign Room
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRoomAssignments(selectedRoom.name, '')}
+                          className="btn-secondary text-xs"
+                        >
+                          Clear Room
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-700 pt-3">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Connections
                     </p>
@@ -1097,32 +1627,101 @@ export default function FloorPlanPage() {
                   </div>
 
                   {selectedRoom.type === 'bar' && (
-                    <div className="border-t border-slate-700 pt-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Bar Seats
-                      </p>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          value={extraBarSeats}
-                          onChange={(event) => setExtraBarSeats(parseNumberInput(event.target.value, 4))}
-                          className="input flex-1"
-                          min="1"
-                          max="12"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddBarSeats}
-                          disabled={isAddingBarSeats}
-                          className="btn-primary text-xs"
-                        >
-                          {isAddingBarSeats ? 'Adding...' : 'Add Seats'}
-                        </button>
+                    <>
+                      <div className="border-t border-slate-700 pt-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Bar Layout
+                        </p>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="label text-xs">Counter Style</label>
+                            <div className="grid grid-cols-3 gap-2">
+                              {BAR_STYLES.map((style) => (
+                                <button
+                                  key={style}
+                                  type="button"
+                                  onClick={() => updateBarRoomLayout(selectedRoom, { style })}
+                                  className={clsx(
+                                    'rounded-xl border px-2 py-2 text-[11px] font-semibold capitalize transition-all',
+                                    selectedRoom.bar?.style === style
+                                      ? 'border-amber-400 bg-amber-500/10 text-amber-100'
+                                      : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                                  )}
+                                >
+                                  {style}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {selectedRoom.bar?.style !== 'straight' && (
+                            <div>
+                              <label className="label text-xs">Walkway Opening</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {BAR_OPENING_SIDES.map((side) => (
+                                  <button
+                                    key={side}
+                                    type="button"
+                                    onClick={() => updateBarRoomLayout(selectedRoom, { openingSide: side })}
+                                    className={clsx(
+                                      'rounded-xl border px-2 py-2 text-[11px] font-semibold uppercase transition-all',
+                                      selectedRoom.bar?.openingSide === side
+                                        ? 'border-amber-400 bg-amber-500/10 text-amber-100'
+                                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                                    )}
+                                  >
+                                    {side}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="label text-xs">Aisle Width</label>
+                            <input
+                              type="number"
+                              value={selectedRoom.bar?.aisleWidth || 88}
+                              onChange={(event) =>
+                                updateBarRoomLayout(selectedRoom, {
+                                  aisleWidth: clamp(parseNumberInput(event.target.value, selectedRoom.bar?.aisleWidth || 88), 64, 140),
+                                })
+                              }
+                              className="input w-full"
+                              min="64"
+                              max="140"
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <p className="mt-2 text-xs text-slate-400">
-                        Add a whole bar run in one step. The room counter expands automatically.
-                      </p>
-                    </div>
+
+                      <div className="border-t border-slate-700 pt-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Bar Seats
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={extraBarSeats}
+                            onChange={(event) => setExtraBarSeats(parseNumberInput(event.target.value, 4))}
+                            className="input flex-1"
+                            min="1"
+                            max="12"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddBarSeats}
+                            disabled={isAddingBarSeats}
+                            className="btn-primary text-xs"
+                          >
+                            {isAddingBarSeats ? 'Adding...' : 'Add Seats'}
+                          </button>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400">
+                          Existing stools stay in a walkable ring and regular bar tables can still live in this room.
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
               </>
@@ -1157,6 +1756,37 @@ export default function FloorPlanPage() {
                   className="input w-full"
                   placeholder="T1, VIP1, Patio 4"
                 />
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="label">Table Design</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      beginTemplateEdit();
+                      setShowTemplateManager(true);
+                    }}
+                    className="text-xs text-blue-300 hover:text-blue-200"
+                  >
+                    Manage Templates
+                  </button>
+                </div>
+                <select
+                  value={newTable.templateId}
+                  onChange={(event) => applyTemplateSelection(event.target.value)}
+                  className="input w-full"
+                >
+                  <option value="">Custom table</option>
+                  {tableTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} ({template.capacity} seats)
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-slate-500">
+                  Design table types once, then reuse them across every room.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1280,6 +1910,183 @@ export default function FloorPlanPage() {
         </div>
       )}
 
+      {showTemplateManager && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="card flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+              <div>
+                <h2 className="font-bold text-slate-100">Table Templates</h2>
+                <p className="text-sm text-slate-400">
+                  Build consistent 2-tops, booths, bar tables, and any other repeatable table design.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTemplateManager(false)}
+                className="text-sm text-slate-400 hover:text-slate-200"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid flex-1 gap-0 overflow-hidden md:grid-cols-[1.2fr_0.8fr]">
+              <div className="overflow-y-auto border-r border-slate-700 p-6">
+                <div className="space-y-3">
+                  {tableTemplates.map((template) => (
+                    <div
+                      key={template.id}
+                      className="rounded-3xl border border-slate-700 bg-slate-900/70 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold text-slate-100">{template.name}</h3>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {template.capacity} guests · {template.shape} · {template.width}x{template.height}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => beginTemplateEdit(template)}
+                            className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteTemplate(template.id)}
+                            className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="overflow-y-auto p-6">
+                <div className="rounded-3xl border border-slate-700 bg-slate-900/80 p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-slate-100">
+                        {editingTemplateId ? 'Edit Template' : 'New Template'}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Save the table once and reuse it from a dropdown.
+                      </p>
+                    </div>
+                    {editingTemplateId && (
+                      <button
+                        type="button"
+                        onClick={() => beginTemplateEdit()}
+                        className="text-xs text-slate-400 hover:text-slate-200"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="label">Template Name</label>
+                      <input
+                        value={templateForm.name}
+                        onChange={(event) => setTemplateForm({ ...templateForm, name: event.target.value })}
+                        className="input w-full"
+                        placeholder="4 Top Round, Patio Deuce, Booth 6"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="label">Shape</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {SHAPES.map((shape) => (
+                          <button
+                            key={shape}
+                            type="button"
+                            onClick={() => setTemplateForm({ ...templateForm, shape: shape as FloorTableTemplate['shape'] })}
+                            className={clsx(
+                              'rounded-xl border py-2 text-xs font-medium capitalize transition-all',
+                              templateForm.shape === shape
+                                ? 'border-blue-500 bg-blue-600 text-white'
+                                : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                            )}
+                          >
+                            {shape}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="label">Capacity</label>
+                        <input
+                          type="number"
+                          value={templateForm.capacity}
+                          onChange={(event) =>
+                            setTemplateForm({
+                              ...templateForm,
+                              capacity: parseNumberInput(event.target.value, 4),
+                            })
+                          }
+                          className="input w-full"
+                          min="1"
+                          max="20"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Width</label>
+                        <input
+                          type="number"
+                          value={templateForm.width}
+                          onChange={(event) =>
+                            setTemplateForm({
+                              ...templateForm,
+                              width: parseNumberInput(event.target.value, 100),
+                            })
+                          }
+                          className="input w-full"
+                          min="40"
+                          max="260"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Height</label>
+                        <input
+                          type="number"
+                          value={templateForm.height}
+                          onChange={(event) =>
+                            setTemplateForm({
+                              ...templateForm,
+                              height: parseNumberInput(event.target.value, 80),
+                            })
+                          }
+                          className="input w-full"
+                          min="40"
+                          max="260"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex gap-3">
+                    <button type="button" onClick={() => beginTemplateEdit()} className="btn-secondary flex-1">
+                      Clear
+                    </button>
+                    <button type="button" onClick={saveTemplate} className="btn-primary flex-1">
+                      {editingTemplateId ? 'Update Template' : 'Save Template'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAddRoomForm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="card w-full max-w-md p-6 shadow-2xl">
@@ -1323,16 +2130,62 @@ export default function FloorPlanPage() {
               </div>
 
               {roomDraftType === 'bar' && (
-                <div>
-                  <label className="label">Initial Bar Seats</label>
-                  <input
-                    type="number"
-                    value={barSeatCount}
-                    onChange={(event) => setBarSeatCount(parseNumberInput(event.target.value, 8))}
-                    className="input w-full"
-                    min="2"
-                    max="24"
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <label className="label">Initial Bar Seats</label>
+                    <input
+                      type="number"
+                      value={barSeatCount}
+                      onChange={(event) => setBarSeatCount(parseNumberInput(event.target.value, 8))}
+                      className="input w-full"
+                      min="2"
+                      max="24"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label">Bar Style</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BAR_STYLES.map((style) => (
+                        <button
+                          key={style}
+                          type="button"
+                          onClick={() => setBarStyleDraft(style)}
+                          className={clsx(
+                            'rounded-xl border px-3 py-2 text-xs font-semibold capitalize transition-all',
+                            barStyleDraft === style
+                              ? 'border-amber-400 bg-amber-500/10 text-amber-100'
+                              : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                          )}
+                        >
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {barStyleDraft !== 'straight' && (
+                    <div>
+                      <label className="label">Walkway Opening</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {BAR_OPENING_SIDES.map((side) => (
+                          <button
+                            key={side}
+                            type="button"
+                            onClick={() => setBarOpeningSideDraft(side)}
+                            className={clsx(
+                              'rounded-xl border px-3 py-2 text-xs font-semibold uppercase transition-all',
+                              barOpeningSideDraft === side
+                                ? 'border-amber-400 bg-amber-500/10 text-amber-100'
+                                : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                            )}
+                          >
+                            {side}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1347,6 +2200,8 @@ export default function FloorPlanPage() {
                   setRoomDraft('');
                   setRoomDraftType('room');
                   setBarSeatCount(8);
+                  setBarStyleDraft('straight');
+                  setBarOpeningSideDraft('south');
                   setShowAddRoomForm(false);
                 }}
                 className="btn-secondary flex-1"

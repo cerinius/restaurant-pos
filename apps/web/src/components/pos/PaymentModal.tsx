@@ -13,7 +13,7 @@ import {
 import clsx from 'clsx';
 
 import api from '@/lib/api';
-import { useOrderStore } from '@/store';
+import { useAuthStore, useOrderStore } from '@/store';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -37,6 +37,7 @@ function roundCurrency(value: number) {
 }
 
 export function PaymentModal({ orderId, onClose, onPaid }: Props) {
+  const { user } = useAuthStore();
   const { total, subtotal, setOrder } = useOrderStore();
   const [method, setMethod] = useState('CREDIT_CARD');
   const [splitMode, setSplitMode] = useState<SplitMode>('FULL');
@@ -112,6 +113,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
   }, [baseOrderTotal, order?.items, subtotalValue]);
 
   const selectedSeat = seatSplits.find((seat) => seat.key === selectedSeatKey) || seatSplits[0] || null;
+  const canSplitChecks = ['OWNER', 'MANAGER'].includes(String(user?.role || '').toUpperCase());
 
   const selectedBaseAmount = useMemo(() => {
     if (splitMode === 'SEAT') {
@@ -257,7 +259,12 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
               </div>
 
               <div>
-                <label className="label">Split Check</label>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="label">Split Check</label>
+                  {!canSplitChecks && (
+                    <span className="text-xs font-medium text-slate-500">Manager/Admin only</span>
+                  )}
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: 'FULL', label: 'Full Check' },
@@ -266,12 +273,16 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                   ].map((option) => (
                     <button
                       key={option.id}
-                      onClick={() => setSplitMode(option.id as SplitMode)}
+                      onClick={() => {
+                        if (option.id !== 'FULL' && !canSplitChecks) return;
+                        setSplitMode(option.id as SplitMode);
+                      }}
                       className={clsx(
                         'touch-target rounded-2xl border text-sm font-medium transition-all',
                         splitMode === option.id
                           ? 'border-blue-500 bg-blue-600 text-white'
                           : 'border-slate-600 bg-slate-700 text-slate-300',
+                        option.id !== 'FULL' && !canSplitChecks && 'cursor-not-allowed opacity-50',
                       )}
                     >
                       {option.label}
@@ -280,7 +291,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                 </div>
               </div>
 
-              {splitMode === 'SEAT' && (
+              {canSplitChecks && splitMode === 'SEAT' && (
                 <div>
                   <label className="label">Seat Selection</label>
                   {seatSplits.length === 0 ? (
@@ -311,7 +322,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {splitMode === 'AMOUNT' && (
+              {canSplitChecks && splitMode === 'AMOUNT' && (
                 <div>
                   <label className="label">Amount to Charge Before Tip</label>
                   <input

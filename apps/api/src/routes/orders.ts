@@ -3,6 +3,49 @@ import { prisma } from '@pos/db';
 import { WSEventType } from '@pos/shared';
 import { wsManager } from '../websocket/manager';
 
+const SECTION_RESTRICTED_ROLES = ['SERVER', 'BARTENDER'];
+
+function isSectionRestrictedRole(role?: string) {
+  return SECTION_RESTRICTED_ROLES.includes(String(role || '').toUpperCase());
+}
+
+function getFloorPlanAssignments(settings: any) {
+  const rawAssignments = Array.isArray(settings?.floorPlan?.tableAssignments)
+    ? settings.floorPlan.tableAssignments
+    : [];
+
+  return rawAssignments
+    .map((assignment: any) => ({
+      tableId: String(assignment?.tableId || '').trim(),
+      serverId: String(assignment?.serverId || '').trim(),
+      serverName: String(assignment?.serverName || '').trim(),
+    }))
+    .filter((assignment: any) => assignment.tableId && assignment.serverId);
+}
+
+async function getTableAssignmentForLocation(locationId: string, restaurantId: string, tableId: string) {
+  const location = await prisma.location.findFirst({
+    where: { id: locationId, restaurantId },
+    select: { settings: true },
+  });
+
+  if (!location) return null;
+
+  return getFloorPlanAssignments(location.settings).find((assignment: any) => assignment.tableId === tableId) || null;
+}
+
+function ensureOrderAccess(order: any, user: any) {
+  if (!order) return { allowed: false, error: 'Order not found', status: 404 };
+  if (!isSectionRestrictedRole(user.role)) return { allowed: true };
+  if (order.serverId === user.id) return { allowed: true };
+
+  return {
+    allowed: false,
+    error: `This order belongs to ${order.serverName || 'another staff member'}`,
+    status: 403,
+  };
+}
+
 export default async function orderRoutes(app: FastifyInstance) {
   const auth = {
     preHandler: [async (request: any, reply: any) => app.authenticate(request, reply)],
@@ -79,6 +122,7 @@ export default async function orderRoutes(app: FastifyInstance) {
         restaurantId: user.restaurantId,
         ...(locationId ? { locationId } : {}),
         status: { in: ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] },
+        ...(isSectionRestrictedRole(user.role) ? { serverId: user.id } : {}),
       },
       include: {
         items: { where: { isVoided: false } },
@@ -119,6 +163,11 @@ export default async function orderRoutes(app: FastifyInstance) {
       return reply.code(404).send({ success: false, error: 'Order not found' });
     }
 
+    const access = ensureOrderAccess(order, user);
+    if (!access.allowed) {
+      return reply.code(access.status || 403).send({ success: false, error: access.error });
+    }
+
     return reply.send({ success: true, data: order });
   });
 
@@ -151,6 +200,19 @@ export default async function orderRoutes(app: FastifyInstance) {
 
       if (table.status === 'OCCUPIED') {
         return reply.code(409).send({ success: false, error: 'Table is already occupied' });
+      }
+
+      if (isSectionRestrictedRole(user.role)) {
+        const assignment = await getTableAssignmentForLocation(locationId, user.restaurantId, tableId);
+
+        if (!assignment || assignment.serverId !== user.id) {
+          return reply.code(403).send({
+            success: false,
+            error: assignment?.serverName
+              ? `Table is assigned to ${assignment.serverName}`
+              : 'Table is not assigned to you',
+          });
+        }
       }
 
       tableName = table.name;
@@ -231,6 +293,11 @@ export default async function orderRoutes(app: FastifyInstance) {
       return reply.code(404).send({ success: false, error: 'Order not found' });
     }
 
+    const access = ensureOrderAccess(order, user);
+    if (!access.allowed) {
+      return reply.code(access.status || 403).send({ success: false, error: access.error });
+    }
+
     if (order.status === 'PAID' || order.status === 'VOID') {
       return reply.code(400).send({ success: false, error: 'Cannot modify a closed order' });
     }
@@ -289,6 +356,15 @@ export default async function orderRoutes(app: FastifyInstance) {
       return reply.code(404).send({ success: false, error: 'Item not found' });
     }
 
+    const order = await prisma.order.findFirst({
+      where: { id, restaurantId: user.restaurantId },
+      select: { id: true, serverId: true, serverName: true },
+    });
+    const access = ensureOrderAccess(order, user);
+    if (!access.allowed) {
+      return reply.code(access.status || 403).send({ success: false, error: access.error });
+    }
+
     if (item.isFired) {
       return reply.code(400).send({ success: false, error: 'Cannot modify a fired item' });
     }
@@ -321,6 +397,15 @@ export default async function orderRoutes(app: FastifyInstance) {
 
     if (!item) {
       return reply.code(404).send({ success: false, error: 'Item not found' });
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id, restaurantId: user.restaurantId },
+      select: { id: true, serverId: true, serverName: true },
+    });
+    const access = ensureOrderAccess(order, user);
+    if (!access.allowed) {
+      return reply.code(access.status || 403).send({ success: false, error: access.error });
     }
 
     if (item.isFired && !['OWNER', 'MANAGER'].includes(user.role)) {
@@ -391,6 +476,11 @@ export default async function orderRoutes(app: FastifyInstance) {
 
     if (!order) {
       return reply.code(404).send({ success: false, error: 'Order not found' });
+    }
+
+    const access = ensureOrderAccess(order, user);
+    if (!access.allowed) {
+      return reply.code(access.status || 403).send({ success: false, error: access.error });
     }
 
     if (order.items.length === 0) {
