@@ -1,22 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import KDSContent from './KDSContent'; // Or whatever your main KDS component is named
+import KDSContent from './KDSContent';
 
-export default function KDSShell() {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30000, // KDS usually needs fresher data
-        refetchInterval: 10000, // Auto-refresh every 10s
-      },
-    },
-  }));
+interface KDSShellProps {
+  initialData: {
+    stations: any[];
+    tickets: any[];
+    stats: any;
+    selectedStationId: string | null;
+    locationId: string | null;
+  };
+}
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <KDSContent />
-    </QueryClientProvider>
-  );
+export default function KDSShell({ initialData }: KDSShellProps) {
+  return <KDSContent initialData={initialData} />;
 }

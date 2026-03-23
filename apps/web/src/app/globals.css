@@ -28,28 +28,28 @@
 @layer components {
   .btn-primary {
     @apply bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold
-           px-4 py-2.5 rounded-xl transition-all duration-150 focus:outline-none
+           min-h-[44px] px-4 py-2.5 rounded-xl transition-all duration-150 focus:outline-none
            focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900
            disabled:opacity-50 disabled:cursor-not-allowed select-none;
   }
 
   .btn-secondary {
     @apply bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-slate-100 font-semibold
-           px-4 py-2.5 rounded-xl transition-all duration-150 focus:outline-none
+           min-h-[44px] px-4 py-2.5 rounded-xl transition-all duration-150 focus:outline-none
            focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-900
            disabled:opacity-50 disabled:cursor-not-allowed select-none;
   }
 
   .btn-danger {
     @apply bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold
-           px-4 py-2.5 rounded-xl transition-all duration-150 focus:outline-none
+           min-h-[44px] px-4 py-2.5 rounded-xl transition-all duration-150 focus:outline-none
            focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-900
            disabled:opacity-50 disabled:cursor-not-allowed select-none;
   }
 
   .btn-success {
     @apply bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold
-           px-4 py-2.5 rounded-xl transition-all duration-150 select-none;
+           min-h-[44px] px-4 py-2.5 rounded-xl transition-all duration-150 select-none;
   }
 
   .card {
@@ -60,6 +60,10 @@
     @apply bg-slate-700 border border-slate-600 text-slate-100 rounded-xl px-3 py-2.5
            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
            placeholder:text-slate-400 transition-all;
+  }
+
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
   }
 
   .label {

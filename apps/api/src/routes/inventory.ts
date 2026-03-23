@@ -1,6 +1,9 @@
 
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@pos/db';
+import { WSEventType } from '@pos/shared';
+
+import { wsManager } from '../websocket/manager';
 
 export default async function inventoryRoutes(app: FastifyInstance) {
   const auth = { preHandler: [app.authenticate] };
@@ -43,6 +46,11 @@ export default async function inventoryRoutes(app: FastifyInstance) {
         vendorId,
       },
     });
+
+    if (item.currentStock <= item.minimumStock) {
+      wsManager.broadcastToRole(user.restaurantId, ['OWNER', 'MANAGER'], WSEventType.LOW_STOCK_ALERT, item);
+    }
+
     return reply.code(201).send({ success: true, data: item });
   });
 
@@ -64,6 +72,11 @@ export default async function inventoryRoutes(app: FastifyInstance) {
         ...(vendorId !== undefined && { vendorId }),
       },
     });
+
+    if (item.currentStock <= item.minimumStock) {
+      wsManager.broadcastToRole(user.restaurantId, ['OWNER', 'MANAGER'], WSEventType.LOW_STOCK_ALERT, item);
+    }
+
     return reply.send({ success: true, data: item });
   });
 
@@ -93,6 +106,10 @@ export default async function inventoryRoutes(app: FastifyInstance) {
         createdBy: user.name,
       },
     });
+
+    if (item.currentStock <= item.minimumStock) {
+      wsManager.broadcastToRole(user.restaurantId, ['OWNER', 'MANAGER'], WSEventType.LOW_STOCK_ALERT, item);
+    }
 
     return reply.send({ success: true, data: item });
   });
@@ -129,6 +146,10 @@ export default async function inventoryRoutes(app: FastifyInstance) {
         createdBy: user.name,
       },
     });
+
+    if (item.currentStock <= item.minimumStock) {
+      wsManager.broadcastToRole(user.restaurantId, ['OWNER', 'MANAGER'], WSEventType.LOW_STOCK_ALERT, item);
+    }
 
     return reply.send({ success: true, data: item });
   });

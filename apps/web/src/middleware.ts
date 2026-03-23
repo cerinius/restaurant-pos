@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -7,16 +6,18 @@ const PUBLIC_PATHS = ['/login', '/_next', '/api', '/icon', '/manifest', '/sw.js'
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
-  // Check for auth token in cookies (set on login)
   const token = request.cookies.get('pos_token')?.value;
 
-  // For client-side auth we rely on the store â just allow all non-public routes
-  // The page components themselves redirect if unauthenticated
+  if (!token) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
   return NextResponse.next();
 }
 

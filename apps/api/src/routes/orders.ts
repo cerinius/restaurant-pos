@@ -329,11 +329,17 @@ export default async function orderRoutes(app: FastifyInstance) {
         .send({ success: false, error: 'Manager approval required to void fired items' });
     }
 
+    if (item.isFired && !reason?.trim()) {
+      return reply
+        .code(400)
+        .send({ success: false, error: 'A void reason is required for fired items' });
+    }
+
     await prisma.orderItem.update({
       where: { id: itemId },
       data: {
         isVoided: true,
-        voidReason: reason || 'Voided by staff',
+        voidReason: reason?.trim() || 'Voided by staff',
         voidedBy: user.name,
         voidedAt: new Date(),
       },
@@ -401,50 +407,52 @@ export default async function orderRoutes(app: FastifyInstance) {
 
     const now = new Date();
 
-    for (const [stationId, stationItems] of stationGroups) {
-      if (stationId === 'default') continue;
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      for (const [stationId, stationItems] of stationGroups) {
+        if (stationId === 'default') continue;
 
-      await prisma.kDSTicket.create({
-        data: {
-          orderId: id,
-          stationId,
-          status: 'PENDING',
-          priority,
-          courseNumber: courseNumber || 1,
-          firedAt: now,
-          items: stationItems.map((i: any) => ({
-            id: i.id,
-            name: i.menuItemName,
-            quantity: i.quantity,
-            modifiers: Array.isArray(i.modifiers)
-              ? (i.modifiers as any[]).map((m: any) => m.modifierName)
-              : [],
-            notes: i.notes,
-            seatNumber: i.seatNumber,
+        await tx.kDSTicket.create({
+          data: {
+            orderId: id,
+            stationId,
             status: 'PENDING',
-          })),
+            priority,
+            courseNumber: courseNumber || 1,
+            firedAt: now,
+            items: stationItems.map((item: any) => ({
+              id: item.id,
+              name: item.menuItemName,
+              quantity: item.quantity,
+              modifiers: Array.isArray(item.modifiers)
+                ? (item.modifiers as any[]).map((modifier: any) => modifier.modifierName)
+                : [],
+              notes: item.notes,
+              seatNumber: item.seatNumber,
+              status: 'PENDING',
+            })),
+          },
+        });
+      }
+
+      await tx.orderItem.updateMany({
+        where: {
+          orderId: id,
+          isVoided: false,
+          isFired: false,
+          ...(courseNumber ? { courseNumber } : {}),
         },
+        data: { isFired: true, firedAt: now, status: 'IN_PROGRESS' },
       });
-    }
 
-    await prisma.orderItem.updateMany({
-      where: {
-        orderId: id,
-        isVoided: false,
-        isFired: false,
-        ...(courseNumber ? { courseNumber } : {}),
-      },
-      data: { isFired: true, firedAt: now, status: 'IN_PROGRESS' },
-    });
+      await tx.order.update({
+        where: { id },
+        data: { status: 'SENT', firedAt: now },
+      });
 
-    await prisma.order.update({
-      where: { id },
-      data: { status: 'SENT', firedAt: now },
-    });
-
-    const updatedOrder = await prisma.order.findUnique({
-      where: { id },
-      include: { items: true, payments: true },
+      return tx.order.findUnique({
+        where: { id },
+        include: { items: true, payments: true },
+      });
     });
 
     wsManager.broadcast(user.restaurantId, WSEventType.ORDER_FIRED, updatedOrder, order.locationId);
@@ -543,6 +551,10 @@ export default async function orderRoutes(app: FastifyInstance) {
         .send({ success: false, error: 'Manager approval required to void orders' });
     }
 
+    if (!reason?.trim()) {
+      return reply.code(400).send({ success: false, error: 'A void reason is required' });
+    }
+
     const order = await prisma.order.findFirst({
       where: { id, restaurantId: user.restaurantId },
       include: { items: true },
@@ -556,7 +568,7 @@ export default async function orderRoutes(app: FastifyInstance) {
       where: { orderId: id, isVoided: false },
       data: {
         isVoided: true,
-        voidReason: reason || 'Order voided',
+        voidReason: reason.trim(),
         voidedBy: user.name,
         voidedAt: new Date(),
       },
@@ -565,8 +577,8 @@ export default async function orderRoutes(app: FastifyInstance) {
     await prisma.order.update({
       where: { id },
       data: {
-        status: 'VOID',
-        notes: reason ? `${order.notes || ''}\nVoid reason: ${reason}`.trim() : order.notes,
+          status: 'VOID',
+          notes: `${order.notes || ''}\nVoid reason: ${reason.trim()}`.trim(),
       },
     });
 

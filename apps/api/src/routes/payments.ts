@@ -1,13 +1,16 @@
-
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@pos/db';
 import { WSEventType } from '@pos/shared';
+
 import { wsManager } from '../websocket/manager';
+
+function roundCurrency(value: number) {
+  return Number(value.toFixed(2));
+}
 
 export default async function paymentRoutes(app: FastifyInstance) {
   const auth = { preHandler: [app.authenticate] };
 
-  // Process payment
   app.post('/', auth, async (request, reply) => {
     const user = (request as any).user;
     const {
@@ -29,185 +32,377 @@ export default async function paymentRoutes(app: FastifyInstance) {
     };
 
     if (!orderId || !method || amount === undefined) {
-      return reply.code(400).send({ success: false, error: 'orderId, method, and amount are required' });
-    }
-
-    const order = await prisma.order.findFirst({
-      where: { id: orderId, restaurantId: user.restaurantId },
-      include: { payments: true, items: { where: { isVoided: false } } },
-    });
-    if (!order) return reply.code(404).send({ success: false, error: 'Order not found' });
-    if (order.status === 'VOID') {
-      return reply.code(400).send({ success: false, error: 'Cannot pay a voided order' });
-    }
-
-    let giftCardId: string | undefined;
-
-    // Handle gift card
-    if (method === 'GIFT_CARD' && giftCardCode) {
-      const giftCard = await prisma.giftCard.findFirst({
-        where: { code: giftCardCode, restaurantId: user.restaurantId, isActive: true },
+      return reply.code(400).send({
+        success: false,
+        error: 'orderId, method, and amount are required',
       });
-      if (!giftCard) {
-        return reply.code(404).send({ success: false, error: 'Gift card not found or inactive' });
-      }
-      if (giftCard.balance < amount) {
-        return reply.code(400).send({
-          success: false,
-          error: `Insufficient gift card balance. Available: $${giftCard.balance.toFixed(2)}`,
-        });
-      }
-      await prisma.giftCard.update({
-        where: { id: giftCard.id },
-        data: { balance: { decrement: amount } },
-      });
-      giftCardId = giftCard.id;
     }
 
-    // Create payment record
-    const payment = await prisma.payment.create({
-      data: {
-        orderId,
-        method: method as any,
-        status: 'CAPTURED',
-        amount,
-        tipAmount,
-        referenceId,
-        giftCardId,
-        notes,
-        processedBy: user.name,
-        processedAt: new Date(),
-      },
-    });
+    const normalizedAmount = Number(amount);
+    const normalizedTipAmount = Number(tipAmount || 0);
 
-    // Check if order is fully paid
-    const allPayments = [...order.payments, payment];
-    const totalPaid = allPayments
-      .filter((p) => p.status === 'CAPTURED')
-      .reduce((s, p) => s + p.amount, 0);
-    const totalTips = allPayments.reduce((s, p) => s + p.tipAmount, 0);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      return reply.code(400).send({
+        success: false,
+        error: 'Payment amount must be greater than zero',
+      });
+    }
 
-    const orderTotal = order.total;
-    const isPaid = totalPaid >= orderTotal - 0.01; // allow $0.01 rounding
+    if (!Number.isFinite(normalizedTipAmount) || normalizedTipAmount < 0) {
+      return reply.code(400).send({
+        success: false,
+        error: 'Tip amount must be zero or greater',
+      });
+    }
 
-    if (isPaid) {
-      await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          status: 'PAID',
-          tipTotal: totalTips,
-          total: order.total,
-          paidAt: new Date(),
-          closedAt: new Date(),
+    if (normalizedTipAmount > normalizedAmount) {
+      return reply.code(400).send({
+        success: false,
+        error: 'Tip cannot exceed the tendered amount',
+      });
+    }
+
+    if (method === 'GIFT_CARD' && !giftCardCode) {
+      return reply.code(400).send({
+        success: false,
+        error: 'Gift card code is required',
+      });
+    }
+
+    try {
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const order = await tx.order.findFirst({
+            where: { id: orderId, restaurantId: user.restaurantId },
+            include: {
+              items: { where: { isVoided: false } },
+              payments: true,
+              discounts: true,
+              table: true,
+              server: { select: { id: true, name: true, role: true } },
+              kdsTickets: true,
+            },
+          });
+
+          if (!order) {
+            throw new Error('ORDER_NOT_FOUND');
+          }
+
+          if (order.status === 'VOID') {
+            throw new Error('ORDER_VOID');
+          }
+
+          if (order.status === 'PAID') {
+            throw new Error('ORDER_PAID');
+          }
+
+          const capturedPayments = order.payments.filter(
+            (payment) => payment.status === 'CAPTURED',
+          );
+          const capturedTips = capturedPayments.reduce(
+            (sum, payment) => sum + Number(payment.tipAmount || 0),
+            0,
+          );
+          const capturedTendered = capturedPayments.reduce(
+            (sum, payment) => sum + Number(payment.amount || 0),
+            0,
+          );
+          const baseOrderTotal = Math.max(0, Number(order.total || 0) - capturedTips);
+          const baseRemaining = Math.max(
+            0,
+            baseOrderTotal - (capturedTendered - capturedTips),
+          );
+          const paymentBaseAmount = normalizedAmount - normalizedTipAmount;
+
+          if (paymentBaseAmount <= 0) {
+            throw new Error('INVALID_PAYMENT');
+          }
+
+          if (method !== 'CASH' && paymentBaseAmount > baseRemaining + 0.01) {
+            throw new Error('OVERPAYMENT');
+          }
+
+          let giftCardId: string | undefined;
+
+          if (method === 'GIFT_CARD' && giftCardCode) {
+            const giftCard = await tx.giftCard.findFirst({
+              where: {
+                code: giftCardCode,
+                restaurantId: user.restaurantId,
+                isActive: true,
+              },
+            });
+
+            if (!giftCard) {
+              throw new Error('GIFT_CARD_NOT_FOUND');
+            }
+
+            if (giftCard.balance < normalizedAmount) {
+              throw new Error('GIFT_CARD_FUNDS');
+            }
+
+            await tx.giftCard.update({
+              where: { id: giftCard.id },
+              data: { balance: { decrement: normalizedAmount } },
+            });
+
+            giftCardId = giftCard.id;
+          }
+
+          const payment = await tx.payment.create({
+            data: {
+              orderId,
+              method: method as any,
+              status: 'CAPTURED',
+              amount: normalizedAmount,
+              tipAmount: normalizedTipAmount,
+              referenceId,
+              giftCardId,
+              notes,
+              processedBy: user.name,
+              processedAt: new Date(),
+            },
+          });
+
+          const nextTendered = roundCurrency(capturedTendered + normalizedAmount);
+          const nextTipTotal = roundCurrency(capturedTips + normalizedTipAmount);
+          const nextGrandTotal = roundCurrency(baseOrderTotal + nextTipTotal);
+          const remaining = Math.max(0, roundCurrency(nextGrandTotal - nextTendered));
+          const isPaid = remaining <= 0.01;
+
+          const updatedOrder = await tx.order.update({
+            where: { id: orderId },
+            data: {
+              tipTotal: nextTipTotal,
+              total: nextGrandTotal,
+              ...(isPaid
+                ? {
+                    status: 'PAID',
+                    paidAt: new Date(),
+                    closedAt: new Date(),
+                  }
+                : {}),
+            },
+            include: {
+              items: { where: { isVoided: false } },
+              payments: true,
+              discounts: true,
+              table: true,
+              server: { select: { id: true, name: true, role: true } },
+              kdsTickets: true,
+            },
+          });
+
+          if (isPaid && order.tableId) {
+            await tx.table.update({
+              where: { id: order.tableId },
+              data: { status: 'DIRTY' },
+            });
+          }
+
+          await tx.auditLog.create({
+            data: {
+              restaurantId: user.restaurantId,
+              userId: user.id,
+              userName: user.name,
+              action: 'PAYMENT_PROCESSED',
+              entityType: 'PAYMENT',
+              entityId: payment.id,
+              orderId,
+              details: {
+                method,
+                amount: normalizedAmount,
+                tipAmount: normalizedTipAmount,
+                isPaid,
+                giftCardCode,
+              },
+            },
+          });
+
+          return {
+            payment,
+            order: updatedOrder,
+            isPaid,
+            totalTendered: nextTendered,
+            remaining,
+            change: Math.max(0, roundCurrency(nextTendered - nextGrandTotal)),
+            tableId: order.tableId,
+          };
         },
-      });
+        { isolationLevel: 'Serializable' as any },
+      );
 
-      // Free the table
-      if (order.tableId) {
-        await prisma.table.update({
-          where: { id: order.tableId },
-          data: { status: 'DIRTY' },
-        });
+      if (result.isPaid && result.tableId) {
         wsManager.broadcast(user.restaurantId, WSEventType.TABLE_STATUS_CHANGED, {
-          tableId: order.tableId,
+          tableId: result.tableId,
           status: 'DIRTY',
         });
       }
-    } else {
-      // Partial payment â update tip total
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { tipTotal: totalTips },
-      });
-    }
 
-    await prisma.auditLog.create({
-      data: {
-        restaurantId: user.restaurantId,
-        userId: user.id,
-        userName: user.name,
-        action: 'PAYMENT_PROCESSED',
-        entityType: 'PAYMENT',
-        entityId: payment.id,
+      wsManager.broadcast(user.restaurantId, WSEventType.PAYMENT_CAPTURED, {
         orderId,
-        details: { method, amount, tipAmount, isPaid, giftCardCode },
-      },
-    });
+        payment: result.payment,
+        isPaid: result.isPaid,
+        totalPaid: result.totalTendered,
+        remaining: result.remaining,
+        order: result.order,
+      });
 
-    wsManager.broadcast(user.restaurantId, WSEventType.PAYMENT_CAPTURED, {
-      orderId,
-      payment,
-      isPaid,
-      totalPaid,
-      remaining: Math.max(0, orderTotal - totalPaid),
-    });
+      return reply.code(201).send({
+        success: true,
+        data: {
+          payment: result.payment,
+          order: result.order,
+          isPaid: result.isPaid,
+          totalPaid: result.totalTendered,
+          remaining: result.remaining,
+          change: result.change,
+        },
+      });
+    } catch (error: any) {
+      if (error.message === 'ORDER_NOT_FOUND') {
+        return reply.code(404).send({ success: false, error: 'Order not found' });
+      }
 
-    return reply.code(201).send({
-      success: true,
-      data: {
-        payment,
-        isPaid,
-        totalPaid,
-        remaining: Math.max(0, orderTotal - totalPaid),
-        change: totalPaid > orderTotal ? totalPaid - orderTotal : 0,
-      },
-    });
+      if (error.message === 'ORDER_VOID') {
+        return reply.code(400).send({ success: false, error: 'Cannot pay a voided order' });
+      }
+
+      if (error.message === 'ORDER_PAID') {
+        return reply.code(409).send({ success: false, error: 'Order is already paid' });
+      }
+
+      if (error.message === 'OVERPAYMENT') {
+        return reply.code(400).send({
+          success: false,
+          error: 'Payment exceeds the remaining balance',
+        });
+      }
+
+      if (error.message === 'INVALID_PAYMENT') {
+        return reply.code(400).send({
+          success: false,
+          error: 'Payment must include a base amount',
+        });
+      }
+
+      if (error.message === 'GIFT_CARD_NOT_FOUND') {
+        return reply.code(404).send({
+          success: false,
+          error: 'Gift card not found or inactive',
+        });
+      }
+
+      if (error.message === 'GIFT_CARD_FUNDS') {
+        return reply.code(400).send({
+          success: false,
+          error: 'Insufficient gift card balance',
+        });
+      }
+
+      throw error;
+    }
   });
 
-  // Refund payment
   app.post('/:id/refund', auth, async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = (request as any).user;
     const { amount, reason } = request.body as { amount?: number; reason: string };
 
     if (!['OWNER', 'MANAGER'].includes(user.role)) {
-      return reply.code(403).send({ success: false, error: 'Manager approval required for refunds' });
+      return reply.code(403).send({
+        success: false,
+        error: 'Manager approval required for refunds',
+      });
     }
 
-    const payment = await prisma.payment.findUnique({ where: { id } });
-    if (!payment) return reply.code(404).send({ success: false, error: 'Payment not found' });
-    if (payment.status !== 'CAPTURED') {
-      return reply.code(400).send({ success: false, error: 'Only captured payments can be refunded' });
+    if (!reason?.trim()) {
+      return reply.code(400).send({ success: false, error: 'Refund reason is required' });
     }
 
-    const refundAmount = amount || payment.amount;
+    try {
+      const refund = await prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.findFirst({
+          where: { id, order: { restaurantId: user.restaurantId } },
+        });
 
-    const refund = await prisma.payment.create({
-      data: {
-        orderId: payment.orderId,
-        method: payment.method,
-        status: 'REFUNDED',
-        amount: -refundAmount,
-        tipAmount: 0,
-        referenceId: `REFUND-${payment.id}`,
-        notes: reason,
-        processedBy: user.name,
-        processedAt: new Date(),
-      },
-    });
+        if (!payment) {
+          throw new Error('PAYMENT_NOT_FOUND');
+        }
 
-    await prisma.order.update({
-      where: { id: payment.orderId },
-      data: { status: 'REFUNDED' },
-    });
+        if (payment.status !== 'CAPTURED') {
+          throw new Error('PAYMENT_NOT_CAPTURED');
+        }
 
-    await prisma.auditLog.create({
-      data: {
-        restaurantId: user.restaurantId,
-        userId: user.id,
-        userName: user.name,
-        action: 'PAYMENT_REFUNDED',
-        entityType: 'PAYMENT',
-        entityId: id,
-        orderId: payment.orderId,
-        details: { refundAmount, reason, originalPaymentId: id },
-      },
-    });
+        const refundAmount = Number(amount || payment.amount);
 
-    return reply.send({ success: true, data: refund });
+        if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > payment.amount) {
+          throw new Error('INVALID_REFUND');
+        }
+
+        const refundPayment = await tx.payment.create({
+          data: {
+            orderId: payment.orderId,
+            method: payment.method,
+            status: 'REFUNDED',
+            amount: -refundAmount,
+            tipAmount: 0,
+            referenceId: `REFUND-${payment.id}`,
+            notes: reason.trim(),
+            processedBy: user.name,
+            processedAt: new Date(),
+          },
+        });
+
+        await tx.order.update({
+          where: { id: payment.orderId },
+          data: { status: 'REFUNDED' },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            restaurantId: user.restaurantId,
+            userId: user.id,
+            userName: user.name,
+            action: 'PAYMENT_REFUNDED',
+            entityType: 'PAYMENT',
+            entityId: id,
+            orderId: payment.orderId,
+            details: {
+              refundAmount,
+              reason: reason.trim(),
+              originalPaymentId: id,
+            },
+          },
+        });
+
+        return refundPayment;
+      });
+
+      return reply.send({ success: true, data: refund });
+    } catch (error: any) {
+      if (error.message === 'PAYMENT_NOT_FOUND') {
+        return reply.code(404).send({ success: false, error: 'Payment not found' });
+      }
+
+      if (error.message === 'PAYMENT_NOT_CAPTURED') {
+        return reply.code(400).send({
+          success: false,
+          error: 'Only captured payments can be refunded',
+        });
+      }
+
+      if (error.message === 'INVALID_REFUND') {
+        return reply.code(400).send({
+          success: false,
+          error: 'Refund amount is invalid',
+        });
+      }
+
+      throw error;
+    }
   });
 
-  // Get payments for order
   app.get('/order/:orderId', auth, async (request, reply) => {
     const { orderId } = request.params as { orderId: string };
     const user = (request as any).user;
@@ -225,7 +420,6 @@ export default async function paymentRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: payments });
   });
 
-  // Cash drawer reconciliation
   app.get('/cash-summary', auth, async (request, reply) => {
     const user = (request as any).user;
     const { locationId, date } = request.query as { locationId?: string; date?: string };
@@ -261,20 +455,19 @@ export default async function paymentRoutes(app: FastifyInstance) {
       grandTotal: 0,
     };
 
-    for (const p of payments) {
-      const key = p.method.toLowerCase() as keyof typeof summary;
+    for (const payment of payments) {
+      const key = payment.method.toLowerCase() as keyof typeof summary;
       if (key in summary && typeof summary[key] === 'object') {
         (summary[key] as any).count++;
-        (summary[key] as any).total += p.amount;
+        (summary[key] as any).total += payment.amount;
       }
-      summary.tips += p.tipAmount;
-      summary.grandTotal += p.amount;
+      summary.tips += payment.tipAmount;
+      summary.grandTotal += payment.amount;
     }
 
     return reply.send({ success: true, data: summary });
   });
 
-  // Check gift card balance
   app.get('/gift-cards/:code', auth, async (request, reply) => {
     const { code } = request.params as { code: string };
     const user = (request as any).user;

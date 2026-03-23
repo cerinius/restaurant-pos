@@ -12,6 +12,7 @@ interface Props {
   onCategoryChange: (id: string | null) => void;
   onItemSelect: (item: any) => void;
   activeHappyHour: any;
+  isLoading?: boolean;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -20,7 +21,14 @@ const STATUS_COLORS: Record<string, string> = {
   INACTIVE: 'opacity-30',
 };
 
-export function MenuGrid({ categories, activeCategoryId, onCategoryChange, onItemSelect, activeHappyHour }: Props) {
+export function MenuGrid({
+  categories,
+  activeCategoryId,
+  onCategoryChange,
+  onItemSelect,
+  activeHappyHour,
+  isLoading = false,
+}: Props) {
   const [search, setSearch] = useState('');
 
   const activeCategory = activeCategoryId
@@ -48,6 +56,26 @@ export function MenuGrid({ categories, activeCategoryId, onCategoryChange, onIte
   }, [search, categories]);
 
   const displayItems = search ? allItems || [] : items;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex gap-2 overflow-x-auto border-b border-slate-700 bg-slate-900 px-3 py-3 no-scrollbar">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="h-11 w-28 animate-pulse rounded-2xl bg-slate-800" />
+          ))}
+        </div>
+        <div className="border-b border-slate-700 bg-slate-900 px-3 py-3">
+          <div className="h-11 animate-pulse rounded-2xl bg-slate-800" />
+        </div>
+        <div className="grid flex-1 grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, index) => (
+            <div key={index} className="h-32 animate-pulse rounded-3xl bg-slate-800" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">

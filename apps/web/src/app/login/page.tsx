@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [locationId, setLocationId] = useState(DEMO_LOCATION_ID);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminForm, setAdminForm] = useState({ email: '', password: '', slug: 'demo-restaurant' });
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) router.push('/pos');
@@ -38,6 +39,12 @@ export default function LoginPage() {
       fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`)
         .catch(() => {});
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    setRedirectPath(params.get('redirect'));
   }, []);
 
   const handlePinPress = (digit: string) => {
@@ -75,7 +82,7 @@ export default function LoginPage() {
       if (result.success) {
         setAuth(result.data.user, result.data.accessToken, result.data.refreshToken);
         toast.success(`Welcome, ${result.data.user.name}!`);
-        router.push('/pos');
+        router.push(redirectPath || '/pos');
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Invalid PIN');
@@ -92,7 +99,7 @@ export default function LoginPage() {
       if (result.success) {
         setAuth(result.data.user, result.data.accessToken, result.data.refreshToken);
         toast.success(`Welcome, ${result.data.user.name}!`);
-        router.push('/admin');
+        router.push(redirectPath || '/admin');
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Login failed');

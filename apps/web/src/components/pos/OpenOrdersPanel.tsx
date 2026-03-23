@@ -9,6 +9,7 @@ import clsx from 'clsx';
 interface Props {
   locationId: string;
   onOrderSelect: (order: any) => void;
+  initialOrders?: any[];
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -18,19 +19,23 @@ const STATUS_COLORS: Record<string, string> = {
   READY:       'bg-emerald-900/50 text-emerald-300 border-emerald-700/50',
 };
 
-export function OpenOrdersPanel({ locationId, onOrderSelect }: Props) {
+export function OpenOrdersPanel({ locationId, onOrderSelect, initialOrders = [] }: Props) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['open-orders', locationId],
     queryFn: () => api.getOpenOrders(locationId),
     refetchInterval: 15000,
+    enabled: !!locationId,
+    initialData: initialOrders.length > 0 ? { success: true, data: initialOrders } : undefined,
   });
 
   const orders: any[] = data?.data || [];
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-slate-400">
-        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <div key={index} className="h-40 animate-pulse rounded-3xl bg-slate-800" />
+        ))}
       </div>
     );
   }

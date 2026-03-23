@@ -204,6 +204,13 @@ export function useGlobalWSNotifications() {
         message: `${payload?.itemName} is now out of stock`,
       });
     },
+    [WSEventType.LOW_STOCK_ALERT]: (payload) => {
+      addNotification({
+        type: 'warning',
+        title: 'Low Stock',
+        message: `${payload?.name || 'Inventory item'} hit its low-stock threshold`,
+      });
+    },
     [WSEventType.PAYMENT_CAPTURED]: (payload) => {
       if (payload?.isPaid) {
         addNotification({

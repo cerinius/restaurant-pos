@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
@@ -10,6 +9,16 @@ import { WSEventType } from '@pos/shared';
 import api from '@/lib/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAuthStore } from '@/store';
+
+interface KDSContentProps {
+  initialData: {
+    stations: any[];
+    tickets: any[];
+    stats: any;
+    selectedStationId: string | null;
+    locationId: string | null;
+  };
+}
 
 function formatElapsed(seconds?: number) {
   const total = Math.max(0, Math.floor(seconds || 0));
@@ -28,27 +37,40 @@ function getTicketTone(ticket: any) {
   return 'border-slate-700 bg-slate-900';
 }
 
-export default function KDSContent() {
-  const router = useRouter();
+function TicketSkeleton() {
+  return (
+    <div className="rounded-3xl border border-slate-800 bg-slate-900 p-5">
+      <div className="mb-4 h-6 animate-pulse rounded-xl bg-slate-800" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="h-16 animate-pulse rounded-2xl bg-slate-800" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function KDSContent({ initialData }: KDSContentProps) {
   const queryClient = useQueryClient();
-  const { isAuthenticated, user, locationId } = useAuthStore();
-  const [hydrated, setHydrated] = useState(false);
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const { user, locationId, setLocation } = useAuthStore();
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(
+    initialData.selectedStationId,
+  );
+
+  const effectiveLocationId = locationId || initialData.locationId || null;
 
   useEffect(() => {
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (!isAuthenticated) router.replace('/login');
-  }, [hydrated, isAuthenticated, router]);
+    if (!locationId && initialData.locationId) {
+      setLocation(initialData.locationId);
+    }
+  }, [initialData.locationId, locationId, setLocation]);
 
   const { data: stationsData, isLoading: stationsLoading } = useQuery({
-    queryKey: ['kds-stations', locationId],
-    queryFn: () => api.getStations(locationId || undefined),
-    enabled: hydrated && isAuthenticated,
+    queryKey: ['kds-stations', effectiveLocationId],
+    queryFn: () => api.getStations(effectiveLocationId || undefined),
+    enabled: !!effectiveLocationId,
     refetchInterval: 30000,
+    initialData: { success: true, data: initialData.stations },
   });
 
   const stations: any[] = stationsData?.data || [];
@@ -60,29 +82,36 @@ export default function KDSContent() {
   }, [selectedStationId, stations]);
 
   const { data: ticketsData, isLoading: ticketsLoading, refetch } = useQuery({
-    queryKey: ['kds-tickets', selectedStationId, locationId],
+    queryKey: ['kds-tickets', selectedStationId, effectiveLocationId],
     queryFn: () =>
       api.getKDSTickets({
         stationId: selectedStationId || undefined,
-        locationId: locationId || undefined,
+        locationId: effectiveLocationId || undefined,
       }),
-    enabled: hydrated && isAuthenticated && !!selectedStationId,
+    enabled: !!selectedStationId,
     refetchInterval: 10000,
+    initialData:
+      selectedStationId === initialData.selectedStationId
+        ? { success: true, data: initialData.tickets }
+        : undefined,
   });
 
   const { data: statsData } = useQuery({
-    queryKey: ['kds-stats', locationId],
-    queryFn: () => api.getKDSStats(locationId || undefined),
-    enabled: hydrated && isAuthenticated,
+    queryKey: ['kds-stats', effectiveLocationId],
+    queryFn: () => api.getKDSStats(effectiveLocationId || undefined),
+    enabled: !!effectiveLocationId,
     refetchInterval: 15000,
+    initialData: initialData.stats ? { success: true, data: initialData.stats } : undefined,
   });
 
   const bumpMutation = useMutation({
     mutationFn: (ticketId: string) => api.bumpTicket(ticketId),
     onSuccess: async () => {
       toast.success('Ticket bumped');
-      await queryClient.invalidateQueries({ queryKey: ['kds-tickets'] });
-      await queryClient.invalidateQueries({ queryKey: ['kds-stats'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['kds-tickets'] }),
+        queryClient.invalidateQueries({ queryKey: ['kds-stats'] }),
+      ]);
     },
     onError: (error: any) => toast.error(error?.response?.data?.error || 'Unable to bump ticket'),
   });
@@ -91,8 +120,10 @@ export default function KDSContent() {
     mutationFn: (ticketId: string) => api.recallTicket(ticketId),
     onSuccess: async () => {
       toast.success('Ticket recalled');
-      await queryClient.invalidateQueries({ queryKey: ['kds-tickets'] });
-      await queryClient.invalidateQueries({ queryKey: ['kds-stats'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['kds-tickets'] }),
+        queryClient.invalidateQueries({ queryKey: ['kds-stats'] }),
+      ]);
     },
     onError: (error: any) => toast.error(error?.response?.data?.error || 'Unable to recall ticket'),
   });
@@ -101,8 +132,10 @@ export default function KDSContent() {
     mutationFn: (ticketId: string) => api.setTicketPriority(ticketId, 'rush'),
     onSuccess: async () => {
       toast.success('Ticket marked rush');
-      await queryClient.invalidateQueries({ queryKey: ['kds-tickets'] });
-      await queryClient.invalidateQueries({ queryKey: ['kds-stats'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['kds-tickets'] }),
+        queryClient.invalidateQueries({ queryKey: ['kds-stats'] }),
+      ]);
     },
     onError: (error: any) => toast.error(error?.response?.data?.error || 'Unable to mark rush'),
   });
@@ -114,23 +147,30 @@ export default function KDSContent() {
         await queryClient.invalidateQueries({ queryKey: ['kds-stats'] });
       },
       [WSEventType.KDS_BUMP]: async () => {
-        await queryClient.invalidateQueries({ queryKey: ['kds-tickets'] });
-        await queryClient.invalidateQueries({ queryKey: ['kds-stats'] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['kds-tickets'] }),
+          queryClient.invalidateQueries({ queryKey: ['kds-stats'] }),
+        ]);
       },
       [WSEventType.KDS_RECALL]: async () => {
-        await queryClient.invalidateQueries({ queryKey: ['kds-tickets'] });
-        await queryClient.invalidateQueries({ queryKey: ['kds-stats'] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['kds-tickets'] }),
+          queryClient.invalidateQueries({ queryKey: ['kds-stats'] }),
+        ]);
       },
       [WSEventType.KDS_RUSH]: async () => {
-        await queryClient.invalidateQueries({ queryKey: ['kds-tickets'] });
-        await queryClient.invalidateQueries({ queryKey: ['kds-stats'] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['kds-tickets'] }),
+          queryClient.invalidateQueries({ queryKey: ['kds-stats'] }),
+        ]);
       },
     },
-    [queryClient, refetch, selectedStationId, locationId]
+    [queryClient, refetch],
   );
 
   const tickets = useMemo(() => {
     const rawTickets = ticketsData?.data || [];
+
     return [...rawTickets].sort((left: any, right: any) => {
       const leftRush = left.priority === 'rush' ? 1 : 0;
       const rightRush = right.priority === 'rush' ? 1 : 0;
@@ -143,24 +183,14 @@ export default function KDSContent() {
 
   const stats = statsData?.data || {};
 
-  if (!hydrated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">
-        Loading kitchen display...
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) return null;
-
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="border-b border-slate-800 bg-slate-950/80 px-6 py-5 backdrop-blur">
+    <div className="min-h-screen bg-black pb-6 text-white">
+      <div className="border-b border-slate-800 bg-slate-950/80 px-4 py-5 backdrop-blur md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-black tracking-tight">Kitchen Display System</h1>
             <p className="mt-1 text-sm text-slate-400">
-              {user?.name || 'Staff'} · {stations.length} station(s) available
+              {user?.name || 'Kitchen Staff'} · {stations.length} station(s) available
             </p>
           </div>
 
@@ -183,17 +213,17 @@ export default function KDSContent() {
         </div>
       </div>
 
-      <div className="border-b border-slate-900 px-6 py-4">
+      <div className="border-b border-slate-900 px-4 py-4 md:px-6">
         <div className="flex flex-wrap gap-2">
           {stations.map((station: any) => (
             <button
               key={station.id}
               onClick={() => setSelectedStationId(station.id)}
               className={clsx(
-                'rounded-2xl border px-4 py-2 text-sm font-medium transition-all',
+                'touch-target rounded-2xl border px-4 text-sm font-medium transition-all',
                 selectedStationId === station.id
                   ? 'border-transparent text-white'
-                  : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500'
+                  : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500',
               )}
               style={
                 selectedStationId === station.id
@@ -207,14 +237,14 @@ export default function KDSContent() {
 
           {stations.length === 0 && !stationsLoading && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-400">
-              No KDS stations are configured yet. Add one in Admin &gt; KDS Stations.
+              No KDS stations are configured yet. Add one in Admin.
             </div>
           )}
         </div>
       </div>
 
-      <div className="p-6">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="p-4 md:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-100">
               {stations.find((station: any) => station.id === selectedStationId)?.name || 'Tickets'}
@@ -222,13 +252,17 @@ export default function KDSContent() {
             <p className="text-sm text-slate-500">{tickets.length} active ticket(s)</p>
           </div>
 
-          <button onClick={() => refetch()} className="btn-secondary">
+          <button onClick={() => refetch()} className="touch-target btn-secondary">
             Refresh
           </button>
         </div>
 
         {ticketsLoading ? (
-          <div className="flex items-center justify-center py-20 text-slate-500">Loading tickets...</div>
+          <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <TicketSkeleton key={index} />
+            ))}
+          </div>
         ) : tickets.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-950/70 p-12 text-center text-slate-500">
             No active tickets for this station.
@@ -246,7 +280,9 @@ export default function KDSContent() {
                       {ticket.station?.name || 'Station'}
                     </p>
                     <h3 className="mt-1 text-xl font-black text-white">
-                      {ticket.order?.tableName ? `Table ${ticket.order.tableName}` : ticket.order?.type || 'Order'}
+                      {ticket.order?.tableName
+                        ? `Table ${ticket.order.tableName}`
+                        : ticket.order?.type || 'Order'}
                     </h3>
                     <p className="mt-1 text-sm text-slate-300">
                       {ticket.order?.serverName || 'Unknown server'} · {ticket.order?.guestCount || 0} guests
@@ -291,21 +327,21 @@ export default function KDSContent() {
                   <button
                     onClick={() => rushMutation.mutate(ticket.id)}
                     disabled={rushMutation.isPending}
-                    className="rounded-2xl border border-red-800/50 bg-red-950/30 px-3 py-3 text-sm font-semibold text-red-200 transition-colors hover:bg-red-950/50"
+                    className="touch-target rounded-2xl border border-red-800/50 bg-red-950/30 px-3 text-sm font-semibold text-red-200 transition-colors hover:bg-red-950/50"
                   >
                     Rush
                   </button>
                   <button
                     onClick={() => recallMutation.mutate(ticket.id)}
                     disabled={recallMutation.isPending}
-                    className="rounded-2xl border border-blue-800/50 bg-blue-950/30 px-3 py-3 text-sm font-semibold text-blue-200 transition-colors hover:bg-blue-950/50"
+                    className="touch-target rounded-2xl border border-blue-800/50 bg-blue-950/30 px-3 text-sm font-semibold text-blue-200 transition-colors hover:bg-blue-950/50"
                   >
                     Recall
                   </button>
                   <button
                     onClick={() => bumpMutation.mutate(ticket.id)}
                     disabled={bumpMutation.isPending}
-                    className="rounded-2xl border border-emerald-800/50 bg-emerald-950/30 px-3 py-3 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-950/50"
+                    className="touch-target rounded-2xl border border-emerald-800/50 bg-emerald-950/30 px-3 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-950/50"
                   >
                     Bump
                   </button>

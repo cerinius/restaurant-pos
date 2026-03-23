@@ -2,6 +2,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+
+function setSessionCookie(name: string, value: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${SESSION_COOKIE_MAX_AGE}; samesite=lax`;
+}
+
+function clearSessionCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; path=/; max-age=0; samesite=lax`;
+}
+
 // ââ Auth Store ââââââââââââââââââââââââââââââââââââââââââââââââ
 interface AuthUser {
   id: string;
@@ -39,6 +51,9 @@ export const useAuthStore = create<AuthState>()(
           localStorage.setItem('pos_access_token', accessToken);
           localStorage.setItem('pos_refresh_token', refreshToken);
           localStorage.setItem('pos_user', JSON.stringify(user));
+          setSessionCookie('pos_token', accessToken);
+          setSessionCookie('pos_refresh_token', refreshToken);
+          setSessionCookie('pos_location_id', user.locationId || user.locationIds[0] || '');
         }
         set({
           user,
@@ -50,13 +65,21 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      setLocation: (locationId) => set({ locationId }),
+      setLocation: (locationId) => {
+        if (typeof window !== 'undefined') {
+          setSessionCookie('pos_location_id', locationId);
+        }
+        set({ locationId });
+      },
 
       clearAuth: () => {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('pos_access_token');
           localStorage.removeItem('pos_refresh_token');
           localStorage.removeItem('pos_user');
+          clearSessionCookie('pos_token');
+          clearSessionCookie('pos_refresh_token');
+          clearSessionCookie('pos_location_id');
         }
         set({
           user: null,

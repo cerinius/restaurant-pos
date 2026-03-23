@@ -14,9 +14,11 @@ export default async function kdsRoutes(app: FastifyInstance) {
 
     const tickets = await prisma.kDSTicket.findMany({
       where: {
-        station: { restaurantId: user.restaurantId },
+        station: {
+          restaurantId: user.restaurantId,
+          ...(locationId ? { locationId } : {}),
+        },
         ...(stationId ? { stationId } : {}),
-        ...(locationId ? { station: { locationId } } : {}),
         status: status ? (status as any) : { in: ['PENDING', 'IN_PROGRESS'] },
       },
       include: {
@@ -67,35 +69,43 @@ export default async function kdsRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const user = (request as any).user;
 
-    const ticket = await prisma.kDSTicket.update({
-      where: { id },
-      data: { status: 'READY', bumpedAt: new Date() },
-      include: { order: true, station: true },
+    const existingTicket = await prisma.kDSTicket.findFirst({
+      where: { id, station: { restaurantId: user.restaurantId } },
     });
 
-    // Update order items linked to this ticket
-    const ticketItems = ticket.items as any[];
-    if (ticketItems?.length > 0) {
-      const itemIds = ticketItems.map((i: any) => i.id).filter(Boolean);
+    if (!existingTicket) {
+      return reply.code(404).send({ success: false, error: 'Ticket not found' });
+    }
+
+    const ticket = await prisma.$transaction(async (tx) => {
+      const updatedTicket = await tx.kDSTicket.update({
+        where: { id },
+        data: { status: 'READY', bumpedAt: new Date() },
+        include: { order: true, station: true },
+      });
+
+      const ticketItems = updatedTicket.items as any[];
+      const itemIds = ticketItems.map((item: any) => item.id).filter(Boolean);
+
       if (itemIds.length > 0) {
-        await prisma.orderItem.updateMany({
+        await tx.orderItem.updateMany({
           where: { id: { in: itemIds } },
           data: { status: 'READY' },
         });
       }
-    }
 
-    // Check if all tickets for this order are bumped
-    const allTickets = await prisma.kDSTicket.findMany({
-      where: { orderId: ticket.orderId, status: { not: 'VOIDED' } },
-    });
-    const allReady = allTickets.every((t:any) => ['READY', 'SERVED'].includes(t.status));
-    if (allReady) {
-      await prisma.order.update({
-        where: { id: ticket.orderId },
-        data: { status: 'READY' },
+      const allTickets = await tx.kDSTicket.findMany({
+        where: { orderId: updatedTicket.orderId, status: { not: 'VOIDED' } },
       });
-    }
+      const allReady = allTickets.every((entry: any) => ['READY', 'SERVED'].includes(entry.status));
+
+      await tx.order.update({
+        where: { id: updatedTicket.orderId },
+        data: { status: allReady ? 'READY' : 'IN_PROGRESS' },
+      });
+
+      return updatedTicket;
+    });
 
     wsManager.broadcast(
       user.restaurantId,
@@ -111,9 +121,36 @@ export default async function kdsRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const user = (request as any).user;
 
-    const ticket = await prisma.kDSTicket.update({
-      where: { id },
-      data: { status: 'IN_PROGRESS', bumpedAt: null, recalledAt: new Date() },
+    const existingTicket = await prisma.kDSTicket.findFirst({
+      where: { id, station: { restaurantId: user.restaurantId } },
+    });
+
+    if (!existingTicket) {
+      return reply.code(404).send({ success: false, error: 'Ticket not found' });
+    }
+
+    const ticket = await prisma.$transaction(async (tx) => {
+      const updatedTicket = await tx.kDSTicket.update({
+        where: { id },
+        data: { status: 'IN_PROGRESS', bumpedAt: null, recalledAt: new Date() },
+      });
+
+      const ticketItems = updatedTicket.items as any[];
+      const itemIds = ticketItems.map((item: any) => item.id).filter(Boolean);
+
+      if (itemIds.length > 0) {
+        await tx.orderItem.updateMany({
+          where: { id: { in: itemIds } },
+          data: { status: 'IN_PROGRESS' },
+        });
+      }
+
+      await tx.order.update({
+        where: { id: updatedTicket.orderId },
+        data: { status: 'IN_PROGRESS' },
+      });
+
+      return updatedTicket;
     });
 
     wsManager.broadcast(
@@ -131,21 +168,30 @@ export default async function kdsRoutes(app: FastifyInstance) {
     const { status } = request.body as { status: string };
     const user = (request as any).user;
 
-    const ticket = await prisma.kDSTicket.findUnique({ where: { id } });
-    if (!ticket) return reply.code(404).send({ success: false, error: 'Ticket not found' });
-
-    const items = (ticket.items as any[]).map((item: any) =>
-      item.id === itemId ? { ...item, status } : item
-    );
-
-    const updatedTicket = await prisma.kDSTicket.update({
-      where: { id },
-      data: { items },
+    const existingTicket = await prisma.kDSTicket.findFirst({
+      where: { id, station: { restaurantId: user.restaurantId } },
     });
 
-    await prisma.orderItem.update({
-      where: { id: itemId },
-      data: { status: status as any },
+    if (!existingTicket) {
+      return reply.code(404).send({ success: false, error: 'Ticket not found' });
+    }
+
+    const updatedTicket = await prisma.$transaction(async (tx) => {
+      const items = (existingTicket.items as any[]).map((item: any) =>
+        item.id === itemId ? { ...item, status } : item,
+      );
+
+      const nextTicket = await tx.kDSTicket.update({
+        where: { id },
+        data: { items },
+      });
+
+      await tx.orderItem.update({
+        where: { id: itemId },
+        data: { status: status as any },
+      });
+
+      return nextTicket;
     });
 
     wsManager.broadcast(user.restaurantId, WSEventType.ITEM_STATUS_CHANGED, {
@@ -163,18 +209,26 @@ export default async function kdsRoutes(app: FastifyInstance) {
     const { priority } = request.body as { priority: string };
     const user = (request as any).user;
 
-    const ticket = await prisma.kDSTicket.update({
+    const ticket = await prisma.kDSTicket.findFirst({
+      where: { id, station: { restaurantId: user.restaurantId } },
+    });
+
+    if (!ticket) {
+      return reply.code(404).send({ success: false, error: 'Ticket not found' });
+    }
+
+    const updatedTicket = await prisma.kDSTicket.update({
       where: { id },
       data: { priority },
     });
 
     wsManager.broadcast(user.restaurantId, WSEventType.KDS_RUSH, {
       ticketId: id,
-      orderId: ticket.orderId,
+      orderId: updatedTicket.orderId,
       priority,
     });
 
-    return reply.send({ success: true, data: ticket });
+    return reply.send({ success: true, data: updatedTicket });
   });
 
   // Get all stations

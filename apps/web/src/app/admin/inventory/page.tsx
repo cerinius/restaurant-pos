@@ -9,6 +9,9 @@ import { PlusIcon, PencilIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import { WSEventType } from '@pos/shared';
+
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 export default function InventoryPage() {
   const qc = useQueryClient();
@@ -26,6 +29,16 @@ export default function InventoryPage() {
 
   const items: any[] = data?.data || [];
   const lowStockItems = items.filter((i) => i.currentStock <= i.minimumStock);
+
+  useWebSocket(
+    {
+      [WSEventType.LOW_STOCK_ALERT]: async (payload) => {
+        await qc.invalidateQueries({ queryKey: ['inventory'] });
+        toast.error(`${payload?.name || 'Item'} is low on stock`, { duration: 5000 });
+      },
+    },
+    [qc],
+  );
 
   const restockMutation = useMutation({
     mutationFn: ({ id, qty, notes }: any) => api.restockItem(id, qty, notes),

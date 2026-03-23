@@ -75,10 +75,12 @@ export default async function wsRoutes(app: FastifyInstance) {
         }
 
         if (msg.type === 'PONG') {
+          wsManager.updateClientPing(clientId);
           return;
         }
 
         if (msg.type === 'PING') {
+          wsManager.updateClientPing(clientId);
           socket.send(JSON.stringify({ type: 'PONG' }));
           return;
         }

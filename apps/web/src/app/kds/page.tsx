@@ -1,16 +1,18 @@
-import nextDynamic from 'next/dynamic';
+import { redirect } from 'next/navigation';
+
+import KDSShell from './KDSShell';
+import { getKDSBootstrap, getServerSession } from '@/lib/server-api';
 
 export const dynamic = 'force-dynamic';
 
-const KDSShell = nextDynamic(() => import('./KDSShell'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-screen w-full items-center justify-center bg-slate-950">
-      <p className="text-slate-400">Loading Kitchen Display...</p>
-    </div>
-  ),
-});
+export default async function KDSPage() {
+  const { token, locationId } = getServerSession();
 
-export default function KDSPage() {
-  return <KDSShell />;
+  if (!token) {
+    redirect('/login');
+  }
+
+  const initialData = await getKDSBootstrap(token, locationId);
+
+  return <KDSShell initialData={initialData} />;
 }

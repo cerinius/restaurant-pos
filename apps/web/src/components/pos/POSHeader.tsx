@@ -1,174 +1,376 @@
 'use client';
 
-import { useAuthStore, useNotificationStore } from '@/store';
+import clsx from 'clsx';
+import { useState, type ComponentType, type SVGProps } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import type { POSView } from '@/components/pos/type';
 import {
-  TableCellsIcon,
-  Squares2X2Icon,
-  ClipboardDocumentListIcon,
   ArrowLeftOnRectangleIcon,
-  Cog6ToothIcon,
-  BellIcon,
+  Bars3Icon,
+  ClipboardDocumentListIcon,
+  CreditCardIcon,
+  PlusIcon,
   ShieldCheckIcon,
+  Squares2X2Icon,
+  TableCellsIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
+
+import type { POSView } from '@/components/pos/type';
 import { posWS } from '@/hooks/useWebSocket';
+import api from '@/lib/api';
+import { useAuthStore, useNotificationStore } from '@/store';
 
 interface Props {
   view: POSView;
-  onViewChange: (v: POSView) => void;
+  onViewChange: (view: POSView) => void;
   onNewOrder: () => void;
   hasActiveOrder: boolean;
+  onToggleOrderPanel: () => void;
+  isOrderPanelOpen: boolean;
+  isOffline: boolean;
 }
 
-const NAV: Array<{ id: POSView; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }> = [
+const NAV_ITEMS: Array<{
+  id: POSView;
+  label: string;
+  Icon: ComponentType<SVGProps<SVGSVGElement>>;
+}> = [
   { id: 'tables', label: 'Tables', Icon: TableCellsIcon },
   { id: 'menu', label: 'Menu', Icon: Squares2X2Icon },
-  { id: 'open-orders', label: 'Open Orders', Icon: ClipboardDocumentListIcon },
+  { id: 'open-orders', label: 'Orders', Icon: ClipboardDocumentListIcon },
 ];
 
 const ADMIN_ROLES = ['OWNER', 'MANAGER'];
 
-export function POSHeader({ view, onViewChange, onNewOrder, hasActiveOrder }: Props) {
+function canAccessAdmin(role?: string) {
+  return ADMIN_ROLES.includes(String(role || '').toUpperCase());
+}
+
+export function POSHeader({
+  view,
+  onViewChange,
+  onNewOrder,
+  hasActiveOrder,
+  onToggleOrderPanel,
+  isOrderPanelOpen,
+  isOffline,
+}: Props) {
   const { user, clearAuth } = useAuthStore();
   const { unreadCount } = useNotificationStore();
   const router = useRouter();
+  const [showMobileActions, setShowMobileActions] = useState(false);
 
-  const canAccessAdmin =
-    !!user?.role && ADMIN_ROLES.includes(String(user.role).toUpperCase());
-
-  const handleLogout = async () => {
-    try {
-      await api.logout();
-    } catch {
-      // ignore logout API failure and continue local logout
-    }
-
-    posWS.disconnect();
-    clearAuth();
-    router.push('/login');
-    toast.success('Logged out');
-  };
-
+  const canOpenAdmin = canAccessAdmin(user?.role);
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('en-US', {
+  const timeLabel = now.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
   });
-  const dateStr = now.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+
+  const closeMobileActions = () => setShowMobileActions(false);
+
+  const handleLogout = async () => {
+    closeMobileActions();
+
+    try {
+      await api.logout();
+    } catch {
+      // Ignore API failures and continue local logout.
+    }
+
+    try {
+      posWS.disconnect();
+    } catch {
+      // Ignore websocket teardown failures.
+    }
+
+    clearAuth();
+    toast.success('Logged out');
+    router.replace('/login');
+  };
+
+  const goToAdmin = () => {
+    closeMobileActions();
+    router.push('/admin');
+  };
+
+  const handleNewOrder = () => {
+    closeMobileActions();
+    onNewOrder();
+  };
 
   return (
-    <header className="h-14 bg-slate-900 border-b border-slate-700 flex items-center px-4 gap-4 shrink-0 z-10">
-      <div className="flex items-center gap-2 w-44 shrink-0">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-sm">
-          🍽️
-        </div>
-        <span className="font-bold text-sm text-slate-200 truncate">RestaurantOS</span>
-      </div>
+    <>
+      <header className="relative z-20 shrink-0 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+        <div className="flex min-h-16 items-center gap-3 px-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-sm font-bold text-white">
+            POS
+          </div>
 
-      <nav className="flex items-center gap-1">
-        {NAV.map(({ id, label, Icon }) => {
-          const active = view === id;
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-bold text-slate-100">RestaurantOS</p>
+              {isOffline && (
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">
+                  Offline
+                </span>
+              )}
+            </div>
+            <p className="truncate text-xs text-slate-500">
+              {user?.name || 'Staff'} | {timeLabel}
+            </p>
+          </div>
 
-          return (
+          <div className="hidden items-center gap-2 md:flex">
+            <nav className="flex items-center gap-1 rounded-2xl border border-slate-800 bg-slate-900/90 p-1">
+              {NAV_ITEMS.map(({ id, label, Icon }) => {
+                const active = view === id;
+
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onViewChange(id)}
+                    className={clsx(
+                      'touch-target inline-flex items-center gap-2 rounded-xl px-3 text-sm font-medium transition',
+                      active
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={onToggleOrderPanel}
+                className={clsx(
+                  'touch-target inline-flex items-center gap-2 rounded-xl px-3 text-sm font-medium transition',
+                  isOrderPanelOpen
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                )}
+              >
+                <CreditCardIcon className="h-4 w-4" />
+                Check
+              </button>
+            </nav>
+
             <button
-              key={id}
               type="button"
-              onClick={() => onViewChange(id)}
-              className={`flex items-center gap-2 px-3 h-9 rounded-lg text-sm transition ${
-                active
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
+              onClick={onNewOrder}
+              disabled={hasActiveOrder}
+              className={clsx(
+                'touch-target inline-flex items-center gap-2 rounded-2xl px-4 text-sm font-semibold transition',
+                hasActiveOrder
+                  ? 'cursor-not-allowed bg-slate-800 text-slate-500'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-500',
+              )}
             >
-              <Icon className="w-4 h-4" />
-              <span>{label}</span>
+              <PlusIcon className="h-4 w-4" />
+              New Order
             </button>
-          );
-        })}
-      </nav>
 
-      <div className="ml-auto flex items-center gap-2">
-        {canAccessAdmin && (
+            {canOpenAdmin && (
+              <button
+                type="button"
+                onClick={goToAdmin}
+                className="touch-target inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500"
+              >
+                <ShieldCheckIcon className="h-4 w-4" />
+                Admin
+              </button>
+            )}
+
+            <div className="hidden items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 px-3 py-2 lg:flex">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-sm font-bold text-white">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-100">
+                  {user?.name || 'User'}
+                </p>
+                <p className="truncate text-xs text-slate-500">{user?.role || 'Staff'}</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="touch-target inline-flex items-center justify-center rounded-2xl bg-slate-800 px-3 text-slate-300 transition hover:bg-red-600 hover:text-white"
+              aria-label="Log out"
+            >
+              <ArrowLeftOnRectangleIcon className="h-5 w-5" />
+            </button>
+          </div>
+
           <button
             type="button"
-            onClick={() => router.push('/admin')}
-            className="flex items-center gap-2 px-3 h-9 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white transition"
-            title="Admin Panel"
+            onClick={() => setShowMobileActions(true)}
+            className="touch-target relative inline-flex items-center justify-center rounded-2xl bg-slate-800 px-3 text-slate-100 transition hover:bg-slate-700 md:hidden"
+            aria-label="Open POS actions"
           >
-            <ShieldCheckIcon className="w-4 h-4" />
-            <span>Admin</span>
+            <Bars3Icon className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute right-1 top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={onNewOrder}
-          disabled={hasActiveOrder}
-          className={`px-3 h-9 rounded-lg text-sm font-medium transition ${
-            hasActiveOrder
-              ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-          }`}
-        >
-          New Order
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push('/notifications')}
-          className="relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-800 hover:text-white transition"
-        >
-          <BellIcon className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push('/settings')}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-300 hover:bg-slate-800 hover:text-white transition"
-        >
-          <Cog6ToothIcon className="w-5 h-5" />
-        </button>
-
-        <div className="hidden md:flex flex-col items-end px-2">
-          <span className="text-xs text-slate-300 leading-none">{timeStr}</span>
-          <span className="text-[11px] text-slate-500 leading-none mt-1">{dateStr}</span>
         </div>
+      </header>
 
-        <div className="hidden lg:flex items-center gap-2 px-3 h-9 rounded-lg bg-slate-800 border border-slate-700">
-          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold text-white">
-            {user?.name?.[0]?.toUpperCase() || 'U'}
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm text-slate-200 truncate max-w-[140px]">
-              {user?.name || 'User'}
+      {showMobileActions && (
+        <div className="fixed inset-0 z-30 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={closeMobileActions}
+            aria-label="Close POS actions"
+          />
+
+          <div className="absolute inset-x-4 top-20 rounded-[28px] border border-slate-700 bg-slate-900/95 p-4 shadow-2xl">
+            <div className="flex items-start gap-3 border-b border-slate-800 pb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-base font-bold text-white">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-100">
+                  {user?.name || 'User'}
+                </p>
+                <p className="truncate text-xs text-slate-500">{user?.role || 'Staff'}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium">
+                  <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-1 text-slate-300">
+                    {timeLabel}
+                  </span>
+                  {isOffline && (
+                    <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-300">
+                      Offline mode
+                    </span>
+                  )}
+                  {unreadCount > 0 && (
+                    <span className="rounded-full border border-red-500/20 bg-red-500/10 px-2 py-1 text-red-300">
+                      {unreadCount} unread alerts
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeMobileActions}
+                className="touch-target inline-flex items-center justify-center rounded-2xl bg-slate-800 px-3 text-slate-200"
+                aria-label="Close menu"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
             </div>
-            <div className="text-[11px] text-slate-500 truncate max-w-[140px]">
-              {user?.role || 'Staff'}
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleNewOrder}
+                disabled={hasActiveOrder}
+                className={clsx(
+                  'touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border px-4 text-left text-sm font-semibold transition',
+                  hasActiveOrder
+                    ? 'cursor-not-allowed border-slate-800 bg-slate-800 text-slate-500'
+                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+                )}
+              >
+                <PlusIcon className="h-5 w-5 shrink-0" />
+                New Order
+              </button>
+
+              {canOpenAdmin ? (
+                <button
+                  type="button"
+                  onClick={goToAdmin}
+                  className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/10 px-4 text-left text-sm font-semibold text-violet-100 transition"
+                >
+                  <ShieldCheckIcon className="h-5 w-5 shrink-0" />
+                  Admin
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeMobileActions();
+                    onViewChange('tables');
+                  }}
+                  className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-slate-800 bg-slate-800 px-4 text-left text-sm font-semibold text-slate-200 transition"
+                >
+                  <TableCellsIcon className="h-5 w-5 shrink-0" />
+                  Floor Plan
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  closeMobileActions();
+                  onViewChange('open-orders');
+                }}
+                className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-slate-700 bg-slate-800 px-4 text-left text-sm font-semibold text-slate-100 transition"
+              >
+                <ClipboardDocumentListIcon className="h-5 w-5 shrink-0" />
+                Open Orders
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 text-left text-sm font-semibold text-red-200 transition"
+              >
+                <ArrowLeftOnRectangleIcon className="h-5 w-5 shrink-0" />
+                Log Out
+              </button>
             </div>
           </div>
         </div>
+      )}
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-300 hover:bg-red-600 hover:text-white transition"
-          title="Logout"
-        >
-          <ArrowLeftOnRectangleIcon className="w-5 h-5" />
-        </button>
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-800 bg-slate-950/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden">
+        <div className="grid grid-cols-4 gap-2">
+          {NAV_ITEMS.map(({ id, label, Icon }) => {
+            const active = view === id;
+
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onViewChange(id)}
+                className={clsx(
+                  'touch-target flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 text-[11px] font-semibold transition',
+                  active
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={onToggleOrderPanel}
+            className={clsx(
+              'touch-target flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-2 text-[11px] font-semibold transition',
+              isOrderPanelOpen
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+            )}
+          >
+            <CreditCardIcon className="h-5 w-5" />
+            <span>Check</span>
+          </button>
+        </div>
       </div>
-    </header>
+    </>
   );
 }
