@@ -6,12 +6,12 @@ import { getServerSession } from '@/lib/server-api';
 
 export const dynamic = 'force-dynamic';
 
-export default function TenantTeamPage({
+export default async function TenantTeamPage({
   params,
 }: {
   params: { restaurantId: string };
 }) {
-  const { token, restaurantId, locationId } = getServerSession();
+  const { token, restaurantId, locationId } = await getServerSession();
 
   if (!token) {
     redirect(getRestaurantLoginPath(params.restaurantId));

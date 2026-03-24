@@ -22,7 +22,12 @@ export function getRestaurantKDSPath(restaurantId: string) {
 }
 
 export function getRestaurantAdminPath(restaurantId: string, suffix = '') {
-  return getRestaurantPath(restaurantId, suffix ? `/admin/${suffix}` : '/admin');
+  const normalizedSuffix = suffix
+    ? suffix.startsWith('/')
+      ? suffix
+      : `/${suffix}`
+    : '';
+  return getRestaurantPath(restaurantId, `/admin${normalizedSuffix}`);
 }
 
 export function getRestaurantTeamPath(restaurantId: string) {

@@ -42,8 +42,8 @@ async function fetchPublicJSON<T>(path: string) {
   }
 }
 
-export function getServerSession() {
-  const cookieStore = cookies();
+export async function getServerSession() {
+  const cookieStore = await cookies();
   return {
     token: cookieStore.get('pos_token')?.value || null,
     restaurantId: cookieStore.get('pos_restaurant_id')?.value || null,

@@ -6,7 +6,7 @@ import { getRestaurantKDSPath } from '@/lib/paths';
 export const dynamic = 'force-dynamic';
 
 export default async function KDSPage() {
-  const { token, restaurantId } = getServerSession();
+  const { token, restaurantId } = await getServerSession();
 
   if (!token || !restaurantId) {
     redirect('/login');

@@ -6,7 +6,7 @@ import { getRestaurantPOSPath } from '@/lib/paths';
 export const dynamic = 'force-dynamic';
 
 export default async function POSPage() {
-  const { token, restaurantId } = getServerSession();
+  const { token, restaurantId } = await getServerSession();
 
   if (!token || !restaurantId) {
     redirect('/login');

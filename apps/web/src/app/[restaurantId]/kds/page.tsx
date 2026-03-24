@@ -11,7 +11,7 @@ export default async function TenantKDSPage({
 }: {
   params: { restaurantId: string };
 }) {
-  const { token, restaurantId, locationId } = getServerSession();
+  const { token, restaurantId, locationId } = await getServerSession();
 
   if (!token) {
     redirect(getRestaurantLoginPath(params.restaurantId));
