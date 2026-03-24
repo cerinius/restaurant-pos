@@ -42,8 +42,15 @@ function canAccessAdmin(role?: string) {
 }
 
 function isActivePath(pathname: string, href: string) {
-  if (pathname === href) return true;
-  return pathname.startsWith(`${href}/`);
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const normalizedHref = href.replace(/\/+$/, '') || '/';
+
+  if (normalizedPath === normalizedHref) return true;
+
+  const isAdminRoot = normalizedHref.endsWith('/admin');
+  if (isAdminRoot) return false;
+
+  return normalizedPath.startsWith(`${normalizedHref}/`);
 }
 
 function getCurrentSection(pathname: string, restaurantId: string) {

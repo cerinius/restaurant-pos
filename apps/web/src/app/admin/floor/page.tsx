@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
@@ -172,7 +172,9 @@ function getRoomBadgeStyle(type: FloorRoomType) {
 export default function FloorPlanPage() {
   const { locationId } = useAuthStore();
   const qc = useQueryClient();
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [workspaceViewport, setWorkspaceViewport] = useState({ width: 0, height: 0 });
 
   const [draggingTable, setDraggingTable] = useState<{ id: string; roomName: string } | null>(null);
   const [draggingRoom, setDraggingRoom] = useState<string | null>(null);
@@ -207,6 +209,42 @@ export default function FloorPlanPage() {
     vertical: [],
     horizontal: [],
   });
+
+  useLayoutEffect(() => {
+    const element = workspaceRef.current;
+    if (!element) return;
+
+    let frameId = 0;
+
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      const parentRect = element.parentElement?.getBoundingClientRect();
+
+      const width = Math.max(rect.width, parentRect?.width ?? 0, window.innerWidth - 320, 1200);
+      const height = Math.max(rect.height, parentRect?.height ?? 0, window.innerHeight - 220, 700);
+
+      setWorkspaceViewport({
+        width: Math.max(1200, Math.round(width)),
+        height: Math.max(700, Math.round(height)),
+      });
+    };
+
+    measure();
+    frameId = window.requestAnimationFrame(measure);
+
+    const observer = new ResizeObserver(() => {
+      measure();
+    });
+
+    observer.observe(element);
+    window.addEventListener('resize', measure);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
+  }, []);
 
   const { data, isLoading: tablesLoading } = useQuery({
     queryKey: ['tables-floor', locationId],
@@ -311,7 +349,7 @@ export default function FloorPlanPage() {
   const emptyStateBody = focusedRoomName
     ? 'Add a table to start laying out this room.'
     : 'Add a room, or create a table to generate the first room automatically.';
-  const canvasSize = useMemo(() => {
+  const baseCanvasSize = useMemo(() => {
     if (singleVisibleRoom) {
       return getCanvasBounds([
         {
@@ -324,18 +362,27 @@ export default function FloorPlanPage() {
 
     return getCanvasBounds(rooms);
   }, [rooms, singleVisibleRoom]);
+  const canvasSize = useMemo(
+    () => ({
+      width: Math.max(baseCanvasSize.width, workspaceViewport.width || 1200),
+      height: Math.max(baseCanvasSize.height, workspaceViewport.height || 700),
+    }),
+    [baseCanvasSize.height, baseCanvasSize.width, workspaceViewport.height, workspaceViewport.width]
+  );
   const isSingleRoomLayout = rooms.length === 1;
+  const shouldFillWorkspace = Boolean(focusedRoomName) || isSingleRoomLayout;
+  const availableWidth = Math.max(0, (workspaceViewport.width || 1200) - CANVAS_PADDING * 2);
+  const availableHeight = Math.max(0, (workspaceViewport.height || 700) - CANVAS_PADDING * 2);
 
   const getInteractiveRoom = (room: FloorPlanRoom) => {
-    const shouldFillWorkspace = Boolean(focusedRoomName) || isSingleRoomLayout;
     if (!shouldFillWorkspace || room.name !== (focusedRoomName || rooms[0]?.name)) return room;
 
     return {
       ...room,
       x: CANVAS_PADDING,
       y: CANVAS_PADDING,
-      width: Math.max(room.width, canvasSize.width - CANVAS_PADDING * 2),
-      height: Math.max(room.height, canvasSize.height - CANVAS_PADDING * 2),
+      width: Math.max(room.width, availableWidth),
+      height: Math.max(room.height, availableHeight),
     };
   };
   const selectedRoomView = selectedRoom ? getInteractiveRoom(selectedRoom) : null;
@@ -495,40 +542,6 @@ export default function FloorPlanPage() {
     setDraftFloorPlan((current) => coerceFloorPlan(updater(current), tables));
     setIsFloorPlanDirty(true);
   };
-
-  useEffect(() => {
-    if (!focusedRoomName) return;
-
-    const focusedRoom = roomMap.get(focusedRoomName);
-    if (!focusedRoom) return;
-
-    const nextWidth = Math.max(focusedRoom.width, canvasSize.width - CANVAS_PADDING * 2);
-    const nextHeight = Math.max(focusedRoom.height, canvasSize.height - CANVAS_PADDING * 2);
-
-    if (
-      focusedRoom.x === CANVAS_PADDING &&
-      focusedRoom.y === CANVAS_PADDING &&
-      focusedRoom.width === nextWidth &&
-      focusedRoom.height === nextHeight
-    ) {
-      return;
-    }
-
-    updateDraftPlan((current) => ({
-      ...current,
-      rooms: current.rooms.map((room) =>
-        room.name === focusedRoomName
-          ? {
-              ...room,
-              x: CANVAS_PADDING,
-              y: CANVAS_PADDING,
-              width: nextWidth,
-              height: nextHeight,
-            }
-          : room
-      ),
-    }));
-  }, [canvasSize.height, canvasSize.width, focusedRoomName, roomMap]);
 
   const persistFloorPlan = async (nextFloorPlan: FloorPlanSettings, successMessage?: string) => {
     await saveLayoutMutation.mutateAsync({ nextFloorPlan });
@@ -1391,8 +1404,8 @@ export default function FloorPlanPage() {
               ...room,
               x: CANVAS_PADDING,
               y: CANVAS_PADDING,
-              width: Math.max(room.width, canvasSize.width - CANVAS_PADDING * 2),
-              height: Math.max(room.height, canvasSize.height - CANVAS_PADDING * 2),
+              width: Math.max(room.width, availableWidth),
+              height: Math.max(room.height, availableHeight),
             }
           : room
       ),
@@ -1701,10 +1714,10 @@ export default function FloorPlanPage() {
         </div>
       )}
 
-      <div className="relative flex flex-1 overflow-hidden">
+      <div ref={workspaceRef} className="relative flex flex-1 min-h-0 overflow-hidden">
         <div
           ref={canvasRef}
-          className="flex-1 overflow-auto bg-slate-950 select-none"
+          className="flex-1 min-h-0 overflow-auto bg-slate-950 select-none"
           style={{
             backgroundImage: 'radial-gradient(circle, rgba(71,85,105,0.45) 1px, transparent 1px)',
             backgroundSize: '30px 30px',
@@ -1714,7 +1727,7 @@ export default function FloorPlanPage() {
           onMouseLeave={handleMouseUp}
         >
           <div
-            className="relative"
+            className="relative min-w-full min-h-full"
             style={{
               width: canvasSize.width,
               height: canvasSize.height,
