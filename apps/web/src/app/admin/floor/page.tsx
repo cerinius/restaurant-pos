@@ -54,6 +54,8 @@ const SHAPES = ['rectangle', 'square', 'circle'];
 const STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'DIRTY', 'BLOCKED'];
 const BAR_STYLES: BarStyle[] = ['straight', 'rectangle', 'circle'];
 const BAR_OPENING_SIDES: BarOpeningSide[] = ['north', 'east', 'south', 'west'];
+const SNAP_THRESHOLD = 12;
+const GRID_SIZE = 30;
 const DEFAULT_TABLE = {
   name: '',
   capacity: 4,
@@ -197,6 +199,14 @@ export default function FloorPlanPage() {
   const [isFloorPlanDirty, setIsFloorPlanDirty] = useState(false);
   const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
   const [isAddingBarSeats, setIsAddingBarSeats] = useState(false);
+  const [snapToGuides, setSnapToGuides] = useState(true);
+  const [dragGuides, setDragGuides] = useState<{
+    vertical: Array<{ x: number; top: number; bottom: number }>;
+    horizontal: Array<{ y: number; left: number; right: number }>;
+  }>({
+    vertical: [],
+    horizontal: [],
+  });
 
   const { data, isLoading: tablesLoading } = useQuery({
     queryKey: ['tables-floor', locationId],
@@ -278,7 +288,6 @@ export default function FloorPlanPage() {
   const selectedRoom =
     rooms.find((room) => room.name === selectedRoomName) ||
     (activeRoom ? roomMap.get(activeRoom) || null : null);
-  const selectedRoomWalkways = selectedRoom?.type === 'bar' ? getBarWalkways(selectedRoom.bar) : [];
   const roomOptions = rooms.length > 0 ? rooms.map((room) => room.name) : [DEFAULT_TABLE.section];
   const visibleRooms = activeRoom ? rooms.filter((room) => room.name === activeRoom) : rooms;
   const singleVisibleRoom = visibleRooms[0] || null;
@@ -295,14 +304,32 @@ export default function FloorPlanPage() {
     : 'Add a room, or create a table to generate the first room automatically.';
   const canvasSize = useMemo(() => {
     if (singleVisibleRoom) {
-      return {
-        width: Math.max(980, singleVisibleRoom.width + CANVAS_PADDING * 2),
-        height: Math.max(680, singleVisibleRoom.height + CANVAS_PADDING * 2),
-      };
+      return getCanvasBounds([
+        {
+          ...singleVisibleRoom,
+          x: CANVAS_PADDING,
+          y: CANVAS_PADDING,
+        },
+      ]);
     }
 
     return getCanvasBounds(rooms);
   }, [rooms, singleVisibleRoom]);
+  const isSingleRoomLayout = rooms.length === 1;
+
+  const getInteractiveRoom = (room: FloorPlanRoom) => {
+    if (!isSingleRoomLayout || room.name !== rooms[0]?.name) return room;
+
+    return {
+      ...room,
+      x: CANVAS_PADDING,
+      y: CANVAS_PADDING,
+      width: Math.max(room.width, canvasSize.width - CANVAS_PADDING * 2),
+      height: Math.max(room.height, canvasSize.height - CANVAS_PADDING * 2),
+    };
+  };
+  const selectedRoomView = selectedRoom ? getInteractiveRoom(selectedRoom) : null;
+  const selectedRoomWalkways = selectedRoomView?.type === 'bar' ? getBarWalkways(selectedRoomView.bar) : [];
   const assignmentSummary = useMemo(() => {
     const counts = new Map<string, { serverId: string; serverName: string; assigned: number; open: number }>();
 
@@ -445,6 +472,12 @@ export default function FloorPlanPage() {
   };
 
   const getRoomOrigin = (room: FloorPlanRoom) => {
+    const interactiveRoom = getInteractiveRoom(room);
+
+    if (isSingleRoomLayout) {
+      return { x: interactiveRoom.x, y: interactiveRoom.y };
+    }
+
     return activeRoom ? { x: CANVAS_PADDING, y: CANVAS_PADDING } : { x: room.x, y: room.y };
   };
 
@@ -740,6 +773,153 @@ export default function FloorPlanPage() {
     }));
   };
 
+  const clearDragGuides = () => {
+    setDragGuides({
+      vertical: [],
+      horizontal: [],
+    });
+  };
+
+  const getTableSnapResult = (
+    table: any,
+    room: FloorPlanRoom,
+    nextX: number,
+    nextY: number
+  ) => {
+    const roomOrigin = getRoomOrigin(room);
+    const roomTables = (tablesByRoom.get(room.name) || []).filter((entry) => entry.id !== table.id);
+    const width = Number(table.width || 100);
+    const height = Number(table.height || 80);
+    const verticalCandidates: Array<{ position: number; line: number }> = [];
+    const horizontalCandidates: Array<{ position: number; line: number }> = [];
+    const guides = {
+      vertical: [] as Array<{ x: number; top: number; bottom: number }>,
+      horizontal: [] as Array<{ y: number; left: number; right: number }>,
+    };
+
+    const gridX = Math.round(nextX / GRID_SIZE) * GRID_SIZE;
+    const gridY = Math.round(nextY / GRID_SIZE) * GRID_SIZE;
+
+    if (Math.abs(gridX - nextX) <= 8) {
+      verticalCandidates.push({
+        position: gridX,
+        line: roomOrigin.x + gridX,
+      });
+    }
+
+    if (Math.abs(gridY - nextY) <= 8) {
+      horizontalCandidates.push({
+        position: gridY,
+        line: roomOrigin.y + gridY,
+      });
+    }
+
+    verticalCandidates.push(
+      {
+        position: ROOM_INNER_PADDING,
+        line: roomOrigin.x + ROOM_INNER_PADDING,
+      },
+      {
+        position: (room.width - width) / 2,
+        line: roomOrigin.x + room.width / 2,
+      },
+      {
+        position: room.width - width - ROOM_INNER_PADDING,
+        line: roomOrigin.x + room.width - ROOM_INNER_PADDING,
+      }
+    );
+    horizontalCandidates.push(
+      {
+        position: ROOM_INNER_PADDING,
+        line: roomOrigin.y + ROOM_INNER_PADDING,
+      },
+      {
+        position: (room.height - height) / 2,
+        line: roomOrigin.y + room.height / 2,
+      },
+      {
+        position: room.height - height - ROOM_INNER_PADDING,
+        line: roomOrigin.y + room.height - ROOM_INNER_PADDING,
+      }
+    );
+
+    roomTables.forEach((otherTable) => {
+      const otherPosition = getTablePos(otherTable);
+      const otherWidth = Number(otherTable.width || 100);
+      const otherHeight = Number(otherTable.height || 80);
+
+      verticalCandidates.push(
+        {
+          position: otherPosition.x,
+          line: roomOrigin.x + otherPosition.x,
+        },
+        {
+          position: otherPosition.x + (otherWidth - width) / 2,
+          line: roomOrigin.x + otherPosition.x + otherWidth / 2,
+        },
+        {
+          position: otherPosition.x + otherWidth - width,
+          line: roomOrigin.x + otherPosition.x + otherWidth,
+        }
+      );
+      horizontalCandidates.push(
+        {
+          position: otherPosition.y,
+          line: roomOrigin.y + otherPosition.y,
+        },
+        {
+          position: otherPosition.y + (otherHeight - height) / 2,
+          line: roomOrigin.y + otherPosition.y + otherHeight / 2,
+        },
+        {
+          position: otherPosition.y + otherHeight - height,
+          line: roomOrigin.y + otherPosition.y + otherHeight,
+        }
+      );
+    });
+
+    const closestVertical = verticalCandidates.reduce<{ position: number; line: number } | null>(
+      (closest, candidate) => {
+        const distance = Math.abs(candidate.position - nextX);
+        if (distance > SNAP_THRESHOLD) return closest;
+        if (!closest || distance < Math.abs(closest.position - nextX)) return candidate;
+        return closest;
+      },
+      null
+    );
+    const closestHorizontal = horizontalCandidates.reduce<{ position: number; line: number } | null>(
+      (closest, candidate) => {
+        const distance = Math.abs(candidate.position - nextY);
+        if (distance > SNAP_THRESHOLD) return closest;
+        if (!closest || distance < Math.abs(closest.position - nextY)) return candidate;
+        return closest;
+      },
+      null
+    );
+
+    if (closestVertical) {
+      guides.vertical.push({
+        x: closestVertical.line,
+        top: roomOrigin.y + ROOM_INNER_PADDING / 2,
+        bottom: roomOrigin.y + room.height - ROOM_INNER_PADDING / 2,
+      });
+    }
+
+    if (closestHorizontal) {
+      guides.horizontal.push({
+        y: closestHorizontal.line,
+        left: roomOrigin.x + ROOM_INNER_PADDING / 2,
+        right: roomOrigin.x + room.width - ROOM_INNER_PADDING / 2,
+      });
+    }
+
+    return {
+      x: closestVertical?.position ?? nextX,
+      y: closestHorizontal?.position ?? nextY,
+      guides,
+    };
+  };
+
   const handleTableMouseDown = (event: React.MouseEvent, table: any, roomName: string) => {
     event.preventDefault();
     event.stopPropagation();
@@ -761,7 +941,7 @@ export default function FloorPlanPage() {
   };
 
   const handleRoomMouseDown = (event: React.MouseEvent, room: FloorPlanRoom) => {
-    if (activeRoom) return;
+    if (activeRoom || isSingleRoomLayout) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -814,9 +994,10 @@ export default function FloorPlanPage() {
 
     if (!draggingTable) return;
 
-    const room = roomMap.get(draggingTable.roomName);
+    const baseRoom = roomMap.get(draggingTable.roomName);
     const table = tables.find((item) => item.id === draggingTable.id);
-    if (!room || !table) return;
+    if (!baseRoom || !table) return;
+    const room = getInteractiveRoom(baseRoom);
 
     const pointer = getCanvasPointer(event);
     const roomOrigin = getRoomOrigin(room);
@@ -826,19 +1007,52 @@ export default function FloorPlanPage() {
     const localY = pointer.y - dragOffset.y - roomOrigin.y;
     const maxX = Math.max(ROOM_INNER_PADDING, room.width - width - ROOM_INNER_PADDING);
     const maxY = Math.max(ROOM_INNER_PADDING, room.height - height - ROOM_INNER_PADDING);
+    const clampedX = clamp(localX, ROOM_INNER_PADDING, maxX);
+    const clampedY = clamp(localY, ROOM_INNER_PADDING, maxY);
+    const snapped = snapToGuides
+      ? getTableSnapResult(table, room, clampedX, clampedY)
+      : {
+          x: clampedX,
+          y: clampedY,
+          guides: {
+            vertical: [],
+            horizontal: [],
+          },
+        };
+
+    setDragGuides(snapped.guides);
 
     setPositions((current) => ({
       ...current,
       [draggingTable.id]: {
-        x: clamp(localX, ROOM_INNER_PADDING, maxX),
-        y: clamp(localY, ROOM_INNER_PADDING, maxY),
+        x: clamp(snapped.x, ROOM_INNER_PADDING, maxX),
+        y: clamp(snapped.y, ROOM_INNER_PADDING, maxY),
       },
     }));
   };
 
   const handleMouseUp = () => {
+    if (draggingTable && isSingleRoomLayout) {
+      updateDraftPlan((current) => ({
+        ...current,
+        layoutMode: 'manual',
+        rooms: current.rooms.map((room) =>
+          room.name === draggingTable.roomName
+            ? {
+                ...room,
+                x: CANVAS_PADDING,
+                y: CANVAS_PADDING,
+                width: Math.max(room.width, canvasSize.width - CANVAS_PADDING * 2),
+                height: Math.max(room.height, canvasSize.height - CANVAS_PADDING * 2),
+              }
+            : room
+        ),
+      }));
+    }
+
     setDraggingTable(null);
     setDraggingRoom(null);
+    clearDragGuides();
   };
 
   const openAddTableForm = () => {
@@ -1034,10 +1248,11 @@ export default function FloorPlanPage() {
     nextX: number,
     nextY: number
   ) => {
+    const interactiveRoom = getInteractiveRoom(room);
     const width = Number(table.width || 100);
     const height = Number(table.height || 80);
-    const maxX = Math.max(ROOM_INNER_PADDING, room.width - width - ROOM_INNER_PADDING);
-    const maxY = Math.max(ROOM_INNER_PADDING, room.height - height - ROOM_INNER_PADDING);
+    const maxX = Math.max(ROOM_INNER_PADDING, interactiveRoom.width - width - ROOM_INNER_PADDING);
+    const maxY = Math.max(ROOM_INNER_PADDING, interactiveRoom.height - height - ROOM_INNER_PADDING);
 
     return {
       x: clamp(Math.round(nextX), ROOM_INNER_PADDING, maxX),
@@ -1050,13 +1265,13 @@ export default function FloorPlanPage() {
     roomName: string,
     coordinates: { x?: number; y?: number }
   ) => {
-    const room = roomMap.get(roomName);
-    if (!room) return;
+    const baseRoom = roomMap.get(roomName);
+    if (!baseRoom) return;
 
     const currentPosition = getTablePos(table);
     const nextPosition = clampTablePositionToRoom(
       table,
-      room,
+      baseRoom,
       coordinates.x ?? currentPosition.x,
       coordinates.y ?? currentPosition.y
     );
@@ -1084,8 +1299,9 @@ export default function FloorPlanPage() {
     if (!selected) return;
 
     const roomName = getTableRoomName(selected);
-    const room = roomMap.get(roomName);
-    if (!room) return;
+    const baseRoom = roomMap.get(roomName);
+    if (!baseRoom) return;
+    const room = getInteractiveRoom(baseRoom);
 
     const width = Number(selected.width || 100);
     const height = Number(selected.height || 80);
@@ -1117,6 +1333,26 @@ export default function FloorPlanPage() {
       default:
         updateTableDraftPosition(selected, roomName, currentPosition);
     }
+  };
+
+  const expandSelectedRoomToCanvas = () => {
+    if (!selectedRoomView) return;
+
+    updateDraftPlan((current) => ({
+      ...current,
+      layoutMode: 'manual',
+      rooms: current.rooms.map((room) =>
+        room.name === selectedRoomView.name
+          ? {
+              ...room,
+              x: CANVAS_PADDING,
+              y: CANVAS_PADDING,
+              width: Math.max(room.width, canvasSize.width - CANVAS_PADDING * 2),
+              height: Math.max(room.height, canvasSize.height - CANVAS_PADDING * 2),
+            }
+          : room
+      ),
+    }));
   };
 
   const setRoomOrder = (roomName: string, nextOrder: number) => {
@@ -1181,12 +1417,16 @@ export default function FloorPlanPage() {
   };
 
   const renderRoom = (room: FloorPlanRoom) => {
-    const roomOrigin = getRoomOrigin(room);
+    const interactiveRoom = getInteractiveRoom(room);
+    const roomOrigin = getRoomOrigin(interactiveRoom);
     const roomTables = (tablesByRoom.get(room.name) || []).sort((a, b) =>
       String(a.name || '').localeCompare(String(b.name || ''))
     );
-    const roomBarSeatCount = room.type === 'bar' ? getBarSeatCountForRoom(room, roomTables, tableMetadata) : 0;
-    const isRoomSelected = selectedRoom?.name === room.name && !selected;
+    const roomBarSeatCount =
+      interactiveRoom.type === 'bar'
+        ? getBarSeatCountForRoom(interactiveRoom, roomTables, tableMetadata)
+        : 0;
+    const isRoomSelected = selectedRoomView?.name === room.name && !selected;
 
     return (
       <div
@@ -1195,8 +1435,8 @@ export default function FloorPlanPage() {
           position: 'absolute',
           left: roomOrigin.x,
           top: roomOrigin.y,
-          width: room.width,
-          height: room.height,
+          width: interactiveRoom.width,
+          height: interactiveRoom.height,
         }}
         onClick={() => {
           setSelectedRoomName(room.name);
@@ -1204,7 +1444,7 @@ export default function FloorPlanPage() {
         }}
         className={clsx(
           'rounded-[32px] border shadow-2xl transition-all overflow-hidden',
-          room.type === 'bar'
+          interactiveRoom.type === 'bar'
             ? 'bg-[linear-gradient(160deg,rgba(120,53,15,0.38),rgba(15,23,42,0.92))]'
             : 'bg-[linear-gradient(160deg,rgba(15,23,42,0.92),rgba(30,41,59,0.88))]',
           isRoomSelected ? 'border-blue-400 shadow-blue-950/50' : 'border-slate-700 shadow-black/40'
@@ -1217,20 +1457,20 @@ export default function FloorPlanPage() {
           onMouseDown={(event) => handleRoomMouseDown(event, room)}
           className={clsx(
             'absolute left-4 top-4 z-[2] rounded-full px-3 py-1.5 text-xs font-semibold tracking-wide',
-            getRoomBadgeStyle(room.type),
-            activeRoom ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+            getRoomBadgeStyle(interactiveRoom.type),
+            activeRoom || isSingleRoomLayout ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
           )}
         >
           {room.name}
         </button>
 
         <div className="absolute right-4 top-4 z-[2] rounded-full bg-slate-950/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-          {room.type === 'bar'
+          {interactiveRoom.type === 'bar'
             ? `${roomBarSeatCount} stools · ${roomTables.length - roomBarSeatCount} tables`
             : `${roomTables.length} tables`}
         </div>
 
-        {renderBarFeature(room)}
+        {renderBarFeature(interactiveRoom)}
 
         {roomTables.map((table) => {
           const pos = getTablePos(table);
@@ -1238,7 +1478,7 @@ export default function FloorPlanPage() {
           const isPending = !!positions[table.id];
           const metadata = getTableMetadata(tableMetadata, table.id);
           const assignment = getTableAssignment(draftFloorPlan.tableAssignments, table.id);
-          const isBarSeat = isBarSeatTable(table, room, tableMetadata);
+          const isBarSeat = isBarSeatTable(table, interactiveRoom, tableMetadata);
 
           return (
             <div
@@ -1353,6 +1593,19 @@ export default function FloorPlanPage() {
             className="btn-secondary text-sm"
           >
             Templates
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSnapToGuides((current) => !current)}
+            className={clsx(
+              'px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+              snapToGuides
+                ? 'bg-cyan-300 text-slate-950 border-cyan-200'
+                : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+            )}
+          >
+            {snapToGuides ? 'Snap Guides On' : 'Snap Guides Off'}
           </button>
 
           <button onClick={openAddTableForm} className="btn-primary flex items-center gap-2 text-sm">
@@ -1471,6 +1724,40 @@ export default function FloorPlanPage() {
                     </g>
                   );
                 })}
+              </svg>
+            )}
+
+            {(dragGuides.vertical.length > 0 || dragGuides.horizontal.length > 0) && (
+              <svg
+                className="absolute inset-0 pointer-events-none z-[3]"
+                width={canvasSize.width}
+                height={canvasSize.height}
+              >
+                {dragGuides.vertical.map((guide, index) => (
+                  <line
+                    key={`v-${index}-${guide.x}`}
+                    x1={guide.x}
+                    y1={guide.top}
+                    x2={guide.x}
+                    y2={guide.bottom}
+                    stroke="rgba(125,211,252,0.95)"
+                    strokeWidth="2"
+                    strokeDasharray="8 6"
+                  />
+                ))}
+
+                {dragGuides.horizontal.map((guide, index) => (
+                  <line
+                    key={`h-${index}-${guide.y}`}
+                    x1={guide.left}
+                    y1={guide.y}
+                    x2={guide.right}
+                    y2={guide.y}
+                    stroke="rgba(125,211,252,0.95)"
+                    strokeWidth="2"
+                    strokeDasharray="8 6"
+                  />
+                ))}
               </svg>
             )}
 
@@ -1693,13 +1980,13 @@ export default function FloorPlanPage() {
                   </button>
                 </div>
               </>
-            ) : selectedRoom ? (
+            ) : selectedRoomView ? (
               <>
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-100">{selectedRoom.name}</h3>
+                    <h3 className="font-bold text-slate-100">{selectedRoomView.name}</h3>
                     <p className="text-xs text-slate-500">
-                      {selectedRoom.type === 'bar' ? 'Bar room with connected seats' : 'Dining room layout'}
+                      {selectedRoomView.type === 'bar' ? 'Bar room with connected seats' : 'Dining room layout'}
                     </p>
                   </div>
                   <button
@@ -1716,16 +2003,18 @@ export default function FloorPlanPage() {
                     <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
-                        onClick={() => setRoomOrder(selectedRoom.name, Math.max(1, selectedRoom.order - 1))}
+                        onClick={() =>
+                          setRoomOrder(selectedRoomView.name, Math.max(1, selectedRoomView.order - 1))
+                        }
                         className="btn-secondary text-xs"
                       >
                         Earlier
                       </button>
                       <CommitNumberInput
-                        value={selectedRoom.order}
+                        value={selectedRoomView.order}
                         onCommit={(value) =>
                           setRoomOrder(
-                            selectedRoom.name,
+                            selectedRoomView.name,
                             value
                           )
                         }
@@ -1735,7 +2024,7 @@ export default function FloorPlanPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setRoomOrder(selectedRoom.name, selectedRoom.order + 1)}
+                        onClick={() => setRoomOrder(selectedRoomView.name, selectedRoomView.order + 1)}
                         className="btn-secondary text-xs"
                       >
                         Later
@@ -1743,16 +2032,38 @@ export default function FloorPlanPage() {
                     </div>
                   </div>
 
+                  {isSingleRoomLayout && (
+                    <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                            Full Workspace
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-300">
+                            This room can stretch to the full editor canvas for easier placement.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={expandSelectedRoomToCanvas}
+                          className="btn-secondary min-h-[40px] px-3 py-2 text-xs"
+                        >
+                          Fill Canvas
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="label text-xs">Width</label>
                       <CommitNumberInput
-                        value={selectedRoom.width}
+                        value={selectedRoomView.width}
                         onCommit={(value) =>
                           updateDraftPlan((current) => ({
                             ...current,
                             rooms: current.rooms.map((room) =>
-                              room.name === selectedRoom.name
+                              room.name === selectedRoomView.name
                                 ? {
                                     ...room,
                                     width: clamp(value, 260, 900),
@@ -1770,12 +2081,12 @@ export default function FloorPlanPage() {
                     <div>
                       <label className="label text-xs">Height</label>
                       <CommitNumberInput
-                        value={selectedRoom.height}
+                        value={selectedRoomView.height}
                         onCommit={(value) =>
                           updateDraftPlan((current) => ({
                             ...current,
                             rooms: current.rooms.map((room) =>
-                              room.name === selectedRoom.name
+                              room.name === selectedRoomView.name
                                 ? {
                                     ...room,
                                     height: clamp(value, 180, 720),
@@ -1796,13 +2107,13 @@ export default function FloorPlanPage() {
                       <div>
                         <label className="label text-xs">Map X</label>
                         <CommitNumberInput
-                          value={Math.round(selectedRoom.x)}
+                          value={Math.round(selectedRoomView.x)}
                           onCommit={(value) =>
                             updateDraftPlan((current) => ({
                               ...current,
                               layoutMode: 'manual',
                               rooms: current.rooms.map((room) =>
-                                room.name === selectedRoom.name
+                                room.name === selectedRoomView.name
                                   ? {
                                       ...room,
                                       x: Math.max(0, value),
@@ -1818,13 +2129,13 @@ export default function FloorPlanPage() {
                       <div>
                         <label className="label text-xs">Map Y</label>
                         <CommitNumberInput
-                          value={Math.round(selectedRoom.y)}
+                          value={Math.round(selectedRoomView.y)}
                           onCommit={(value) =>
                             updateDraftPlan((current) => ({
                               ...current,
                               layoutMode: 'manual',
                               rooms: current.rooms.map((room) =>
-                                room.name === selectedRoom.name
+                                room.name === selectedRoomView.name
                                   ? {
                                       ...room,
                                       y: Math.max(0, value),
@@ -1845,7 +2156,7 @@ export default function FloorPlanPage() {
                         Section Assignment
                       </p>
                       <span className="text-xs text-slate-400">
-                        {(tablesByRoom.get(selectedRoom.name) || []).length} tables
+                        {(tablesByRoom.get(selectedRoomView.name) || []).length} tables
                       </span>
                     </div>
                     <div className="space-y-2">
@@ -1869,7 +2180,7 @@ export default function FloorPlanPage() {
                               toast.error('Pick a staff member first');
                               return;
                             }
-                            setRoomAssignments(selectedRoom.name, bulkAssignedServerId);
+                            setRoomAssignments(selectedRoomView.name, bulkAssignedServerId);
                           }}
                           className="btn-primary text-xs"
                         >
@@ -1877,7 +2188,7 @@ export default function FloorPlanPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setRoomAssignments(selectedRoom.name, '')}
+                          onClick={() => setRoomAssignments(selectedRoomView.name, '')}
                           className="btn-secondary text-xs"
                         >
                           Clear Room
