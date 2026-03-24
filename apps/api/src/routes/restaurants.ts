@@ -80,6 +80,32 @@ export default async function restaurantRoutes(app: FastifyInstance) {
                 isPopular: true,
                 isFeatured: true,
                 tags: true,
+                modifierGroups: {
+                  orderBy: { sortOrder: 'asc' },
+                  select: {
+                    modifierGroup: {
+                      select: {
+                        id: true,
+                        name: true,
+                        type: true,
+                        isRequired: true,
+                        minSelections: true,
+                        maxSelections: true,
+                        modifiers: {
+                          where: { isAvailable: true },
+                          orderBy: { sortOrder: 'asc' },
+                          select: {
+                            id: true,
+                            name: true,
+                            priceAdjustment: true,
+                            isAvailable: true,
+                            isDefault: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },

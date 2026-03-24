@@ -253,6 +253,10 @@ class ApiClient {
     const { data } = await this.client.post('/api/orders', payload);
     return data;
   }
+  async createPublicOrder(restaurantId: string, payload: any) {
+    const { data } = await this.client.post(`/api/orders/public/${restaurantId}`, payload);
+    return data;
+  }
   async addItemsToOrder(orderId: string, items: any[]) {
     const { data } = await this.client.post(`/api/orders/${orderId}/items`, { items });
     return data;

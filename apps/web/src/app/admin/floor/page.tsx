@@ -86,6 +86,67 @@ function createTemplateId() {
   return `template-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function CommitNumberInput({
+  value,
+  onCommit,
+  min,
+  max,
+  className,
+  placeholder,
+}: {
+  value: number;
+  onCommit: (value: number) => void;
+  min?: number;
+  max?: number;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [draftValue, setDraftValue] = useState(String(value));
+
+  useEffect(() => {
+    setDraftValue(String(value));
+  }, [value]);
+
+  const commitValue = () => {
+    const trimmed = draftValue.trim();
+    let nextValue = parseNumberInput(trimmed, value);
+
+    if (typeof min === 'number') nextValue = Math.max(min, nextValue);
+    if (typeof max === 'number') nextValue = Math.min(max, nextValue);
+
+    const normalized = String(nextValue);
+    setDraftValue(normalized);
+
+    if (nextValue !== value) {
+      onCommit(nextValue);
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      value={draftValue}
+      onChange={(event) => setDraftValue(event.target.value)}
+      onBlur={commitValue}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+        }
+
+        if (event.key === 'Escape') {
+          setDraftValue(String(value));
+          event.currentTarget.blur();
+        }
+      }}
+      className={className}
+      min={min}
+      max={max}
+      inputMode="numeric"
+      placeholder={placeholder}
+    />
+  );
+}
+
 function reorderRooms(rooms: FloorPlanRoom[], roomName: string, targetOrder: number) {
   const existingRoom = rooms.find((room) => room.name === roomName);
   if (!existingRoom) return rooms;
@@ -967,6 +1028,97 @@ export default function FloorPlanPage() {
     }
   };
 
+  const clampTablePositionToRoom = (
+    table: any,
+    room: FloorPlanRoom,
+    nextX: number,
+    nextY: number
+  ) => {
+    const width = Number(table.width || 100);
+    const height = Number(table.height || 80);
+    const maxX = Math.max(ROOM_INNER_PADDING, room.width - width - ROOM_INNER_PADDING);
+    const maxY = Math.max(ROOM_INNER_PADDING, room.height - height - ROOM_INNER_PADDING);
+
+    return {
+      x: clamp(Math.round(nextX), ROOM_INNER_PADDING, maxX),
+      y: clamp(Math.round(nextY), ROOM_INNER_PADDING, maxY),
+    };
+  };
+
+  const updateTableDraftPosition = (
+    table: any,
+    roomName: string,
+    coordinates: { x?: number; y?: number }
+  ) => {
+    const room = roomMap.get(roomName);
+    if (!room) return;
+
+    const currentPosition = getTablePos(table);
+    const nextPosition = clampTablePositionToRoom(
+      table,
+      room,
+      coordinates.x ?? currentPosition.x,
+      coordinates.y ?? currentPosition.y
+    );
+
+    setPositions((current) => ({
+      ...current,
+      [table.id]: nextPosition,
+    }));
+    setSelectedRoomName(roomName);
+  };
+
+  const nudgeSelectedTable = (deltaX: number, deltaY: number) => {
+    if (!selected) return;
+
+    const roomName = getTableRoomName(selected);
+    const currentPosition = getTablePos(selected);
+
+    updateTableDraftPosition(selected, roomName, {
+      x: currentPosition.x + deltaX,
+      y: currentPosition.y + deltaY,
+    });
+  };
+
+  const alignSelectedTable = (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
+    if (!selected) return;
+
+    const roomName = getTableRoomName(selected);
+    const room = roomMap.get(roomName);
+    if (!room) return;
+
+    const width = Number(selected.width || 100);
+    const height = Number(selected.height || 80);
+    const currentPosition = getTablePos(selected);
+
+    switch (alignment) {
+      case 'left':
+        updateTableDraftPosition(selected, roomName, { x: ROOM_INNER_PADDING });
+        return;
+      case 'center':
+        updateTableDraftPosition(selected, roomName, { x: (room.width - width) / 2 });
+        return;
+      case 'right':
+        updateTableDraftPosition(selected, roomName, {
+          x: room.width - width - ROOM_INNER_PADDING,
+        });
+        return;
+      case 'top':
+        updateTableDraftPosition(selected, roomName, { y: ROOM_INNER_PADDING });
+        return;
+      case 'middle':
+        updateTableDraftPosition(selected, roomName, { y: (room.height - height) / 2 });
+        return;
+      case 'bottom':
+        updateTableDraftPosition(selected, roomName, {
+          y: room.height - height - ROOM_INNER_PADDING,
+        });
+        return;
+      default:
+        updateTableDraftPosition(selected, roomName, currentPosition);
+    }
+  };
+
   const setRoomOrder = (roomName: string, nextOrder: number) => {
     updateDraftPlan((current) => ({
       ...current,
@@ -1383,6 +1535,107 @@ export default function FloorPlanPage() {
                     </div>
                   </div>
 
+                  {roomMap.get(getTableRoomName(selected)) && (
+                    <div className="border-t border-slate-700 pt-2">
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs text-slate-500">Move & Align</p>
+                        <span className="text-[11px] text-slate-500">
+                          {Math.round(getTablePos(selected).x)}, {Math.round(getTablePos(selected).y)}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label text-xs">X</label>
+                          <CommitNumberInput
+                            value={Math.round(getTablePos(selected).x)}
+                            onCommit={(value) =>
+                              updateTableDraftPosition(selected, getTableRoomName(selected), { x: value })
+                            }
+                            className="input w-full"
+                            min={ROOM_INNER_PADDING}
+                            max={Math.max(
+                              ROOM_INNER_PADDING,
+                              (roomMap.get(getTableRoomName(selected))?.width || 0) -
+                                Number(selected.width || 100) -
+                                ROOM_INNER_PADDING
+                            )}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label text-xs">Y</label>
+                          <CommitNumberInput
+                            value={Math.round(getTablePos(selected).y)}
+                            onCommit={(value) =>
+                              updateTableDraftPosition(selected, getTableRoomName(selected), { y: value })
+                            }
+                            className="input w-full"
+                            min={ROOM_INNER_PADDING}
+                            max={Math.max(
+                              ROOM_INNER_PADDING,
+                              (roomMap.get(getTableRoomName(selected))?.height || 0) -
+                                Number(selected.height || 80) -
+                                ROOM_INNER_PADDING
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Nudge
+                        </p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
+                            { label: 'Left', dx: -12, dy: 0 },
+                            { label: 'Up', dx: 0, dy: -12 },
+                            { label: 'Down', dx: 0, dy: 12 },
+                            { label: 'Right', dx: 12, dy: 0 },
+                          ].map((control) => (
+                            <button
+                              key={control.label}
+                              type="button"
+                              onClick={() => nudgeSelectedTable(control.dx, control.dy)}
+                              className="btn-secondary min-h-[40px] px-2 py-2 text-[11px]"
+                            >
+                              {control.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Align In Room
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: 'Left', value: 'left' as const },
+                            { label: 'Center', value: 'center' as const },
+                            { label: 'Right', value: 'right' as const },
+                            { label: 'Top', value: 'top' as const },
+                            { label: 'Middle', value: 'middle' as const },
+                            { label: 'Bottom', value: 'bottom' as const },
+                          ].map((alignment) => (
+                            <button
+                              key={alignment.value}
+                              type="button"
+                              onClick={() => alignSelectedTable(alignment.value)}
+                              className="btn-secondary min-h-[40px] px-2 py-2 text-[11px]"
+                            >
+                              {alignment.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                        Position changes stay local until you use Save Layout.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="border-t border-slate-700 pt-2">
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-xs text-slate-500">Template</p>
@@ -1468,17 +1721,16 @@ export default function FloorPlanPage() {
                       >
                         Earlier
                       </button>
-                      <input
-                        type="number"
+                      <CommitNumberInput
                         value={selectedRoom.order}
-                        onChange={(event) =>
+                        onCommit={(value) =>
                           setRoomOrder(
                             selectedRoom.name,
-                            parseNumberInput(event.target.value, selectedRoom.order)
+                            value
                           )
                         }
                         className="input w-full text-center"
-                        min="1"
+                        min={1}
                         max={rooms.length}
                       />
                       <button
@@ -1494,49 +1746,47 @@ export default function FloorPlanPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="label text-xs">Width</label>
-                      <input
-                        type="number"
+                      <CommitNumberInput
                         value={selectedRoom.width}
-                        onChange={(event) =>
+                        onCommit={(value) =>
                           updateDraftPlan((current) => ({
                             ...current,
                             rooms: current.rooms.map((room) =>
                               room.name === selectedRoom.name
                                 ? {
                                     ...room,
-                                    width: clamp(parseNumberInput(event.target.value, room.width), 260, 900),
+                                    width: clamp(value, 260, 900),
                                   }
                                 : room
                             ),
                           }))
                         }
                         className="input w-full"
-                        min="260"
-                        max="900"
+                        min={260}
+                        max={900}
                       />
                     </div>
 
                     <div>
                       <label className="label text-xs">Height</label>
-                      <input
-                        type="number"
+                      <CommitNumberInput
                         value={selectedRoom.height}
-                        onChange={(event) =>
+                        onCommit={(value) =>
                           updateDraftPlan((current) => ({
                             ...current,
                             rooms: current.rooms.map((room) =>
                               room.name === selectedRoom.name
                                 ? {
                                     ...room,
-                                    height: clamp(parseNumberInput(event.target.value, room.height), 180, 720),
+                                    height: clamp(value, 180, 720),
                                   }
                                 : room
                             ),
                           }))
                         }
                         className="input w-full"
-                        min="180"
-                        max="720"
+                        min={180}
+                        max={720}
                       />
                     </div>
                   </div>
@@ -1545,10 +1795,9 @@ export default function FloorPlanPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="label text-xs">Map X</label>
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           value={Math.round(selectedRoom.x)}
-                          onChange={(event) =>
+                          onCommit={(value) =>
                             updateDraftPlan((current) => ({
                               ...current,
                               layoutMode: 'manual',
@@ -1556,7 +1805,7 @@ export default function FloorPlanPage() {
                                 room.name === selectedRoom.name
                                   ? {
                                       ...room,
-                                      x: Math.max(0, parseNumberInput(event.target.value, room.x)),
+                                      x: Math.max(0, value),
                                     }
                                   : room
                               ),
@@ -1568,10 +1817,9 @@ export default function FloorPlanPage() {
 
                       <div>
                         <label className="label text-xs">Map Y</label>
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           value={Math.round(selectedRoom.y)}
-                          onChange={(event) =>
+                          onCommit={(value) =>
                             updateDraftPlan((current) => ({
                               ...current,
                               layoutMode: 'manual',
@@ -1579,7 +1827,7 @@ export default function FloorPlanPage() {
                                 room.name === selectedRoom.name
                                   ? {
                                       ...room,
-                                      y: Math.max(0, parseNumberInput(event.target.value, room.y)),
+                                      y: Math.max(0, value),
                                     }
                                   : room
                               ),
@@ -1734,17 +1982,16 @@ export default function FloorPlanPage() {
                                         ))}
                                       </select>
 
-                                      <input
-                                        type="number"
+                                      <CommitNumberInput
                                         value={walkway.width}
-                                        onChange={(event) =>
+                                        onCommit={(value) =>
                                           updateBarWalkway(selectedRoom, walkway.id, {
-                                            width: clamp(parseNumberInput(event.target.value, walkway.width), 64, 140),
+                                            width: clamp(value, 64, 140),
                                           })
                                         }
                                         className="input w-full text-xs"
-                                        min="64"
-                                        max="140"
+                                        min={64}
+                                        max={140}
                                       />
 
                                       <button
@@ -1776,13 +2023,12 @@ export default function FloorPlanPage() {
                           Bar Seats
                         </p>
                         <div className="flex gap-2">
-                          <input
-                            type="number"
+                          <CommitNumberInput
                             value={extraBarSeats}
-                            onChange={(event) => setExtraBarSeats(parseNumberInput(event.target.value, 4))}
+                            onCommit={(value) => setExtraBarSeats(value)}
                             className="input flex-1"
-                            min="1"
-                            max="12"
+                            min={1}
+                            max={12}
                           />
                           <button
                             type="button"
@@ -1868,18 +2114,17 @@ export default function FloorPlanPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Capacity</label>
-                  <input
-                    type="number"
+                  <CommitNumberInput
                     value={newTable.capacity}
-                    onChange={(event) =>
+                    onCommit={(value) =>
                       setNewTable({
                         ...newTable,
-                        capacity: parseNumberInput(event.target.value, DEFAULT_TABLE.capacity),
+                        capacity: value,
                       })
                     }
                     className="input w-full"
-                    min="1"
-                    max="20"
+                    min={1}
+                    max={20}
                   />
                 </div>
 
@@ -1936,35 +2181,33 @@ export default function FloorPlanPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Width (px)</label>
-                  <input
-                    type="number"
+                  <CommitNumberInput
                     value={newTable.width}
-                    onChange={(event) =>
+                    onCommit={(value) =>
                       setNewTable({
                         ...newTable,
-                        width: parseNumberInput(event.target.value, DEFAULT_TABLE.width),
+                        width: value,
                       })
                     }
                     className="input w-full"
-                    min="40"
-                    max="220"
+                    min={40}
+                    max={220}
                   />
                 </div>
 
                 <div>
                   <label className="label">Height (px)</label>
-                  <input
-                    type="number"
+                  <CommitNumberInput
                     value={newTable.height}
-                    onChange={(event) =>
+                    onCommit={(value) =>
                       setNewTable({
                         ...newTable,
-                        height: parseNumberInput(event.target.value, DEFAULT_TABLE.height),
+                        height: value,
                       })
                     }
                     className="input w-full"
-                    min="40"
-                    max="220"
+                    min={40}
+                    max={220}
                   />
                 </div>
               </div>
@@ -2099,50 +2342,47 @@ export default function FloorPlanPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="label">Capacity</label>
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           value={templateForm.capacity}
-                          onChange={(event) =>
+                          onCommit={(value) =>
                             setTemplateForm({
                               ...templateForm,
-                              capacity: parseNumberInput(event.target.value, 4),
+                              capacity: value,
                             })
                           }
                           className="input w-full"
-                          min="1"
-                          max="20"
+                          min={1}
+                          max={20}
                         />
                       </div>
                       <div>
                         <label className="label">Width</label>
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           value={templateForm.width}
-                          onChange={(event) =>
+                          onCommit={(value) =>
                             setTemplateForm({
                               ...templateForm,
-                              width: parseNumberInput(event.target.value, 100),
+                              width: value,
                             })
                           }
                           className="input w-full"
-                          min="40"
-                          max="260"
+                          min={40}
+                          max={260}
                         />
                       </div>
                       <div>
                         <label className="label">Height</label>
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           value={templateForm.height}
-                          onChange={(event) =>
+                          onCommit={(value) =>
                             setTemplateForm({
                               ...templateForm,
-                              height: parseNumberInput(event.target.value, 80),
+                              height: value,
                             })
                           }
                           className="input w-full"
-                          min="40"
-                          max="260"
+                          min={40}
+                          max={260}
                         />
                       </div>
                     </div>
@@ -2209,13 +2449,12 @@ export default function FloorPlanPage() {
                 <div className="space-y-3">
                   <div>
                     <label className="label">Initial Bar Seats</label>
-                    <input
-                      type="number"
+                    <CommitNumberInput
                       value={barSeatCount}
-                      onChange={(event) => setBarSeatCount(parseNumberInput(event.target.value, 8))}
+                      onCommit={(value) => setBarSeatCount(value)}
                       className="input w-full"
-                      min="2"
-                      max="24"
+                      min={2}
+                      max={24}
                     />
                   </div>
 
@@ -2265,15 +2504,14 @@ export default function FloorPlanPage() {
 
                       <div>
                         <label className="label">Initial Walkway Width</label>
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           value={barWalkwayWidthDraft}
-                          onChange={(event) =>
-                            setBarWalkwayWidthDraft(clamp(parseNumberInput(event.target.value, 88), 64, 140))
+                          onCommit={(value) =>
+                            setBarWalkwayWidthDraft(clamp(value, 64, 140))
                           }
                           className="input w-full"
-                          min="64"
-                          max="140"
+                          min={64}
+                          max={140}
                         />
                         <p className="mt-2 text-xs text-slate-400">
                           You can add more walkways after the bar room is created.

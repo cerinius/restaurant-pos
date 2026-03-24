@@ -46,10 +46,423 @@ function ensureOrderAccess(order: any, user: any) {
   };
 }
 
+const PUBLIC_ORDER_USER_ROLE_PRIORITY = [
+  'OWNER',
+  'MANAGER',
+  'CASHIER',
+  'SERVER',
+  'BARTENDER',
+  'EXPO',
+  'KDS',
+];
+
+function normalizePublicOrderType(type?: string) {
+  return String(type || '').toUpperCase() === 'DELIVERY' ? 'DELIVERY' : 'TAKEOUT';
+}
+
+async function getPublicOrderOperator(restaurantId: string) {
+  const users = await prisma.user.findMany({
+    where: {
+      restaurantId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+
+  for (const role of PUBLIC_ORDER_USER_ROLE_PRIORITY) {
+    const match = users.find((user) => user.role === role);
+    if (match) return match;
+  }
+
+  return users[0] || null;
+}
+
 export default async function orderRoutes(app: FastifyInstance) {
   const auth = {
     preHandler: [async (request: any, reply: any) => app.authenticate(request, reply)],
   };
+
+  app.post('/public/:restaurantId', async (request, reply) => {
+    const { restaurantId } = request.params as { restaurantId: string };
+    const {
+      locationId,
+      type,
+      notes,
+      customerName,
+      customerPhone,
+      customerEmail,
+      items,
+    } = request.body as {
+      locationId?: string;
+      type?: string;
+      notes?: string;
+      customerName?: string;
+      customerPhone?: string;
+      customerEmail?: string;
+      items?: Array<{
+        menuItemId: string;
+        quantity: number;
+        modifiers?: Array<{
+          modifierId: string;
+        }>;
+        notes?: string;
+      }>;
+    };
+
+    const trimmedCustomerName = String(customerName || '').trim();
+    const trimmedCustomerPhone = String(customerPhone || '').trim();
+    const trimmedCustomerEmail = String(customerEmail || '').trim();
+
+    if (!trimmedCustomerName) {
+      return reply.code(400).send({ success: false, error: 'Customer name is required' });
+    }
+
+    if (!trimmedCustomerPhone && !trimmedCustomerEmail) {
+      return reply.code(400).send({ success: false, error: 'Phone or email is required' });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return reply.code(400).send({ success: false, error: 'At least one item is required' });
+    }
+
+    const [restaurant, operator] = await Promise.all([
+      prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: {
+          id: true,
+          isActive: true,
+          locations: {
+            where: { isActive: true },
+            select: { id: true, name: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      }),
+      getPublicOrderOperator(restaurantId),
+    ]);
+
+    if (!restaurant || !restaurant.isActive) {
+      return reply.code(404).send({ success: false, error: 'Restaurant not found' });
+    }
+
+    if (!operator) {
+      return reply
+        .code(409)
+        .send({ success: false, error: 'No active staff account is available for online orders' });
+    }
+
+    const targetLocation = locationId
+      ? restaurant.locations.find((location) => location.id === locationId)
+      : restaurant.locations[0];
+
+    if (!targetLocation) {
+      return reply.code(400).send({ success: false, error: 'A valid location is required' });
+    }
+
+    const menuItemIds = Array.from(
+      new Set(items.map((item) => String(item?.menuItemId || '').trim()).filter(Boolean))
+    );
+
+    const menuItems = await prisma.menuItem.findMany({
+      where: {
+        restaurantId,
+        id: { in: menuItemIds },
+      },
+      include: {
+        modifierGroups: {
+          include: {
+            modifierGroup: {
+              include: {
+                modifiers: {
+                  where: { isAvailable: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const menuItemMap = new Map(menuItems.map((item) => [item.id, item] as const));
+    const normalizedItems = items.map((item) => ({
+      menuItemId: String(item?.menuItemId || '').trim(),
+      quantity: Math.max(1, Number.parseInt(String(item?.quantity || 1), 10) || 1),
+      notes: String(item?.notes || '').trim(),
+      modifiers: Array.isArray(item?.modifiers) ? item.modifiers : [],
+    }));
+    const preparedItems: Array<{
+      menuItemId: string;
+      menuItemName: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+      modifiers: Array<{
+        modifierId: string;
+        modifierName: string;
+        groupName: string;
+        priceAdjustment: number;
+      }>;
+      notes?: string;
+    }> = [];
+
+    for (const item of normalizedItems) {
+      const menuItem = menuItemMap.get(item.menuItemId);
+
+      if (!menuItem) {
+        return reply
+          .code(404)
+          .send({ success: false, error: 'One or more menu items are no longer available' });
+      }
+
+      if (menuItem.status === 'OUT_OF_STOCK') {
+        return reply.code(400).send({ success: false, error: `${menuItem.name} is out of stock` });
+      }
+
+      if (menuItem.status !== 'ACTIVE') {
+        return reply
+          .code(400)
+          .send({ success: false, error: `${menuItem.name} is not available right now` });
+      }
+      const availableModifiers = new Map(
+        menuItem.modifierGroups.flatMap((groupLink: any) =>
+          (groupLink.modifierGroup?.modifiers || []).map((modifier: any) => [
+            modifier.id,
+            {
+              modifier,
+              group: groupLink.modifierGroup,
+            },
+          ])
+        )
+      );
+      const selectedModifiers = item.modifiers.map((entry) =>
+        availableModifiers.get(String(entry?.modifierId || '').trim())
+      );
+
+      if (selectedModifiers.some((entry) => !entry)) {
+        return reply
+          .code(400)
+          .send({ success: false, error: `${menuItem.name} has an invalid modifier selection` });
+      }
+
+      for (const groupLink of menuItem.modifierGroups) {
+        const group = groupLink.modifierGroup;
+        const selectedCount = selectedModifiers.filter((entry: any) => entry?.group?.id === group.id).length;
+
+        if (group.isRequired && selectedCount < group.minSelections) {
+          return reply.code(400).send({
+            success: false,
+            error: `${menuItem.name} is missing a required selection for ${group.name}`,
+          });
+        }
+
+        if (selectedCount > group.maxSelections) {
+          return reply.code(400).send({
+            success: false,
+            error: `${menuItem.name} has too many selections for ${group.name}`,
+          });
+        }
+      }
+
+      const normalizedModifiers = selectedModifiers.map((entry: any) => ({
+        modifierId: entry.modifier.id,
+        modifierName: entry.modifier.name,
+        groupName: entry.group.name,
+        priceAdjustment: Number(entry.modifier.priceAdjustment || 0),
+      }));
+      const modifierTotal = normalizedModifiers.reduce(
+        (sum: number, modifier: any) => sum + Number(modifier.priceAdjustment || 0),
+        0
+      );
+      const unitPrice = Number(menuItem.basePrice || 0) + modifierTotal;
+      const totalPrice = unitPrice * item.quantity;
+
+      preparedItems.push({
+        menuItemId: menuItem.id,
+        menuItemName: menuItem.name,
+        quantity: item.quantity,
+        unitPrice,
+        totalPrice,
+        modifiers: normalizedModifiers,
+        notes: item.notes || undefined,
+      });
+    }
+
+    const order = await prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
+        data: {
+          restaurantId,
+          locationId: targetLocation.id,
+          serverId: operator.id,
+          serverName: 'Online Ordering',
+          type: normalizePublicOrderType(type),
+          notes: String(notes || '').trim() || undefined,
+          customerName: trimmedCustomerName,
+          customerPhone: trimmedCustomerPhone || undefined,
+          customerEmail: trimmedCustomerEmail || undefined,
+          status: 'OPEN',
+          subtotal: 0,
+          taxTotal: 0,
+          discountTotal: 0,
+          tipTotal: 0,
+          total: 0,
+        },
+        include: {
+          items: true,
+          payments: true,
+        },
+      });
+
+      for (const item of preparedItems) {
+        await tx.orderItem.create({
+          data: {
+            orderId: createdOrder.id,
+            menuItemId: item.menuItemId,
+            menuItemName: item.menuItemName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+            modifiers: item.modifiers,
+            notes: item.notes || undefined,
+            courseNumber: 1,
+            status: 'PENDING',
+          },
+        });
+      }
+
+      return createdOrder;
+    });
+
+    wsManager.broadcast(restaurantId, WSEventType.ORDER_CREATED, order, targetLocation.id);
+
+    const recalculatedOrder = await recalculateOrder(order.id, restaurantId);
+    wsManager.broadcast(restaurantId, WSEventType.ORDER_UPDATED, recalculatedOrder, targetLocation.id);
+
+    const fireableOrder = await prisma.order.findFirst({
+      where: {
+        id: order.id,
+        restaurantId,
+      },
+      include: {
+        items: {
+          where: {
+            isVoided: false,
+            isFired: false,
+          },
+          include: {
+            menuItem: { include: { category: true } },
+          },
+        },
+      },
+    });
+
+    let finalOrder = recalculatedOrder;
+
+    if (fireableOrder && fireableOrder.items.length > 0) {
+      const stationGroups: Map<string, typeof fireableOrder.items> = new Map();
+
+      for (const item of fireableOrder.items) {
+        const stationId = item.menuItem.stationId || 'default';
+        if (!stationGroups.has(stationId)) stationGroups.set(stationId, []);
+        stationGroups.get(stationId)!.push(item);
+      }
+
+      const now = new Date();
+
+      finalOrder = await prisma.$transaction(async (tx) => {
+        for (const [stationId, stationItems] of stationGroups) {
+          if (stationId === 'default') continue;
+
+          await tx.kDSTicket.create({
+            data: {
+              orderId: order.id,
+              stationId,
+              status: 'PENDING',
+              priority: 'normal',
+              courseNumber: 1,
+              firedAt: now,
+              items: stationItems.map((orderItem: any) => ({
+                id: orderItem.id,
+                name: orderItem.menuItemName,
+                quantity: orderItem.quantity,
+                modifiers: Array.isArray(orderItem.modifiers)
+                  ? (orderItem.modifiers as any[]).map((modifier: any) => modifier.modifierName)
+                  : [],
+                notes: orderItem.notes,
+                seatNumber: orderItem.seatNumber,
+                status: 'PENDING',
+              })),
+            },
+          });
+        }
+
+        await tx.orderItem.updateMany({
+          where: {
+            orderId: order.id,
+            isVoided: false,
+            isFired: false,
+          },
+          data: {
+            isFired: true,
+            firedAt: now,
+            status: 'IN_PROGRESS',
+          },
+        });
+
+        await tx.order.update({
+          where: { id: order.id },
+          data: {
+            status: 'SENT',
+            firedAt: now,
+          },
+        });
+
+        return tx.order.findUnique({
+          where: { id: order.id },
+          include: {
+            items: true,
+            payments: true,
+            discounts: true,
+            table: true,
+            server: { select: { id: true, name: true, role: true } },
+            kdsTickets: true,
+          },
+        });
+      });
+
+      wsManager.broadcast(restaurantId, WSEventType.ORDER_FIRED, finalOrder, targetLocation.id);
+      wsManager.broadcast(restaurantId, WSEventType.ORDER_UPDATED, finalOrder, targetLocation.id);
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        restaurantId,
+        userId: operator.id,
+        userName: 'Online Ordering',
+        action: 'PUBLIC_ORDER_CREATED',
+        entityType: 'ORDER',
+        entityId: order.id,
+        orderId: order.id,
+        details: {
+          type: normalizePublicOrderType(type),
+          locationId: targetLocation.id,
+          itemCount: normalizedItems.length,
+        },
+      },
+    });
+
+    return reply.code(201).send({
+      success: true,
+      data: finalOrder,
+      message: 'Online order received',
+    });
+  });
 
   // ── GET all orders ────────────────────────────────────────
   app.get('/', auth, async (request, reply) => {

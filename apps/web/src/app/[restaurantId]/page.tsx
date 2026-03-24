@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { PublicOrderingExperience } from '@/components/public/PublicOrderingExperience';
 import { getRestaurantLoginPath } from '@/lib/paths';
 import { formatRestaurantHours, normalizeRestaurantSiteSettings } from '@/lib/restaurant-site';
 import { getPublicRestaurantSite } from '@/lib/server-api';
@@ -54,7 +55,8 @@ export default async function RestaurantPublicHomepage({
   const accentSoft = hexToRgba(accent, 0.16);
   const accentGlow = hexToRgba(accent, 0.28);
   const phoneHref = buildPhoneHref(restaurant.phone || primaryLocation?.phone);
-  const orderHref = site.orderUrl.trim() || phoneHref || '#menu';
+  const hasMenuItems = (restaurant.menu || []).some((category: any) => (category.items || []).length > 0);
+  const orderHref = site.orderUrl.trim() || (hasMenuItems ? '#menu' : phoneHref || '#menu');
   const reservationHref = site.reservationUrl.trim() || phoneHref || '#visit';
   const featuredItems = (restaurant.menu || [])
     .flatMap((category: any) => category.items || [])
@@ -111,7 +113,7 @@ export default async function RestaurantPublicHomepage({
                 className="btn-primary px-6 py-4 text-base"
                 style={{ backgroundColor: accent }}
               >
-                {site.orderUrl.trim() ? 'Order online' : phoneHref ? 'Call to order' : 'Explore menu'}
+                {site.orderUrl.trim() ? 'Order online' : hasMenuItems ? 'Order online' : phoneHref ? 'Call to order' : 'Explore menu'}
               </a>
               <a href={reservationHref} className="btn-secondary px-6 py-4 text-base">
                 {site.reservationUrl.trim() ? 'Reserve a table' : phoneHref ? 'Call for reservations' : 'Plan your visit'}
@@ -212,65 +214,13 @@ export default async function RestaurantPublicHomepage({
         </div>
       </section>
 
-      <section id="menu" className="mx-auto max-w-7xl px-6 py-16">
-        <div className="mb-8 max-w-3xl">
-          <p className="section-kicker">Full menu</p>
-          <h3 className="mt-3 text-4xl font-black text-white">Everything guests need before they walk in</h3>
-          <p className="mt-4 text-base leading-8 text-slate-300">
-            This menu is pulled from the live restaurant setup, so featured items, descriptions, and prices stay aligned with the operational system.
-          </p>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          {(restaurant.menu || []).map((category: any) => (
-            <section key={category.id} className="card p-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-2xl font-black text-white">{category.name}</h4>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {category.description || 'Curated for guests to browse quickly and confidently.'}
-                  </p>
-                </div>
-                {category.color && (
-                  <span
-                    className="h-4 w-4 rounded-full border border-white/10"
-                    style={{ backgroundColor: category.color }}
-                  />
-                )}
-              </div>
-
-              <div className="mt-6 space-y-4">
-                {(category.items || []).map((item: any) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start justify-between gap-4 border-b border-white/10 pb-4 last:border-b-0 last:pb-0"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-white">{item.name}</p>
-                        {item.isPopular && (
-                          <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-amber-100">
-                            Popular
-                          </span>
-                        )}
-                        {item.isFeatured && (
-                          <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-100">
-                            Featured
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-2 text-sm leading-7 text-slate-400">
-                        {item.description || 'Description coming soon.'}
-                      </p>
-                    </div>
-                    <p className="shrink-0 text-base font-black text-white">{currency(item.basePrice)}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </section>
+      <PublicOrderingExperience
+        restaurantId={restaurant.id}
+        restaurantName={restaurant.name}
+        accent={accent}
+        menu={restaurant.menu || []}
+        locations={restaurant.locations || []}
+      />
 
       <section id="visit" className="mx-auto max-w-7xl px-6 py-16">
         <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
