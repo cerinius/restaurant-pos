@@ -109,6 +109,15 @@
     @apply focus:border-cyan-300/40 focus:outline-none focus:ring-2 focus:ring-cyan-300/20;
   }
 
+  select.input {
+    color-scheme: dark;
+  }
+
+  select.input option,
+  select.input optgroup {
+    @apply bg-slate-950 text-slate-100;
+  }
+
   .label {
     @apply mb-1.5 block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400;
   }

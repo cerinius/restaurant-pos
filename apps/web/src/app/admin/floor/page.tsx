@@ -244,8 +244,15 @@ export default function FloorPlanPage() {
   }, [persistedFloorPlan, isFloorPlanDirty]);
 
   useEffect(() => {
-    if (activeRoom && !draftFloorPlan.rooms.some((room) => room.name === activeRoom)) {
-      setActiveRoom(null);
+    const orderedRoomNames = sortFloorRooms(draftFloorPlan.rooms).map((room) => room.name);
+
+    if (orderedRoomNames.length === 0) {
+      if (activeRoom) setActiveRoom(null);
+      return;
+    }
+
+    if (!activeRoom || !orderedRoomNames.includes(activeRoom)) {
+      setActiveRoom(orderedRoomNames[0]);
     }
   }, [activeRoom, draftFloorPlan.rooms]);
 
@@ -285,21 +292,23 @@ export default function FloorPlanPage() {
   const selectedTemplate =
     selectedMetadata?.templateId ? tableTemplates.find((template) => template.id === selectedMetadata.templateId) || null : null;
   const selectedAssignment = selected ? getTableAssignment(draftFloorPlan.tableAssignments, selected.id) : null;
-  const selectedRoom =
-    rooms.find((room) => room.name === selectedRoomName) ||
-    (activeRoom ? roomMap.get(activeRoom) || null : null);
+  const focusedRoomName = activeRoom || rooms[0]?.name || null;
+  const selectedRoom = selectedRoomName ? rooms.find((room) => room.name === selectedRoomName) || null : null;
   const roomOptions = rooms.length > 0 ? rooms.map((room) => room.name) : [DEFAULT_TABLE.section];
-  const visibleRooms = activeRoom ? rooms.filter((room) => room.name === activeRoom) : rooms;
+  const visibleRooms = focusedRoomName ? rooms.filter((room) => room.name === focusedRoomName) : rooms;
   const singleVisibleRoom = visibleRooms[0] || null;
-  const visibleRoomTables = activeRoom
-    ? tables.filter((table) => getTableRoomName(table) === activeRoom)
+  const visibleRoomTables = focusedRoomName
+    ? tables.filter((table) => getTableRoomName(table) === focusedRoomName)
     : tables;
-  const tableCountLabel =
-    rooms.length > 0 ? `${tables.length} tables across ${rooms.length} rooms` : `${tables.length} tables total`;
+  const tableCountLabel = focusedRoomName
+    ? `${visibleRoomTables.length} tables in ${focusedRoomName}`
+    : rooms.length > 0
+      ? `${tables.length} tables across ${rooms.length} rooms`
+      : `${tables.length} tables total`;
   const hasPendingTableChanges = Object.keys(positions).length > 0;
   const hasPendingChanges = hasPendingTableChanges || isFloorPlanDirty;
-  const emptyStateTitle = activeRoom ? 'No tables in this room yet' : 'No rooms yet';
-  const emptyStateBody = activeRoom
+  const emptyStateTitle = focusedRoomName ? 'No tables in this room yet' : 'No rooms yet';
+  const emptyStateBody = focusedRoomName
     ? 'Add a table to start laying out this room.'
     : 'Add a room, or create a table to generate the first room automatically.';
   const canvasSize = useMemo(() => {
@@ -318,7 +327,8 @@ export default function FloorPlanPage() {
   const isSingleRoomLayout = rooms.length === 1;
 
   const getInteractiveRoom = (room: FloorPlanRoom) => {
-    if (!isSingleRoomLayout || room.name !== rooms[0]?.name) return room;
+    const shouldFillWorkspace = Boolean(focusedRoomName) || isSingleRoomLayout;
+    if (!shouldFillWorkspace || room.name !== (focusedRoomName || rooms[0]?.name)) return room;
 
     return {
       ...room,
@@ -478,13 +488,47 @@ export default function FloorPlanPage() {
       return { x: interactiveRoom.x, y: interactiveRoom.y };
     }
 
-    return activeRoom ? { x: CANVAS_PADDING, y: CANVAS_PADDING } : { x: room.x, y: room.y };
+    return focusedRoomName ? { x: CANVAS_PADDING, y: CANVAS_PADDING } : { x: room.x, y: room.y };
   };
 
   const updateDraftPlan = (updater: (current: FloorPlanSettings) => FloorPlanSettings) => {
     setDraftFloorPlan((current) => coerceFloorPlan(updater(current), tables));
     setIsFloorPlanDirty(true);
   };
+
+  useEffect(() => {
+    if (!focusedRoomName) return;
+
+    const focusedRoom = roomMap.get(focusedRoomName);
+    if (!focusedRoom) return;
+
+    const nextWidth = Math.max(focusedRoom.width, canvasSize.width - CANVAS_PADDING * 2);
+    const nextHeight = Math.max(focusedRoom.height, canvasSize.height - CANVAS_PADDING * 2);
+
+    if (
+      focusedRoom.x === CANVAS_PADDING &&
+      focusedRoom.y === CANVAS_PADDING &&
+      focusedRoom.width === nextWidth &&
+      focusedRoom.height === nextHeight
+    ) {
+      return;
+    }
+
+    updateDraftPlan((current) => ({
+      ...current,
+      rooms: current.rooms.map((room) =>
+        room.name === focusedRoomName
+          ? {
+              ...room,
+              x: CANVAS_PADDING,
+              y: CANVAS_PADDING,
+              width: nextWidth,
+              height: nextHeight,
+            }
+          : room
+      ),
+    }));
+  }, [canvasSize.height, canvasSize.width, focusedRoomName, roomMap]);
 
   const persistFloorPlan = async (nextFloorPlan: FloorPlanSettings, successMessage?: string) => {
     await saveLayoutMutation.mutateAsync({ nextFloorPlan });
@@ -941,7 +985,7 @@ export default function FloorPlanPage() {
   };
 
   const handleRoomMouseDown = (event: React.MouseEvent, room: FloorPlanRoom) => {
-    if (activeRoom || isSingleRoomLayout) return;
+    if (focusedRoomName || isSingleRoomLayout) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -1058,7 +1102,7 @@ export default function FloorPlanPage() {
   const openAddTableForm = () => {
     setNewTable((current) => ({
       ...current,
-      section: activeRoom || selectedRoomName || normalizeRoomName(current.section) || DEFAULT_TABLE.section,
+      section: focusedRoomName || selectedRoomName || normalizeRoomName(current.section) || DEFAULT_TABLE.section,
     }));
     setShowAddForm(true);
   };
@@ -1458,7 +1502,7 @@ export default function FloorPlanPage() {
           className={clsx(
             'absolute left-4 top-4 z-[2] rounded-full px-3 py-1.5 text-xs font-semibold tracking-wide',
             getRoomBadgeStyle(interactiveRoom.type),
-            activeRoom || isSingleRoomLayout ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+            focusedRoomName || isSingleRoomLayout ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
           )}
         >
           {room.name}
@@ -1532,12 +1576,12 @@ export default function FloorPlanPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-100">Floor Plan Editor</h1>
           <p className="text-sm text-slate-400">
-            Map rooms, connect the restaurant flow, and drag tables or rooms into place.
+            Focus one room at a time, then place and align tables across the full workspace.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {!activeRoom && rooms.length > 1 && (
+          {!focusedRoomName && rooms.length > 1 && (
             <>
               <button
                 type="button"
@@ -1615,39 +1659,22 @@ export default function FloorPlanPage() {
         </div>
       </div>
 
-      {rooms.length > 0 && (
+      {rooms.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-950/40 px-6 py-3 shrink-0">
           <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Rooms</span>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveRoom(null);
-              setSelectedId(null);
-            }}
-            className={clsx(
-              'px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
-              !activeRoom
-                ? 'bg-blue-600 border-blue-500 text-white'
-                : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-            )}
-          >
-            All Rooms
-          </button>
 
           {rooms.map((room) => (
             <button
               key={room.name}
               type="button"
               onClick={() => {
-                const nextRoom = room.name === activeRoom ? null : room.name;
-                setActiveRoom(nextRoom);
-                setSelectedRoomName(nextRoom || room.name);
+                setActiveRoom(room.name);
+                setSelectedRoomName(null);
                 setSelectedId(null);
               }}
               className={clsx(
                 'px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
-                activeRoom === room.name
+                focusedRoomName === room.name
                   ? 'bg-blue-600 border-blue-500 text-white'
                   : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
               )}
@@ -1658,7 +1685,7 @@ export default function FloorPlanPage() {
         </div>
       )}
 
-      {assignmentSummary.length > 0 && (
+      {assignmentSummary.length > 0 && !focusedRoomName && (
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-950/30 px-6 py-3 shrink-0">
           <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Sections</span>
           {assignmentSummary.map((summary) => (
@@ -1674,7 +1701,7 @@ export default function FloorPlanPage() {
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         <div
           ref={canvasRef}
           className="flex-1 overflow-auto bg-slate-950 select-none"
@@ -1693,7 +1720,7 @@ export default function FloorPlanPage() {
               height: canvasSize.height,
             }}
           >
-            {!activeRoom && draftFloorPlan.connections.length > 0 && (
+            {!focusedRoomName && draftFloorPlan.connections.length > 0 && (
               <svg
                 className="absolute inset-0 pointer-events-none"
                 width={canvasSize.width}
@@ -1775,8 +1802,8 @@ export default function FloorPlanPage() {
           </div>
         </div>
 
-        {(selected || selectedRoom) && (
-          <div className="w-80 shrink-0 overflow-y-auto border-l border-slate-700 bg-slate-900 p-4">
+        {(selected || selectedRoomView) && (
+          <div className="absolute inset-y-0 right-0 z-20 w-full max-w-[22rem] overflow-y-auto border-l border-slate-700 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl">
             {selected ? (
               <>
                 <div className="mb-4 flex items-center justify-between">
@@ -1843,7 +1870,7 @@ export default function FloorPlanPage() {
                             min={ROOM_INNER_PADDING}
                             max={Math.max(
                               ROOM_INNER_PADDING,
-                              (roomMap.get(getTableRoomName(selected))?.width || 0) -
+                              (getInteractiveRoom(roomMap.get(getTableRoomName(selected))!)?.width || 0) -
                                 Number(selected.width || 100) -
                                 ROOM_INNER_PADDING
                             )}
@@ -1861,7 +1888,7 @@ export default function FloorPlanPage() {
                             min={ROOM_INNER_PADDING}
                             max={Math.max(
                               ROOM_INNER_PADDING,
-                              (roomMap.get(getTableRoomName(selected))?.height || 0) -
+                              (getInteractiveRoom(roomMap.get(getTableRoomName(selected))!)?.height || 0) -
                                 Number(selected.height || 80) -
                                 ROOM_INNER_PADDING
                             )}
@@ -2102,7 +2129,7 @@ export default function FloorPlanPage() {
                     </div>
                   </div>
 
-                  {!activeRoom && (
+                  {!focusedRoomName && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="label text-xs">Map X</label>

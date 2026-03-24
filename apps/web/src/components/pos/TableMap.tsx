@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -58,6 +58,8 @@ function formatCurrency(amount?: number) {
 export function TableMap({ locationId, onTableSelect, selectedTableId, initialTables = [] }: Props) {
   const { user } = useAuthStore();
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const desktopViewportRef = useRef<HTMLDivElement>(null);
+  const [desktopViewport, setDesktopViewport] = useState({ width: 0, height: 0 });
   const [blockedTable, setBlockedTable] = useState<{
     table: any;
     assignment: ReturnType<typeof getTableAssignment>;
@@ -98,10 +100,11 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
 
     return grouped;
   }, [tables]);
-  const activeRoom = activeSection ? roomMap.get(activeSection) || null : null;
   const sections = rooms.map((room) => room.name);
-  const filtered = activeSection
-    ? tables.filter((table: any) => getTableRoomName(table) === activeSection)
+  const focusedSection = activeSection || sections[0] || null;
+  const activeRoom = focusedSection ? roomMap.get(focusedSection) || null : null;
+  const filtered = focusedSection
+    ? tables.filter((table: any) => getTableRoomName(table) === focusedSection)
     : tables;
   const mobileTables = [...filtered].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   const canvasSize = activeRoom
@@ -136,6 +139,40 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     return Array.from(counts.values()).sort((left, right) => left.serverName.localeCompare(right.serverName));
   }, [floorPlan.tableAssignments, tables]);
   const isRestrictedRole = ['SERVER', 'BARTENDER'].includes(String(user?.role || '').toUpperCase());
+
+  useEffect(() => {
+    if (!focusedSection || focusedSection === activeSection) return;
+    setActiveSection(focusedSection);
+  }, [activeSection, focusedSection]);
+
+  useEffect(() => {
+    const node = desktopViewportRef.current;
+    if (!node) return;
+
+    const updateViewport = (width: number, height: number) => {
+      setDesktopViewport({ width, height });
+    };
+
+    updateViewport(node.clientWidth, node.clientHeight);
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      updateViewport(entry.contentRect.width, entry.contentRect.height);
+    });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const desktopScale = useMemo(() => {
+    if (!activeRoom || desktopViewport.width === 0 || desktopViewport.height === 0) return 1;
+
+    const widthScale = (desktopViewport.width - 32) / canvasSize.width;
+    const heightScale = (desktopViewport.height - 32) / canvasSize.height;
+
+    return Math.max(0.45, Math.min(widthScale, heightScale, 2));
+  }, [activeRoom, canvasSize.height, canvasSize.width, desktopViewport.height, desktopViewport.width]);
 
   const counts = {
     available: tables.filter((table: any) => table.status === 'AVAILABLE').length,
@@ -209,7 +246,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   }
 
   const renderDesktopRoom = (room: any) => {
-    const renderedRoom = isSingleRoomLayout
+    const renderedRoom = activeRoom || isSingleRoomLayout
       ? {
           ...room,
           x: CANVAS_PADDING,
@@ -337,22 +374,13 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
         </div>
 
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          <button
-            type="button"
-            onClick={() => setActiveSection(null)}
-            className={`touch-target rounded-xl px-3 text-xs font-medium transition-all ${
-              !activeSection ? 'bg-cyan-300 text-slate-950' : 'bg-white/5 text-slate-300'
-            }`}
-          >
-            All Rooms
-          </button>
           {sections.map((section) => (
             <button
               key={section}
               type="button"
-              onClick={() => setActiveSection(section === activeSection ? null : section)}
+              onClick={() => setActiveSection(section)}
               className={`touch-target whitespace-nowrap rounded-xl px-3 text-xs font-medium transition-all ${
-              activeSection === section ? 'bg-cyan-300 text-slate-950' : 'bg-white/5 text-slate-300'
+              focusedSection === section ? 'bg-cyan-300 text-slate-950' : 'bg-white/5 text-slate-300'
             }`}
           >
             {section}
@@ -377,7 +405,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
       </div>
 
       <div className="flex-1 overflow-auto p-4 md:hidden">
-        {activeSection ? (
+        {focusedSection ? (
           mobileTables.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {mobileTables.map((table: any) => {
@@ -513,45 +541,61 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
         )}
       </div>
 
-      <div className="relative hidden flex-1 overflow-auto p-4 md:block">
-        <div className="relative" style={{ width: canvasSize.width, height: canvasSize.height, minWidth: 720, minHeight: 640 }}>
-          {!activeRoom && floorPlan.connections.length > 0 && (
-            <svg className="absolute inset-0 pointer-events-none" width={canvasSize.width} height={canvasSize.height}>
-              {floorPlan.connections.map((connection) => {
-                const fromRoom = roomMap.get(connection.from);
-                const toRoom = roomMap.get(connection.to);
-                if (!fromRoom || !toRoom) return null;
+      <div ref={desktopViewportRef} className="relative hidden flex-1 overflow-auto p-4 md:block">
+        <div className="flex min-h-full w-full items-center justify-center">
+          <div
+            style={{
+              width: canvasSize.width * desktopScale,
+              height: canvasSize.height * desktopScale,
+            }}
+          >
+            <div
+              className="relative origin-top-left"
+              style={{
+                width: canvasSize.width,
+                height: canvasSize.height,
+                transform: `scale(${desktopScale})`,
+              }}
+            >
+              {!activeRoom && floorPlan.connections.length > 0 && (
+                <svg className="absolute inset-0 pointer-events-none" width={canvasSize.width} height={canvasSize.height}>
+                  {floorPlan.connections.map((connection) => {
+                    const fromRoom = roomMap.get(connection.from);
+                    const toRoom = roomMap.get(connection.to);
+                    if (!fromRoom || !toRoom) return null;
 
-                const fromCenter = getRoomCenter(fromRoom);
-                const toCenter = getRoomCenter(toRoom);
+                    const fromCenter = getRoomCenter(fromRoom);
+                    const toCenter = getRoomCenter(toRoom);
 
-                return (
-                  <g key={connection.id}>
-                    <line
-                      x1={fromCenter.x}
-                      y1={fromCenter.y}
-                      x2={toCenter.x}
-                      y2={toCenter.y}
-                      stroke="rgba(96,165,250,0.55)"
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                      strokeDasharray="10 12"
-                    />
-                    <circle cx={fromCenter.x} cy={fromCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
-                    <circle cx={toCenter.x} cy={toCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
-                  </g>
-                );
-              })}
-            </svg>
-          )}
+                    return (
+                      <g key={connection.id}>
+                        <line
+                          x1={fromCenter.x}
+                          y1={fromCenter.y}
+                          x2={toCenter.x}
+                          y2={toCenter.y}
+                          stroke="rgba(96,165,250,0.55)"
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                          strokeDasharray="10 12"
+                        />
+                        <circle cx={fromCenter.x} cy={fromCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
+                        <circle cx={toCenter.x} cy={toCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
+                      </g>
+                    );
+                  })}
+                </svg>
+              )}
 
-          {(activeRoom ? [activeRoom] : rooms).map(renderDesktopRoom)}
+              {(activeRoom ? [activeRoom] : rooms).map(renderDesktopRoom)}
 
-          {tables.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center text-slate-500">
-              No tables found. Add tables in Admin / Floor Plan.
+              {tables.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center text-slate-500">
+                  No tables found. Add tables in Admin / Floor Plan.
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
