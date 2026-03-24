@@ -357,44 +357,55 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b border-white/10 bg-slate-950/55 px-4 py-3 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            <span className="text-slate-400">{counts.available} Available</span>
+      <div className="shrink-0 border-b border-white/10 bg-slate-950/55 px-4 py-4 backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="section-kicker">Floor view</p>
+            <h2 className="mt-1 text-lg font-black text-white">
+              {focusedSection ? `${focusedSection} dining map` : 'All rooms'}
+            </h2>
+            <p className="mt-1 text-xs text-slate-400">
+              {filtered.length} visible tables · {rooms.length} room{rooms.length === 1 ? '' : 's'}
+            </p>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
-            <span className="text-slate-400">{counts.occupied} Occupied</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-500" />
-            <span className="text-slate-400">{counts.dirty} Dirty</span>
+
+          <div className="flex flex-wrap gap-2">
+            <div className="workspace-chip">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              <span>{counts.available} Available</span>
+            </div>
+            <div className="workspace-chip">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
+              <span>{counts.occupied} Occupied</span>
+            </div>
+            <div className="workspace-chip">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-500" />
+              <span>{counts.dirty} Dirty</span>
+            </div>
           </div>
         </div>
 
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {sections.map((section) => (
             <button
               key={section}
               type="button"
               onClick={() => setActiveSection(section)}
-              className={`touch-target whitespace-nowrap rounded-xl px-3 text-xs font-medium transition-all ${
-              focusedSection === section ? 'bg-cyan-300 text-slate-950' : 'bg-white/5 text-slate-300'
-            }`}
-          >
-            {section}
-          </button>
+              className={`touch-target whitespace-nowrap rounded-2xl border px-3 py-2 text-xs font-semibold transition-all ${
+                focusedSection === section
+                  ? 'border-cyan-200 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.16)]'
+                  : 'border-white/10 bg-white/5 text-slate-300'
+              }`}
+            >
+              {section}
+            </button>
           ))}
         </div>
 
         {assignmentSummary.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             {assignmentSummary.map((summary) => (
-              <div
-                key={summary.serverId}
-                className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-300"
-              >
+              <div key={summary.serverId} className="workspace-subtle px-3 py-2 text-[11px] text-slate-300">
                 <span className="font-semibold text-slate-100">{summary.serverName}</span>
                 <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
                 <span className="ml-2 text-emerald-300">{summary.open} open</span>
@@ -542,7 +553,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
       </div>
 
       <div ref={desktopViewportRef} className="relative hidden flex-1 overflow-auto p-4 md:block">
-        <div className="flex min-h-full w-full items-center justify-center">
+        <div className="workspace-panel flex min-h-full w-full items-center justify-center p-4">
           <div
             style={{
               width: canvasSize.width * desktopScale,

@@ -46,6 +46,12 @@ function isActivePath(pathname: string, href: string) {
   return pathname.startsWith(`${href}/`);
 }
 
+function getCurrentSection(pathname: string, restaurantId: string) {
+  const adminRoot = getRestaurantAdminPath(restaurantId);
+  const suffix = pathname.startsWith(adminRoot) ? pathname.slice(adminRoot.length).replace(/^\/+/, '') : '';
+  return suffix.split('/')[0] || 'dashboard';
+}
+
 function Sidebar({
   pathname,
   restaurantId,
@@ -61,6 +67,7 @@ function Sidebar({
   onLogout: () => void;
   onPrefetch: (href: string) => void;
 }) {
+  const currentSection = getCurrentSection(pathname, restaurantId);
   const navSections = [
     {
       label: 'Operations',
@@ -109,46 +116,55 @@ function Sidebar({
   ];
 
   return (
-    <aside className="flex h-full w-72 flex-col bg-[linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))]">
-      <div className="flex h-20 items-center gap-3 border-b border-white/10 px-5">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_18px_40px_rgba(34,211,238,0.18)]">
-          RO
+    <aside className="flex h-full w-80 flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.98),rgba(8,15,30,0.96))]">
+      <div className="border-b border-white/10 px-5 py-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_18px_40px_rgba(34,211,238,0.18)]">
+            RO
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-black leading-none text-white">RestaurantOS</p>
+            <p className="mt-1 text-sm leading-tight text-slate-400">Restaurant admin control room</p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-bold leading-none text-white">RestaurantOS</p>
-          <p className="mt-1 text-xs leading-none text-slate-400">Restaurant admin control room</p>
-        </div>
-      </div>
 
-      <div className="border-b border-white/10 px-5 py-4">
-        <div className="glass-panel px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Tenant URL
-          </p>
-          <p className="mt-2 break-all text-sm font-medium text-slate-100">/{restaurantId}/admin</p>
-          <div className="mt-4 grid gap-2">
+        <div className="mt-4 admin-sidebar-highlight rounded-[28px] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Current area</p>
+              <p className="mt-2 text-base font-bold text-white">
+                {currentSection === 'dashboard'
+                  ? 'Dashboard'
+                  : currentSection.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">/{restaurantId}/admin</p>
+            </div>
+            <span className="status-chip">Live</span>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
             <Link
               href={getRestaurantPublicPath(restaurantId)}
               onClick={onNavigate}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-xs font-semibold text-slate-200 transition hover:bg-white/10"
             >
-              Open public website
+              Public site
             </Link>
             <Link
               href={getRestaurantLoginPath(restaurantId)}
               onClick={onNavigate}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-xs font-semibold text-slate-200 transition hover:bg-white/10"
             >
-              Open staff login
+              Staff login
             </Link>
           </div>
         </div>
       </div>
 
-      <nav className="no-scrollbar flex-1 overflow-y-auto px-4 py-4">
+      <nav className="no-scrollbar flex-1 overflow-y-auto px-4 py-5">
         {navSections.map((section) => (
-          <div key={section.label} className="mb-4">
-            <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div key={section.label} className="mb-5">
+            <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               {section.label}
             </p>
             <div className="space-y-1.5">
@@ -160,14 +176,19 @@ function Sidebar({
                   onMouseEnter={() => onPrefetch(href)}
                   onFocus={() => onPrefetch(href)}
                   className={clsx(
-                    'touch-target flex items-center gap-3 rounded-2xl px-3.5 text-sm font-medium transition-all',
+                    'touch-target flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-semibold transition-all',
                     isActivePath(pathname, href)
-                      ? 'bg-cyan-300 text-slate-950 shadow-[0_14px_36px_rgba(34,211,238,0.18)]'
+                      ? 'bg-cyan-300 text-slate-950 shadow-[0_18px_38px_rgba(34,211,238,0.22)]'
                       : 'text-slate-300 hover:bg-white/6 hover:text-white',
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  {label}
+                  <span className="flex-1">{label}</span>
+                  {isActivePath(pathname, href) && (
+                    <span className="rounded-full bg-slate-950/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em]">
+                      Open
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>
@@ -179,19 +200,19 @@ function Sidebar({
         <Link
           href={getRestaurantPOSPath(restaurantId)}
           onClick={onNavigate}
-          className="touch-target mb-2 flex items-center gap-3 rounded-2xl px-3 text-sm text-slate-300 transition hover:bg-white/6 hover:text-white"
+          className="touch-target mb-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white"
         >
           <ArrowLeftIcon className="h-5 w-5" />
           Back to POS
         </Link>
 
         <div className="glass-panel flex items-center gap-3 px-3 py-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-bold text-slate-950">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-bold text-slate-950">
             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-100">{user?.name || 'User'}</p>
-            <p className="truncate text-xs text-slate-400">{user?.role || 'staff'}</p>
+            <p className="truncate text-xs uppercase tracking-[0.16em] text-slate-400">{user?.role || 'staff'}</p>
           </div>
           <button
             onClick={onLogout}
@@ -428,7 +449,11 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
           </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-slate-100">Restaurant Admin</p>
-            <p className="truncate text-xs text-slate-400">{restaurantId}</p>
+            <p className="truncate text-xs text-slate-400">
+              {getCurrentSection(pathname, restaurantId) === 'dashboard'
+                ? 'Dashboard'
+                : getCurrentSection(pathname, restaurantId).replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}
+            </p>
           </div>
           <Link
             href={getRestaurantPOSPath(restaurantId)}

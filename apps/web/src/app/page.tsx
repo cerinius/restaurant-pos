@@ -157,7 +157,7 @@ export default function HomePage() {
                   Live Sales
                 </span>
                 <p className="leading-6 text-cyan-50/90">
-                  Don&apos;t miss out on the number one POS built for service, kitchen, and guest experience.
+                  Don't miss out on the number one POS built for service, kitchen, and guest experience.
                 </p>
               </div>
               <Link href="/contact-sales" className="text-sm font-semibold text-cyan-100 transition hover:text-white">
@@ -384,7 +384,7 @@ export default function HomePage() {
                 A demo flow that builds confidence instead of confusion.
               </h2>
               <p className="mt-5 text-lg leading-8 text-slate-300">
-                The strongest pitch is a narrative: why we built it, how quickly an owner can start, how every staff role uses it, then how the same platform also becomes the restaurant&apos;s branded web presence.
+                The strongest pitch is a narrative: why we built it, how quickly an owner can start, how every staff role uses it, then how the same platform also becomes the restaurant's branded web presence.
               </p>
             </div>
 
