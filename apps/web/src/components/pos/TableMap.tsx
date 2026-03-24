@@ -105,11 +105,15 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     : tables;
   const mobileTables = [...filtered].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   const canvasSize = activeRoom
-    ? {
-        width: Math.max(760, activeRoom.width + CANVAS_PADDING * 2),
-        height: Math.max(600, activeRoom.height + CANVAS_PADDING * 2),
-      }
+    ? getCanvasBounds([
+        {
+          ...activeRoom,
+          x: CANVAS_PADDING,
+          y: CANVAS_PADDING,
+        },
+      ])
     : getCanvasBounds(rooms);
+  const isSingleRoomLayout = rooms.length === 1;
   const assignmentSummary = useMemo(() => {
     const counts = new Map<string, { serverId: string; serverName: string; assigned: number; open: number }>();
 
@@ -205,11 +209,23 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   }
 
   const renderDesktopRoom = (room: any) => {
-    const roomOrigin = activeRoom ? { x: CANVAS_PADDING, y: CANVAS_PADDING } : { x: room.x, y: room.y };
+    const renderedRoom = isSingleRoomLayout
+      ? {
+          ...room,
+          x: CANVAS_PADDING,
+          y: CANVAS_PADDING,
+          width: Math.max(room.width, canvasSize.width - CANVAS_PADDING * 2),
+          height: Math.max(room.height, canvasSize.height - CANVAS_PADDING * 2),
+        }
+      : room;
+    const roomOrigin = activeRoom ? { x: CANVAS_PADDING, y: CANVAS_PADDING } : { x: renderedRoom.x, y: renderedRoom.y };
     const roomTables = (tablesByRoom.get(room.name) || []).sort((a, b) =>
       String(a.name || '').localeCompare(String(b.name || ''))
     );
-    const barSeatCount = room.type === 'bar' ? getBarSeatCountForRoom(room, roomTables, floorPlan.tableMetadata) : 0;
+    const barSeatCount =
+      renderedRoom.type === 'bar'
+        ? getBarSeatCountForRoom(renderedRoom, roomTables, floorPlan.tableMetadata)
+        : 0;
 
     return (
       <div
@@ -218,25 +234,27 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           position: 'absolute',
           left: roomOrigin.x,
           top: roomOrigin.y,
-          width: room.width,
-          height: room.height,
+          width: renderedRoom.width,
+          height: renderedRoom.height,
         }}
         className={clsx(
           'overflow-hidden rounded-[32px] border shadow-2xl',
-          room.type === 'bar'
+          renderedRoom.type === 'bar'
             ? 'border-amber-500/30 bg-[linear-gradient(160deg,rgba(120,53,15,0.32),rgba(15,23,42,0.92))]'
             : 'border-white/10 bg-[linear-gradient(160deg,rgba(15,23,42,0.9),rgba(30,41,59,0.76))]'
         )}
       >
         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.12),transparent_40%)]" />
         <div className="absolute left-4 top-4 z-[2] rounded-full border border-white/10 bg-slate-950/85 px-3 py-1.5 text-xs font-semibold text-slate-100">
-          {room.name}
+          {renderedRoom.name}
         </div>
         <div className="absolute right-4 top-4 z-[2] rounded-full bg-slate-950/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-          {room.type === 'bar' ? `${barSeatCount} stools / ${roomTables.length - barSeatCount} tables` : `${roomTables.length} tables`}
+          {renderedRoom.type === 'bar'
+            ? `${barSeatCount} stools / ${roomTables.length - barSeatCount} tables`
+            : `${roomTables.length} tables`}
         </div>
 
-        {renderBarFeature(room)}
+        {renderBarFeature(renderedRoom)}
 
         {roomTables.map((table: any) => {
           const isSelected = table.id === selectedTableId;
@@ -246,7 +264,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           const elapsed = order
             ? Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000)
             : 0;
-          const isBarSeat = isBarSeatTable(table, room, floorPlan.tableMetadata);
+          const isBarSeat = isBarSeatTable(table, renderedRoom, floorPlan.tableMetadata);
 
           return (
             <motion.button
