@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const PUBLIC_EXACT_PATHS = new Set(['/', '/login', '/staff', '/demo', '/contact-sales']);
 const PUBLIC_PREFIXES = ['/admin/login', '/_next', '/api', '/icon', '/manifest', '/sw.js', '/workbox'];
-const TENANT_ROUTE_PATTERN = /^\/([^/]+)\/(login|pos|kds|admin)(?:\/.*)?$/;
+const TENANT_ROUTE_PATTERN = /^\/([^/]+)\/(login|pos|kds|admin|team)(?:\/.*)?$/;
 const LEGACY_APP_PREFIXES = ['/pos', '/kds'];
 
 export function middleware(request: NextRequest) {

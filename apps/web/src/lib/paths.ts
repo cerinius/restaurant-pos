@@ -1,4 +1,4 @@
-const RESTAURANT_ROUTE_PATTERN = /^\/([^/]+)\/(login|pos|kds|admin)(?:\/.*)?$/;
+const RESTAURANT_ROUTE_PATTERN = /^\/([^/]+)\/(login|pos|kds|admin|team)(?:\/.*)?$/;
 
 export function getRestaurantPath(restaurantId: string, suffix = '/pos') {
   const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
@@ -23,6 +23,10 @@ export function getRestaurantKDSPath(restaurantId: string) {
 
 export function getRestaurantAdminPath(restaurantId: string, suffix = '') {
   return getRestaurantPath(restaurantId, suffix ? `/admin/${suffix}` : '/admin');
+}
+
+export function getRestaurantTeamPath(restaurantId: string) {
+  return getRestaurantPath(restaurantId, '/team');
 }
 
 export function extractRestaurantIdFromPathname(pathname: string) {

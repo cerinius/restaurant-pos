@@ -34,6 +34,7 @@ import giftCardRoutes from './routes/giftCards';
 import comboRoutes from './routes/combos';
 import auditRoutes from './routes/audit';
 import saasRoutes from './routes/saas';
+import workforceRoutes from './routes/workforce';
 
 const KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -204,6 +205,7 @@ async function bootstrap() {
   await app.register(comboRoutes,      { prefix: '/api/combos' });
   await app.register(auditRoutes,      { prefix: '/api/audit' });
   await app.register(saasRoutes,       { prefix: '/api/saas' });
+  await app.register(workforceRoutes,  { prefix: '/api/workforce' });
   await app.register(wsRoutes,         { prefix: '/ws' });
 
   // ââ Start âââââââââââââââââââââââââââââââââââââââââââââââââ

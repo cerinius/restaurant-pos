@@ -410,6 +410,68 @@ class ApiClient {
     return data;
   }
 
+  // Workforce
+  async getWorkforceOverview(params?: any) {
+    const { data } = await this.client.get('/api/workforce', { params });
+    return data;
+  }
+  async updateWorkforceProfile(userId: string, payload: any) {
+    const { data } = await this.client.put(`/api/workforce/profiles/${userId}`, payload);
+    return data;
+  }
+  async saveWorkforceAvailability(payload: any) {
+    const { data } = await this.client.post('/api/workforce/availability', payload);
+    return data;
+  }
+  async deleteWorkforceAvailability(id: string, locationId?: string) {
+    const { data } = await this.client.delete(`/api/workforce/availability/${id}`, { params: { locationId } });
+    return data;
+  }
+  async autoBuildSchedule(payload: any) {
+    const { data } = await this.client.post('/api/workforce/schedule/auto-build', payload);
+    return data;
+  }
+  async publishSchedule(payload: any) {
+    const { data } = await this.client.post('/api/workforce/schedule/publish', payload);
+    return data;
+  }
+  async createWorkforceShift(payload: any) {
+    const { data } = await this.client.post('/api/workforce/shifts', payload);
+    return data;
+  }
+  async updateWorkforceShift(id: string, payload: any) {
+    const { data } = await this.client.put(`/api/workforce/shifts/${id}`, payload);
+    return data;
+  }
+  async deleteWorkforceShift(id: string, locationId?: string) {
+    const { data } = await this.client.delete(`/api/workforce/shifts/${id}`, { params: { locationId } });
+    return data;
+  }
+  async createShiftRequest(payload: any) {
+    const { data } = await this.client.post('/api/workforce/requests', payload);
+    return data;
+  }
+  async reviewShiftRequest(id: string, payload: any) {
+    const { data } = await this.client.post(`/api/workforce/requests/${id}/review`, payload);
+    return data;
+  }
+  async startWorkforceShift(payload: any) {
+    const { data } = await this.client.post('/api/workforce/attendance/start', payload);
+    return data;
+  }
+  async endWorkforceShift(payload: any) {
+    const { data } = await this.client.post('/api/workforce/attendance/end', payload);
+    return data;
+  }
+  async autoAssignSections(payload: any) {
+    const { data } = await this.client.post('/api/workforce/section-assignments/auto-assign', payload);
+    return data;
+  }
+  async saveSectionAssignments(payload: any) {
+    const { data } = await this.client.post('/api/workforce/section-assignments/save', payload);
+    return data;
+  }
+
   // Reports
   async getSalesReport(params?: any) {
     const { data } = await this.client.get('/api/reports/sales', { params });

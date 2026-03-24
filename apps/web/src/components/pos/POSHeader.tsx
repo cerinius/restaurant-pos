@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import {
   ArrowLeftOnRectangleIcon,
   Bars3Icon,
+  CalendarDaysIcon,
   ClipboardDocumentListIcon,
   CreditCardIcon,
   PlusIcon,
@@ -19,7 +20,7 @@ import {
 import type { POSView } from '@/components/pos/type';
 import { posWS } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
-import { getRestaurantAdminPath, getRestaurantLoginPath } from '@/lib/paths';
+import { getRestaurantAdminPath, getRestaurantLoginPath, getRestaurantTeamPath } from '@/lib/paths';
 import { useAuthStore, useNotificationStore } from '@/store';
 
 interface Props {
@@ -95,6 +96,12 @@ export function POSHeader({
     closeMobileActions();
     if (!user?.restaurantId) return;
     router.push(getRestaurantAdminPath(user.restaurantId));
+  };
+
+  const goToTeam = () => {
+    closeMobileActions();
+    if (!user?.restaurantId) return;
+    router.push(getRestaurantTeamPath(user.restaurantId));
   };
 
   const handleNewOrder = () => {
@@ -187,6 +194,15 @@ export function POSHeader({
                 Admin
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={goToTeam}
+              className="touch-target inline-flex items-center gap-2 rounded-2xl bg-white/5 px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+            >
+              <CalendarDaysIcon className="h-4 w-4" />
+              My Shift
+            </button>
 
             <div className="hidden items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 lg:flex">
               <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-bold text-slate-950">
@@ -309,6 +325,15 @@ export function POSHeader({
                   Floor Plan
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={goToTeam}
+                className="touch-target flex min-h-[56px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 text-left text-sm font-semibold text-slate-100 transition"
+              >
+                <CalendarDaysIcon className="h-5 w-5 shrink-0" />
+                My Shift
+              </button>
 
               <button
                 type="button"

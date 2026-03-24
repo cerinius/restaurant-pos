@@ -10,6 +10,7 @@ import {
   Bars3Icon,
   BoltIcon,
   BuildingStorefrontIcon,
+  CalendarDaysIcon,
   ChartBarIcon,
   ClipboardDocumentListIcon,
   Cog6ToothIcon,
@@ -91,6 +92,7 @@ function Sidebar({
       label: 'Staff & Reports',
       items: [
         { href: getRestaurantAdminPath(restaurantId, 'staff'), label: 'Staff', Icon: UserGroupIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'workforce'), label: 'Workforce', Icon: CalendarDaysIcon },
         { href: getRestaurantAdminPath(restaurantId, 'reports'), label: 'Reports', Icon: ChartBarIcon },
         { href: getRestaurantAdminPath(restaurantId, 'audit'), label: 'Audit Log', Icon: ClipboardDocumentListIcon },
       ],
@@ -332,6 +334,15 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
       if (suffix === 'staff') {
         safePrefetch(['staff'], () => api.getStaff());
         safePrefetch(['locations'], () => api.getLocations());
+        return;
+      }
+
+      if (suffix === 'workforce') {
+        safePrefetch(['workforce', locationId, today], () =>
+          api.getWorkforceOverview({ locationId, weekStart: today })
+        );
+        safePrefetch(['staff'], () => api.getStaff());
+        safePrefetch(['tables-floor', locationId], () => api.getTables({ locationId }));
         return;
       }
 

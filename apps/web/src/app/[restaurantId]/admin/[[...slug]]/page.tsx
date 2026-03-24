@@ -19,6 +19,7 @@ import StaffPage from '@/app/admin/staff/page';
 import StationsPage from '@/app/admin/stations/page';
 import TaxesPage from '@/app/admin/taxes/page';
 import WorkflowsPage from '@/app/admin/workflows/page';
+import WorkforcePage from '@/app/admin/workforce/page';
 
 const PAGE_MAP: Record<string, ComponentType> = {
   '': RestaurantAdminDashboardPage,
@@ -38,6 +39,7 @@ const PAGE_MAP: Record<string, ComponentType> = {
   staff: StaffPage,
   stations: StationsPage,
   taxes: TaxesPage,
+  workforce: WorkforcePage,
   workflows: WorkflowsPage,
 };
 
