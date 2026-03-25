@@ -498,6 +498,18 @@ export default function FloorPlanPage() {
     onError: (error: any) => toast.error(error?.response?.data?.error || 'Failed to update status'),
   });
 
+  const tableUpdateMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: any }) => api.updateTable(id, updates),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['tables-floor', locationId] }),
+        qc.invalidateQueries({ queryKey: ['tables', locationId] }),
+      ]);
+      toast.success('Table updated');
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.error || 'Failed to update table'),
+  });
+
   if (isInitialFloorLoading) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -1851,14 +1863,66 @@ export default function FloorPlanPage() {
                   </div>
 
                   <div className="border-t border-slate-700 pt-2">
-                    <p className="mb-2 text-xs text-slate-500">Table Info</p>
-                    <div className="space-y-1 text-xs text-slate-400">
-                      <p>Shape: {selected.shape}</p>
-                      <p>Capacity: {selected.capacity} guests</p>
-                      <p>Room: {getTableRoomName(selected)}</p>
-                      <p>
-                        Size: {selected.width}x{selected.height}px
-                      </p>
+                    <p className="mb-2 text-xs text-slate-500">Table Properties</p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="label text-xs">Name</label>
+                        <input
+                          type="text"
+                          value={selected.name}
+                          onChange={(e) => tableUpdateMutation.mutate({ id: selected.id, updates: { name: e.target.value } })}
+                          className="input w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="label text-xs">Capacity</label>
+                        <CommitNumberInput
+                          value={selected.capacity}
+                          onCommit={(value) => tableUpdateMutation.mutate({ id: selected.id, updates: { capacity: value } })}
+                          className="input w-full"
+                          min={1}
+                          max={20}
+                        />
+                      </div>
+                      <div>
+                        <label className="label text-xs">Shape</label>
+                        <select
+                          value={selected.shape}
+                          onChange={(e) => tableUpdateMutation.mutate({ id: selected.id, updates: { shape: e.target.value } })}
+                          className="input w-full"
+                        >
+                          {SHAPES.map((shape) => (
+                            <option key={shape} value={shape}>
+                              {shape}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label text-xs">Width</label>
+                          <CommitNumberInput
+                            value={selected.width || 100}
+                            onCommit={(value) => tableUpdateMutation.mutate({ id: selected.id, updates: { width: value } })}
+                            className="input w-full"
+                            min={40}
+                            max={260}
+                          />
+                        </div>
+                        <div>
+                          <label className="label text-xs">Height</label>
+                          <CommitNumberInput
+                            value={selected.height || 80}
+                            onCommit={(value) => tableUpdateMutation.mutate({ id: selected.id, updates: { height: value } })}
+                            className="input w-full"
+                            min={40}
+                            max={260}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        <p>Room: {getTableRoomName(selected)}</p>
+                      </div>
                     </div>
                   </div>
 

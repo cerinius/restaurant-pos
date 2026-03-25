@@ -28,11 +28,11 @@ interface Props {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  AVAILABLE: 'table-available',
-  OCCUPIED: 'table-occupied',
-  RESERVED: 'table-reserved',
-  DIRTY: 'table-dirty',
-  BLOCKED: 'table-blocked',
+  AVAILABLE: 'bg-emerald-900/60 border-emerald-600 text-emerald-200',
+  OCCUPIED: 'bg-blue-900/60 border-blue-500 text-blue-200',
+  RESERVED: 'bg-purple-900/60 border-purple-500 text-purple-200',
+  DIRTY: 'bg-yellow-900/60 border-yellow-500 text-yellow-200',
+  BLOCKED: 'bg-slate-800 border-slate-600 text-slate-500',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -275,12 +275,14 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           height: renderedRoom.height,
         }}
         className={clsx(
-          'overflow-hidden rounded-[32px] border shadow-2xl',
+          'rounded-[32px] border shadow-2xl transition-all overflow-hidden',
           renderedRoom.type === 'bar'
-            ? 'border-amber-500/30 bg-[linear-gradient(160deg,rgba(120,53,15,0.32),rgba(15,23,42,0.92))]'
-            : 'border-white/10 bg-[linear-gradient(160deg,rgba(15,23,42,0.9),rgba(30,41,59,0.76))]'
+            ? 'bg-[linear-gradient(160deg,rgba(120,53,15,0.38),rgba(15,23,42,0.92))]'
+            : 'bg-[linear-gradient(160deg,rgba(15,23,42,0.92),rgba(30,41,59,0.88))]',
+          false ? 'border-blue-400 shadow-blue-950/50' : 'border-slate-700 shadow-black/40'
         )}
       >
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.12),transparent_40%)]" />
         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.12),transparent_40%)]" />
         <div className="absolute left-4 top-4 z-[2] rounded-full border border-white/10 bg-slate-950/85 px-3 py-1.5 text-xs font-semibold text-slate-100">
           {renderedRoom.name}
@@ -324,12 +326,14 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                       ? '12px'
                       : '12px',
               }}
-              className={`border-2 flex flex-col items-center justify-center transition-all
-                ${STATUS_STYLES[table.status] || 'table-available'}
-                ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-900' : ''}
-                ${isBarSeat ? 'border-amber-300/80' : ''}
-                ${table.status === 'BLOCKED' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:brightness-110'}
-              `}
+              className={clsx(
+                'border-2 flex flex-col items-center justify-center transition-shadow backdrop-blur-sm',
+                STATUS_STYLES[table.status] || STATUS_STYLES.AVAILABLE,
+                isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-950 shadow-xl' : '',
+                isBarSeat ? 'border-amber-300/80 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : '',
+                false ? 'opacity-80' : '',
+                table.status === 'BLOCKED' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:brightness-110'
+              )}
             >
               <span className="font-bold text-sm leading-none">{table.name}</span>
               {table.capacity && (
@@ -561,11 +565,13 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
             }}
           >
             <div
-              className="relative origin-top-left"
+              className="relative origin-top-left bg-slate-950 select-none"
               style={{
                 width: canvasSize.width,
                 height: canvasSize.height,
                 transform: `scale(${desktopScale})`,
+                backgroundImage: 'radial-gradient(circle, rgba(71,85,105,0.45) 1px, transparent 1px)',
+                backgroundSize: '30px 30px',
               }}
             >
               {!activeRoom && floorPlan.connections.length > 0 && (
