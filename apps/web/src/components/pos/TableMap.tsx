@@ -171,7 +171,8 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     const widthScale = (desktopViewport.width - 32) / canvasSize.width;
     const heightScale = (desktopViewport.height - 32) / canvasSize.height;
 
-    return Math.max(0.45, Math.min(widthScale, heightScale, 2));
+    // Keep natural size as the maximum and only shrink to fit the viewport.
+    return Math.max(0.45, Math.min(widthScale, heightScale, 1));
   }, [activeRoom, canvasSize.height, canvasSize.width, desktopViewport.height, desktopViewport.width]);
 
   const counts = {
@@ -282,7 +283,6 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           false ? 'border-blue-400 shadow-blue-950/50' : 'border-slate-700 shadow-black/40'
         )}
       >
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.12),transparent_40%)]" />
         <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.12),transparent_40%)]" />
         <div className="absolute left-4 top-4 z-[2] rounded-full border border-white/10 bg-slate-950/85 px-3 py-1.5 text-xs font-semibold text-slate-100">
           {renderedRoom.name}
