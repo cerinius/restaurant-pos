@@ -35,13 +35,7 @@ const OrderPanel = dynamic(
 const TableMap = dynamic(
   () => import('@/components/pos/TableMap').then((module) => module.TableMap),
   {
-    loading: () => (
-      <div className="grid grid-cols-2 gap-4 p-4 md:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="aspect-square animate-pulse rounded-3xl bg-slate-800" />
-        ))}
-      </div>
-    ),
+    loading: () => <div className="h-full animate-pulse bg-slate-800" />,
   },
 );
 const ModifierModal = dynamic(
@@ -494,7 +488,7 @@ export default function POSContent({ initialData }: POSContentProps) {
       )}
 
       <div className={clsx('flex flex-1 flex-col overflow-hidden xl:flex-row', contentPaddingClass)}>
-        <div className="flex-1 overflow-hidden">{mainPanel}</div>
+        <div className="flex-1">{mainPanel}</div>
 
         <div
           className={clsx(

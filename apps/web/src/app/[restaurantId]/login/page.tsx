@@ -1,5 +1,6 @@
 'use client';
 
+import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -17,6 +18,9 @@ const DEMO_PINS = [
   { label: 'Bartender', pin: '4444' },
 ];
 
+const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
+const PIN_LENGTH = 4;
+
 export default function RestaurantLoginPage() {
   const params = useParams<{ restaurantId: string }>();
   const restaurantId = useMemo(() => String(params?.restaurantId || ''), [params?.restaurantId]);
@@ -28,6 +32,7 @@ export default function RestaurantLoginPage() {
   const [restaurantInfo, setRestaurantInfo] = useState<any>(null);
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
+  const [pinShake, setPinShake] = useState(false);
   const [emailForm, setEmailForm] = useState({
     email: '',
     password: '',
@@ -77,8 +82,24 @@ export default function RestaurantLoginPage() {
     } catch (error: any) {
       toast.error(error?.response?.data?.error || 'Invalid PIN');
       setPin('');
+      setPinShake(true);
+      setTimeout(() => setPinShake(false), 500);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNumpadPress = (key: string) => {
+    if (loading) return;
+    if (key === '⌫') {
+      setPin((prev) => prev.slice(0, -1));
+      return;
+    }
+    if (pin.length >= PIN_LENGTH) return;
+    const next = pin + key;
+    setPin(next);
+    if (next.length === PIN_LENGTH) {
+      handlePinLogin(next);
     }
   };
 
@@ -176,37 +197,73 @@ export default function RestaurantLoginPage() {
 
           {!showEmailLogin ? (
             <>
-              <div>
-                <label className="label">PIN</label>
-                <input
-                  value={pin}
-                  onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="input w-full text-center text-2xl tracking-[0.4em]"
-                  placeholder="1234"
-                />
+              {/* PIN dots */}
+              <div className="mb-6 flex justify-center gap-4">
+                {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={clsx(
+                      'h-4 w-4 rounded-full border-2 transition-all duration-150',
+                      i < pin.length
+                        ? 'scale-110 border-cyan-300 bg-cyan-300'
+                        : 'border-white/20 bg-transparent',
+                      pinShake && 'animate-pulse border-red-400 bg-red-400/30',
+                    )}
+                  />
+                ))}
               </div>
 
-              <button
-                type="button"
-                onClick={() => handlePinLogin()}
-                disabled={loading || pin.length < 4}
-                className="btn-primary mt-6 w-full"
-              >
-                {loading ? 'Signing in...' : 'Open restaurant workspace'}
-              </button>
+              {/* Numpad */}
+              <div className={clsx('grid grid-cols-3 gap-2.5', pinShake && 'opacity-60')}>
+                {NUMPAD_KEYS.map((key, idx) => {
+                  if (key === '') {
+                    return <div key={`empty-${idx}`} />;
+                  }
+                  const isBackspace = key === '⌫';
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleNumpadPress(key)}
+                      className={clsx(
+                        'flex h-16 items-center justify-center rounded-2xl border text-xl font-bold transition-all duration-100 active:scale-95 select-none',
+                        isBackspace
+                          ? 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-100'
+                          : 'border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/30 hover:bg-white/10',
+                        loading && 'cursor-not-allowed opacity-50',
+                      )}
+                    >
+                      {loading && key !== '⌫' ? '·' : key}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {loading && (
+                <p className="mt-4 text-center text-sm font-semibold text-cyan-300">
+                  Signing in...
+                </p>
+              )}
 
               {process.env.NEXT_PUBLIC_DEMO_RESTAURANT_ID === restaurantId && (
-                <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                  {DEMO_PINS.map((demoPin) => (
-                    <button
-                      key={demoPin.pin}
-                      type="button"
-                      onClick={() => handlePinLogin(demoPin.pin)}
-                      className="btn-secondary justify-start"
-                    >
-                      {demoPin.label} ({demoPin.pin})
-                    </button>
-                  ))}
+                <div className="mt-6">
+                  <p className="mb-2 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    Demo quick access
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {DEMO_PINS.map((demoPin) => (
+                      <button
+                        key={demoPin.pin}
+                        type="button"
+                        onClick={() => handlePinLogin(demoPin.pin)}
+                        className="btn-secondary justify-start text-left"
+                      >
+                        <span className="font-bold">{demoPin.label}</span>
+                        <span className="ml-auto font-mono text-slate-400">{demoPin.pin}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
