@@ -1,7 +1,3 @@
-
-// ============================================================
-// apps/web/src/components/pos/OrderTypeModal.tsx
-// ============================================================
 'use client';
 
 import { useState } from 'react';
@@ -16,10 +12,10 @@ interface Props {
 }
 
 const ORDER_TYPES = [
-  { id: 'DINE_IN',  label: 'Dine In',  icon: 'ð½ï¸', desc: 'Seated table service' },
-  { id: 'TAKEOUT',  label: 'Takeout',  icon: 'ð¥¡', desc: 'Pick up at counter' },
-  { id: 'DELIVERY', label: 'Delivery', icon: 'ðµ', desc: 'Deliver to address' },
-  { id: 'BAR',      label: 'Bar Tab',  icon: 'ðº', desc: 'Bar seat / tab' },
+  { id: 'DINE_IN', label: 'Dine In', icon: 'Table', desc: 'Seated table service' },
+  { id: 'TAKEOUT', label: 'Takeout', icon: 'To Go', desc: 'Pick up at counter' },
+  { id: 'DELIVERY', label: 'Delivery', icon: 'Ship', desc: 'Deliver to address' },
+  { id: 'BAR', label: 'Bar Tab', icon: 'Bar', desc: 'Bar seat or open tab' },
 ];
 
 export function OrderTypeModal({ table, onConfirm, onClose }: Props) {
@@ -27,73 +23,87 @@ export function OrderTypeModal({ table, onConfirm, onClose }: Props) {
   const [guestCount, setGuestCount] = useState(table?.capacity ? Math.min(2, table.capacity) : 1);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm md:items-center">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="card w-full max-w-sm p-6 space-y-5 shadow-2xl"
+        className="card w-full max-w-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between">
+        <div className="ops-toolbar flex items-start justify-between gap-3 px-5 py-5">
           <div>
-            <h2 className="font-bold text-slate-100 text-lg">Start Order</h2>
-            {table && <p className="text-sm text-slate-400">Table {table.name} Â· {table.capacity} seats</p>}
+            <p className="section-kicker">New order</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-100">Choose service type</h2>
+            {table && (
+              <p className="mt-1 text-sm text-slate-400">
+                Table {table.name} · {table.capacity} seats
+              </p>
+            )}
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-200">
-            <XMarkIcon className="w-5 h-5" />
+          <button
+            type="button"
+            onClick={onClose}
+            className="touch-target inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
-        {/* Order Type */}
-        <div className="grid grid-cols-2 gap-2">
-          {ORDER_TYPES.map((ot) => (
-            <button
-              key={ot.id}
-              onClick={() => setType(ot.id)}
-              className={clsx(
-                'flex flex-col items-center gap-1.5 p-3 rounded-xl border font-medium transition-all',
-                type === ot.id
-                  ? 'bg-blue-600 border-blue-500 text-white'
-                  : 'bg-slate-700 border-slate-600 text-slate-300 hover:border-blue-500'
-              )}
-            >
-              <span className="text-2xl">{ot.icon}</span>
-              <span className="text-sm font-semibold">{ot.label}</span>
-              <span className={clsx('text-xs', type === ot.id ? 'text-blue-200' : 'text-slate-500')}>
-                {ot.desc}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Guest Count */}
-        {type === 'DINE_IN' && (
-          <div>
-            <label className="label">Number of Guests</label>
-            <div className="flex items-center gap-2">
-              {[1,2,3,4,5,6,7,8].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setGuestCount(n)}
-                  className={clsx(
-                    'w-9 h-9 rounded-xl font-bold text-sm transition-all',
-                    guestCount === n
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  )}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+        <div className="space-y-5 p-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {ORDER_TYPES.map((orderType) => (
+              <button
+                key={orderType.id}
+                type="button"
+                onClick={() => setType(orderType.id)}
+                className={clsx(
+                  'touch-target rounded-[24px] border p-4 text-left transition-all',
+                  type === orderType.id
+                    ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                    : 'border-white/10 bg-white/[0.04] text-slate-100 hover:bg-white/[0.08]',
+                )}
+              >
+                <span className={clsx('inline-flex rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]', type === orderType.id ? 'bg-slate-950/10' : 'bg-white/8 text-slate-400')}>
+                  {orderType.icon}
+                </span>
+                <p className="mt-3 text-lg font-black">{orderType.label}</p>
+                <p className={clsx('mt-1 text-sm', type === orderType.id ? 'text-slate-950/70' : 'text-slate-400')}>
+                  {orderType.desc}
+                </p>
+              </button>
+            ))}
           </div>
-        )}
 
-        <button
-          onClick={() => onConfirm(type, guestCount)}
-          className="btn-primary w-full h-12 text-base"
-        >
-          Start Order
-        </button>
+          {type === 'DINE_IN' && (
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+              <label className="label">Number of Guests</label>
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setGuestCount(value)}
+                    className={clsx(
+                      'touch-target rounded-2xl text-base font-black transition-all',
+                      guestCount === value
+                        ? 'bg-cyan-300 text-slate-950'
+                        : 'border border-white/10 bg-white/[0.03] text-slate-200',
+                    )}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onConfirm(type, guestCount)}
+            className="touch-target flex w-full items-center justify-center rounded-2xl bg-emerald-400 py-4 text-lg font-black text-slate-950 transition hover:bg-emerald-300"
+          >
+            Start Order
+          </button>
+        </div>
       </motion.div>
     </div>
   );

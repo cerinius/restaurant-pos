@@ -4,19 +4,11 @@ import clsx from 'clsx';
 import { motion } from 'framer-motion';
 
 const STATUS_STYLES: Record<string, string> = {
-  AVAILABLE: 'table-available',
-  OCCUPIED:  'table-occupied',
-  RESERVED:  'table-reserved',
-  DIRTY:     'table-dirty',
-  BLOCKED:   'table-blocked',
-};
-
-const STATUS_DOT: Record<string, string> = {
-  AVAILABLE: 'bg-emerald-400',
-  OCCUPIED:  'bg-sky-400',
-  RESERVED:  'bg-fuchsia-400',
-  DIRTY:     'bg-amber-400',
-  BLOCKED:   'bg-slate-500',
+  AVAILABLE: 'bg-green-500/10 border-green-500/80 text-green-300',
+  OCCUPIED: 'bg-blue-500/10 border-blue-500/80 text-blue-300',
+  RESERVED: 'bg-purple-500/10 border-purple-500/80 text-purple-300',
+  DIRTY: 'bg-yellow-500/10 border-yellow-500/80 text-yellow-300',
+  BLOCKED: 'bg-slate-700/50 border-slate-600/80 text-slate-400',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -28,33 +20,19 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function formatCurrency(amount?: number) {
-  return `$${Number(amount || 0).toFixed(0)}`;
-}
-
-function formatElapsed(ms: number) {
-  if (!ms) return '';
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return '<1m';
-  if (m < 60) return `${m}m`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
+  return `$${Number(amount || 0).toFixed(2)}`;
 }
 
 interface TableCardProps {
   table: any;
   isSelected?: boolean;
   onSelect: (table: any) => void;
-  compact?: boolean;
 }
 
-export function TableCard({ table, isSelected = false, onSelect, compact = false }: TableCardProps) {
+export function TableCard({ table, isSelected = false, onSelect }: TableCardProps) {
   const status: string = table.status || 'AVAILABLE';
   const styleClass = STATUS_STYLES[status] || STATUS_STYLES.AVAILABLE;
-  const dotClass  = STATUS_DOT[status]   || STATUS_DOT.AVAILABLE;
   const label     = STATUS_LABELS[status] || status;
-
-  const elapsed = table.currentOrder?.openedAt
-    ? formatElapsed(Date.now() - new Date(table.currentOrder.openedAt).getTime())
-    : null;
 
   const billAmount = table.currentOrder?.total;
 
@@ -63,32 +41,23 @@ export function TableCard({ table, isSelected = false, onSelect, compact = false
       whileTap={{ scale: 0.97 }}
       onClick={() => onSelect(table)}
       className={clsx(
-        'relative flex w-full flex-col items-start rounded-3xl border p-4 text-left transition-all touch-manipulation',
-        'min-h-[88px]',
+        'relative flex w-full flex-col items-start rounded-2xl border-2 p-4 text-left transition-all touch-manipulation',
         styleClass,
-        isSelected && 'ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950',
+        isSelected && 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900',
       )}
     >
-      {/* Status dot */}
-      <span className={clsx('absolute right-3 top-3 h-2.5 w-2.5 rounded-full', dotClass, status === 'OCCUPIED' && 'animate-pulse-slow')} />
+      <div className="flex items-start justify-between w-full">
+        <p className="text-xl font-bold leading-tight">{table.name || table.tableNumber}</p>
+        <p className={clsx('text-sm font-semibold', styleClass)}>{label}</p>
+      </div>
 
-      {/* Table name */}
-      <p className="text-base font-black leading-tight">{table.name || table.tableNumber}</p>
-
-      {/* Seats */}
-      <p className={clsx('mt-0.5 text-[11px] font-medium', compact ? 'text-current/60' : 'text-current/70')}>
-        {table.capacity} seats · {label}
+      <p className="mt-1 text-sm text-current/70">
+        {table.capacity} seats
       </p>
 
-      {/* Live data row */}
-      {(elapsed || billAmount) && (
-        <div className="mt-2 flex items-center gap-2 text-[11px] font-semibold tabular-nums">
-          {elapsed && <span className="opacity-70">{elapsed}</span>}
-          {billAmount !== undefined && billAmount > 0 && (
-            <span className="rounded-full bg-black/20 px-1.5 py-0.5">
-              {formatCurrency(billAmount)}
-            </span>
-          )}
+      {billAmount !== undefined && billAmount > 0 && (
+        <div className="mt-auto pt-4 text-xl font-bold tabular-nums">
+          {formatCurrency(billAmount)}
         </div>
       )}
     </motion.button>

@@ -7,9 +7,9 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { WSEventType } from '@pos/shared';
 
-import { useWebSocket } from '@/hooks/useWebSocket';
 import { TicketCard } from '@/components/kds/TicketCard';
 import { WSStatusBanner } from '@/components/ui/WSStatusBanner';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store';
 
@@ -23,13 +23,10 @@ interface KDSContentProps {
   };
 }
 
-
 export default function KDSContent({ initialData }: KDSContentProps) {
   const queryClient = useQueryClient();
   const { user, locationId, setLocation } = useAuthStore();
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(
-    initialData.selectedStationId
-  );
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(initialData.selectedStationId);
 
   const effectiveLocationId = locationId || initialData.locationId || null;
 
@@ -139,7 +136,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
         ]);
       },
     },
-    [queryClient, refetch]
+    [queryClient, refetch],
   );
 
   const tickets = useMemo(() => {
@@ -148,9 +145,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
     return [...rawTickets].sort((left: any, right: any) => {
       const leftRush = left.priority === 'rush' ? 1 : 0;
       const rightRush = right.priority === 'rush' ? 1 : 0;
-
       if (leftRush !== rightRush) return rightRush - leftRush;
-
       return new Date(left.firedAt).getTime() - new Date(right.firedAt).getTime();
     });
   }, [ticketsData]);
@@ -158,19 +153,18 @@ export default function KDSContent({ initialData }: KDSContentProps) {
   const stats = statsData?.data || {};
 
   function formatAvg(seconds?: number) {
-    if (!seconds) return '—';
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    if (!seconds) return '--';
+    const minutes = Math.floor(seconds / 60);
+    const remainder = Math.floor(seconds % 60);
+    return `${minutes}:${remainder.toString().padStart(2, '0')}`;
   }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#07111f_0%,#0c1728_50%,#020617_100%)] pb-6 text-white">
-      {/* WS connection banner */}
       <WSStatusBanner bar />
 
       <div className="border-b border-white/10 bg-slate-950/70 px-4 py-5 backdrop-blur-xl md:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="section-kicker">Kitchen operations</p>
             <h1 className="mt-2 text-3xl font-black tracking-tight">Kitchen Display System</h1>
@@ -179,16 +173,16 @@ export default function KDSContent({ initialData }: KDSContentProps) {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 lg:w-[420px]">
-            <div className="rounded-2xl border border-amber-300/20 bg-amber-400/8 p-4">
+          <div className="grid grid-cols-3 gap-3 xl:w-[420px]">
+            <div className="ops-stat border-amber-300/20 bg-amber-400/8">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Pending</p>
               <p className="mt-2 text-3xl font-black text-amber-100 tabular-nums">{stats.pending ?? 0}</p>
             </div>
-            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/8 p-4">
+            <div className="ops-stat border-cyan-300/20 bg-cyan-400/8">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">In Progress</p>
               <p className="mt-2 text-3xl font-black text-cyan-100 tabular-nums">{stats.inProgress ?? 0}</p>
             </div>
-            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/8 p-4">
+            <div className="ops-stat border-emerald-300/20 bg-emerald-400/8">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Avg Time</p>
               <p className="mt-2 text-3xl font-black text-emerald-100 tabular-nums font-mono">
                 {formatAvg(stats.averageTicketSeconds)}
@@ -203,9 +197,10 @@ export default function KDSContent({ initialData }: KDSContentProps) {
           {stations.map((station: any) => (
             <button
               key={station.id}
+              type="button"
               onClick={() => setSelectedStationId(station.id)}
               className={clsx(
-                'touch-target rounded-2xl border px-4 text-sm font-semibold transition-all',
+                'touch-target rounded-2xl border px-4 text-sm font-bold transition-all',
                 selectedStationId === station.id
                   ? 'border-transparent text-slate-950 shadow-[0_16px_34px_rgba(34,211,238,0.18)]'
                   : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20',
@@ -217,7 +212,7 @@ export default function KDSContent({ initialData }: KDSContentProps) {
           ))}
           {stations.length === 0 && !stationsLoading && (
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-400">
-              No KDS stations configured. Add one in Admin → KDS Stations.
+              No KDS stations configured. Add one in Admin &gt; KDS Stations.
             </div>
           )}
         </div>
@@ -226,32 +221,34 @@ export default function KDSContent({ initialData }: KDSContentProps) {
       <div className="p-4 md:p-6">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-100">
-              {stations.find((s: any) => s.id === selectedStationId)?.name || 'Tickets'}
+            <h2 className="text-lg font-black text-slate-100">
+              {stations.find((station: any) => station.id === selectedStationId)?.name || 'Tickets'}
             </h2>
             <p className="text-sm text-slate-500">{tickets.length} active ticket{tickets.length !== 1 ? 's' : ''}</p>
           </div>
-          <button onClick={() => refetch()} className="btn-secondary touch-manipulation">
+          <button type="button" onClick={() => refetch()} className="btn-secondary touch-manipulation">
             Refresh
           </button>
         </div>
 
         {ticketsLoading ? (
           <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-3">
                 <div className="h-6 w-2/3 animate-pulse rounded-xl bg-white/10" />
                 <div className="space-y-2">
-                  {[1, 2, 3].map((j) => <div key={j} className="h-14 animate-pulse rounded-2xl bg-white/8" />)}
+                  {[1, 2, 3].map((value) => <div key={value} className="h-14 animate-pulse rounded-2xl bg-white/8" />)}
                 </div>
               </div>
             ))}
           </div>
         ) : tickets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/3 py-20 text-slate-500">
-            <span className="text-5xl mb-4">🍽️</span>
-            <p className="text-base font-semibold">No active tickets for this station</p>
-            <p className="mt-1 text-sm">Orders will appear here when fired from the POS</p>
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.03] py-20 text-slate-500">
+            <div className="mb-4 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+              All clear
+            </div>
+            <p className="text-base font-semibold text-slate-200">No active tickets for this station</p>
+            <p className="mt-1 text-sm">Orders will appear here as soon as the POS fires them.</p>
           </div>
         ) : (
           <AnimatePresence mode="popLayout">

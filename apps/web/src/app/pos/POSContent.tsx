@@ -156,7 +156,6 @@ export default function POSContent({ initialData }: POSContentProps) {
   const [showPayment, setShowPayment] = useState(false);
   const [showOrderType, setShowOrderType] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [showMobileOrderPanel, setShowMobileOrderPanel] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
   const effectiveLocationId = locationId || initialData.locationId || null;
@@ -245,7 +244,6 @@ export default function POSContent({ initialData }: POSContentProps) {
     onSuccess: async (data) => {
       setOrder(data.data);
       setView('menu');
-      setShowMobileOrderPanel(true);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['open-orders'] }),
         queryClient.invalidateQueries({ queryKey: ['tables'] }),
@@ -337,7 +335,6 @@ export default function POSContent({ initialData }: POSContentProps) {
         const existingOrder = table.orders[0];
         setOrder(existingOrder);
         setView('menu');
-        setShowMobileOrderPanel(true);
       } else {
         setShowOrderType(true);
       }
@@ -410,13 +407,12 @@ export default function POSContent({ initialData }: POSContentProps) {
     clearOrder();
     setSelectedTable(null);
     setView('tables');
-    setShowMobileOrderPanel(false);
   }, [clearOrder]);
 
   const categories = menuData?.data?.categories || [];
   const activeHappyHour = menuData?.data?.activeHappyHour;
-  const panelVisible = showMobileOrderPanel || !!orderId;
-  const contentPaddingClass = 'pb-24 md:pb-0';
+  const viewLabel =
+    view === 'tables' ? 'Floor' : view === 'open-orders' ? 'Open checks' : 'Menu';
   const mainPanel = useMemo(() => {
     if (view === 'tables') {
       return (
@@ -437,7 +433,6 @@ export default function POSContent({ initialData }: POSContentProps) {
           onOrderSelect={(order) => {
             setOrder(order);
             setView('menu');
-            setShowMobileOrderPanel(true);
           }}
         />
       );
@@ -469,14 +464,12 @@ export default function POSContent({ initialData }: POSContentProps) {
   ]);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#07111f_0%,#0c1728_52%,#020617_100%)]">
+    <div className="flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#08111f_0%,#0b1728_52%,#020617_100%)]">
       <POSHeader
         view={view}
         onViewChange={setView}
         onNewOrder={handleNewOrder}
         hasActiveOrder={!!orderId}
-        onToggleOrderPanel={() => setShowMobileOrderPanel((current) => !current)}
-        isOrderPanelOpen={panelVisible}
         isOffline={isOffline}
       />
 
@@ -487,27 +480,51 @@ export default function POSContent({ initialData }: POSContentProps) {
         </div>
       )}
 
-      <div className={clsx('flex flex-1 flex-col overflow-hidden xl:flex-row', contentPaddingClass)}>
-        <div className="flex-1">{mainPanel}</div>
+      <main className="flex-1 overflow-hidden px-3 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] pt-3 md:px-4 md:pb-4 md:pt-4">
+        <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1.15fr)_420px]">
+          <section className="ops-shell flex min-h-0 flex-col overflow-hidden">
+            <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
+              <div>
+                <p className="section-kicker">Service flow</p>
+                <h2 className="mt-1 text-xl font-black text-white md:text-2xl">{viewLabel}</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  {view === 'tables'
+                    ? 'Tap a table to open or continue service.'
+                    : view === 'open-orders'
+                      ? 'Jump back into any active ticket fast.'
+                      : 'Large, touch-friendly menu for quick entry.'}
+                </p>
+              </div>
 
-        <div
-          className={clsx(
-            'shrink-0 xl:block xl:h-auto xl:w-80',
-            panelVisible ? 'block' : 'hidden',
-          )}
-        >
-          <div className="h-[42vh] xl:h-full">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="ops-chip">
+                  {initialData.tables.length} tables
+                </span>
+                <span className="ops-chip">
+                  {initialData.openOrders.length} open orders
+                </span>
+                {activeHappyHour && (
+                  <span className="ops-chip border-amber-300/20 bg-amber-400/10 text-amber-100">
+                    Happy hour live
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1">{mainPanel}</div>
+          </section>
+
+          <section className="ops-shell min-h-0 overflow-hidden">
             <OrderPanel
-              mobile
               onFire={(courseNumber, priority) =>
                 fireMutation.mutate({ courseNumber, priority })
               }
               onPay={() => setShowPayment(true)}
               isFiring={fireMutation.isPending}
             />
-          </div>
+          </section>
         </div>
-      </div>
+      </main>
 
       {pendingItem && (
         <ModifierModal
@@ -526,7 +543,6 @@ export default function POSContent({ initialData }: POSContentProps) {
             clearOrder();
             setSelectedTable(null);
             setView('tables');
-            setShowMobileOrderPanel(false);
             queryClient.invalidateQueries({ queryKey: ['tables'] });
             queryClient.invalidateQueries({ queryKey: ['open-orders'] });
             toast.success('Payment complete');

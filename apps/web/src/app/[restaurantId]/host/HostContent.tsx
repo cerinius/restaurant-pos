@@ -2,18 +2,18 @@
 
 import dynamic from 'next/dynamic';
 import clsx from 'clsx';
-import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { UserGroupIcon } from '@heroicons/react/24/outline';
 
-import { useWebSocket } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store';
-import toast from 'react-hot-toast';
 
 const TableMap = dynamic(
   () => import('@/components/pos/TableMap').then((module) => module.TableMap),
   {
-    loading: () => <div className="h-full animate-pulse bg-slate-800" />,
+    loading: () => <div className="h-full animate-pulse rounded-[30px] bg-slate-800" />,
   },
 );
 
@@ -25,13 +25,20 @@ interface HostContentProps {
 }
 
 export default function HostContent({ initialData }: HostContentProps) {
-  const { locationId } = useAuthStore();
   const qc = useQueryClient();
+  const { locationId, setLocation } = useAuthStore();
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [selectedServer, setSelectedServer] = useState<any>(null);
+  const [guestCount, setGuestCount] = useState(4);
   const [showSeatingModal, setShowSeatingModal] = useState(false);
 
   const effectiveLocationId = locationId || initialData.locationId;
+
+  useEffect(() => {
+    if (!locationId && initialData.locationId) {
+      setLocation(initialData.locationId);
+    }
+  }, [initialData.locationId, locationId, setLocation]);
 
   const { data: tablesData } = useQuery({
     queryKey: ['tables', effectiveLocationId],
@@ -54,34 +61,44 @@ export default function HostContent({ initialData }: HostContentProps) {
       (member: any) =>
         member.isActive &&
         ['SERVER', 'BARTENDER'].includes(member.role?.toUpperCase()) &&
-        member.locations.some((loc: any) => loc.location.id === effectiveLocationId)
+        member.locations.some((location: any) => location.location.id === effectiveLocationId),
     )
-    .sort((a, b) => {
-      const aTime = a.lastSeatedAt ? new Date(a.lastSeatedAt).getTime() : 0;
-      const bTime = b.lastSeatedAt ? new Date(b.lastSeatedAt).getTime() : 0;
-      return aTime - bTime; // Older first
+    .sort((left: any, right: any) => {
+      const leftTime = left.lastSeatedAt ? new Date(left.lastSeatedAt).getTime() : 0;
+      const rightTime = right.lastSeatedAt ? new Date(right.lastSeatedAt).getTime() : 0;
+      return leftTime - rightTime;
     });
+
+  const counts = useMemo(
+    () => ({
+      available: tables.filter((table: any) => table.status === 'AVAILABLE').length,
+      occupied: tables.filter((table: any) => table.status === 'OCCUPIED').length,
+      dirty: tables.filter((table: any) => table.status === 'DIRTY').length,
+    }),
+    [tables],
+  );
 
   const handleTableSelect = useCallback((table: any) => {
     setSelectedTable(table);
+    setGuestCount(table.capacity || 4);
     setShowSeatingModal(true);
   }, []);
 
   const seatingMutation = useMutation({
-    mutationFn: async ({ tableId, serverId, guestCount }: { tableId: string; serverId: string; guestCount: number }) => {
-      // Update server lastSeatedAt
+    mutationFn: async ({ tableId, serverId, guests }: { tableId: string; serverId: string; guests: number }) => {
       await api.updateStaff(serverId, { lastSeatedAt: new Date().toISOString() });
-      // Create order
       return api.createOrder({
         tableId,
         serverId,
-        guestCount,
+        guestCount: guests,
         type: 'DINE_IN',
       });
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['staff'] });
-      qc.invalidateQueries({ queryKey: ['tables', effectiveLocationId] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['staff'] }),
+        qc.invalidateQueries({ queryKey: ['tables', effectiveLocationId] }),
+      ]);
       toast.success('Table seated');
       setShowSeatingModal(false);
       setSelectedTable(null);
@@ -90,105 +107,177 @@ export default function HostContent({ initialData }: HostContentProps) {
     onError: (error: any) => toast.error(error?.response?.data?.error || 'Failed to seat table'),
   });
 
-  const clearTableMutation = useMutation({
-    mutationFn: (tableId: string) => api.updateTableStatus(tableId, 'DIRTY'),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tables', effectiveLocationId] });
-      toast.success('Table cleared');
-    },
-    onError: (error: any) => toast.error(error?.response?.data?.error || 'Failed to clear table'),
-  });
-
   const handleSeatTable = () => {
     if (!selectedTable || !selectedServer) return;
+
     seatingMutation.mutate({
       tableId: selectedTable.id,
       serverId: selectedServer.id,
-      guestCount: selectedTable.capacity || 4,
+      guests: Math.max(1, guestCount),
     });
   };
 
-  const handleClearTable = (tableId: string) => {
-    clearTableMutation.mutate(tableId);
-  };
-
   return (
-    <div className="flex h-screen bg-slate-950">
-      <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between border-b border-slate-700 bg-slate-950/50 px-6 py-4">
-          <h1 className="text-xl font-bold text-slate-100">Host Station</h1>
-        </div>
-        <div className="flex-1">
-          <TableMap
-            initialTables={tables}
-            locationId={effectiveLocationId || ''}
-            onTableSelect={handleTableSelect}
-            selectedTableId={selectedTable?.id}
-          />
-        </div>
-      </div>
+    <div className="flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#08111f_0%,#0b1728_52%,#020617_100%)] px-3 py-3 md:px-4 md:py-4">
+      <div className="ops-shell flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-h-0 overflow-hidden">
+          <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-4 py-4">
+            <div>
+              <p className="section-kicker">Host station</p>
+              <h1 className="mt-1 text-2xl font-black text-white">Seat guests quickly and confidently</h1>
+              <p className="mt-1 text-sm text-slate-400">
+                Choose a table, assign the best next server, and keep the floor moving.
+              </p>
+            </div>
 
-      <div className="w-80 border-l border-slate-700 bg-slate-900 p-4">
-        <h2 className="mb-4 text-lg font-semibold text-slate-100">Servers</h2>
-        <div className="space-y-2">
-          {activeServers.map((server: any) => (
-            <button
-              key={server.id}
-              onClick={() => setSelectedServer(server)}
-              className={clsx(
-                'w-full rounded-lg border p-3 text-left transition',
-                selectedServer?.id === server.id
-                  ? 'border-blue-500 bg-blue-900/50'
-                  : 'border-slate-700 bg-slate-800 hover:border-slate-500'
-              )}
-            >
-              <p className="font-medium text-slate-100">{server.name}</p>
-              <p className="text-xs text-slate-400">{server.role}</p>
-            </button>
-          ))}
+            <div className="flex flex-wrap gap-2">
+              <div className="ops-stat min-w-[110px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Available</p>
+                <p className="mt-1 text-2xl font-black text-emerald-100">{counts.available}</p>
+              </div>
+              <div className="ops-stat min-w-[110px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Occupied</p>
+                <p className="mt-1 text-2xl font-black text-sky-100">{counts.occupied}</p>
+              </div>
+              <div className="ops-stat min-w-[110px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Dirty</p>
+                <p className="mt-1 text-2xl font-black text-amber-100">{counts.dirty}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-0 h-[calc(100%-101px)]">
+            <TableMap
+              initialTables={tables}
+              locationId={effectiveLocationId || ''}
+              onTableSelect={handleTableSelect}
+              selectedTableId={selectedTable?.id}
+            />
+          </div>
         </div>
+
+        <aside className="border-t border-white/10 bg-slate-950/35 p-4 lg:border-l lg:border-t-0">
+          <div className="flex h-full flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-slate-950">
+                <UserGroupIcon className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Servers</p>
+                <h2 className="text-xl font-black text-white">{activeServers.length} available</h2>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-slate-400">
+              Ordered by who has gone longest since their last seating to help balance the floor.
+            </p>
+
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
+              {activeServers.map((server: any, index: number) => (
+                <button
+                  key={server.id}
+                  type="button"
+                  onClick={() => setSelectedServer(server)}
+                  className={clsx(
+                    'touch-target w-full rounded-[24px] border p-4 text-left transition-all',
+                    selectedServer?.id === server.id
+                      ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                      : 'border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.06]',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-black">{server.name}</p>
+                      <p className={clsx('mt-1 text-sm', selectedServer?.id === server.id ? 'text-slate-950/70' : 'text-slate-400')}>
+                        {server.role}
+                      </p>
+                    </div>
+                    <span className={clsx('rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-[0.16em]', selectedServer?.id === server.id ? 'bg-slate-950/10' : 'bg-white/8 text-slate-400')}>
+                      #{index + 1}
+                    </span>
+                  </div>
+                </button>
+              ))}
+
+              {activeServers.length === 0 && (
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-center text-sm text-slate-500">
+                  No active servers found for this location.
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
       </div>
 
       {showSeatingModal && selectedTable && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-96 rounded-lg bg-slate-800 p-6">
-            <h3 className="mb-4 text-lg font-semibold text-slate-100">Seat Table {selectedTable.name}</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm md:items-center">
+          <div className="card w-full max-w-2xl overflow-hidden">
+            <div className="ops-toolbar px-5 py-5">
+              <p className="section-kicker">Seat table</p>
+              <h3 className="mt-1 text-2xl font-black text-white">{selectedTable.name}</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Assign a server and confirm the guest count before opening service.
+              </p>
+            </div>
+
+            <div className="grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_220px]">
               <div>
-                <label className="block text-sm text-slate-300">Server</label>
-                <select
-                  value={selectedServer?.id || ''}
-                  onChange={(e) => setSelectedServer(activeServers.find((s: any) => s.id === e.target.value))}
-                  className="mt-1 w-full rounded border border-slate-600 bg-slate-700 px-3 py-2 text-slate-100"
-                >
-                  <option value="">Select Server</option>
+                <label className="label">Server</label>
+                <div className="grid gap-3 sm:grid-cols-2">
                   {activeServers.map((server: any) => (
-                    <option key={server.id} value={server.id}>
-                      {server.name}
-                    </option>
+                    <button
+                      key={server.id}
+                      type="button"
+                      onClick={() => setSelectedServer(server)}
+                      className={clsx(
+                        'touch-target rounded-[22px] border p-4 text-left transition-all',
+                        selectedServer?.id === server.id
+                          ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                          : 'border-white/10 bg-white/[0.04] text-slate-100',
+                      )}
+                    >
+                      <p className="text-sm font-black">{server.name}</p>
+                      <p className={clsx('mt-1 text-sm', selectedServer?.id === server.id ? 'text-slate-950/70' : 'text-slate-400')}>
+                        {server.role}
+                      </p>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
+
               <div>
-                <label className="block text-sm text-slate-300">Guest Count</label>
-                <input
-                  type="number"
-                  defaultValue={selectedTable.capacity || 4}
-                  className="mt-1 w-full rounded border border-slate-600 bg-slate-700 px-3 py-2 text-slate-100"
-                />
+                <label className="label">Guest Count</label>
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+                  <input
+                    type="number"
+                    value={guestCount}
+                    onChange={(event) => setGuestCount(Number(event.target.value))}
+                    min={1}
+                    className="input w-full rounded-2xl text-center text-2xl font-black"
+                  />
+                  <p className="mt-3 text-sm text-slate-500">
+                    Capacity: {selectedTable.capacity || 'Not set'}
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="mt-6 flex justify-end space-x-3">
+
+            <div className="flex items-center justify-end gap-3 border-t border-white/10 bg-slate-950/45 p-5">
               <button
-                onClick={() => setShowSeatingModal(false)}
-                className="rounded px-4 py-2 text-slate-300 hover:text-slate-100"
+                type="button"
+                onClick={() => {
+                  setShowSeatingModal(false);
+                  setSelectedTable(null);
+                }}
+                className="touch-target rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-bold text-slate-200"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSeatTable}
                 disabled={!selectedServer || seatingMutation.isPending}
-                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+                className="touch-target rounded-2xl bg-emerald-400 px-5 text-sm font-black text-slate-950 disabled:opacity-50"
               >
                 {seatingMutation.isPending ? 'Seating...' : 'Seat Table'}
               </button>

@@ -13,10 +13,10 @@ import {
 } from '@heroicons/react/24/outline';
 import { AnimatePresence, motion } from 'framer-motion';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
 
 import api from '@/lib/api';
 import { useAuthStore, useOrderStore } from '@/store';
-import toast from 'react-hot-toast';
 
 interface Props {
   onFire: (courseNumber?: number, priority?: string) => void;
@@ -71,7 +71,6 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
     onError: (err: any) => toast.error(err?.response?.data?.error || 'Failed to apply discount'),
   });
 
-  const { data: discountsData } = useDiscountsQuery();
   const activeItems = items.filter((item: any) => !item.isVoided);
   const courses = Array.from(new Set(activeItems.map((item: any) => item.courseNumber || 1))).sort(
     (left, right) => left - right,
@@ -86,7 +85,6 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
 
     if (requiresReason) {
       reason = window.prompt('Void reason', item.isFired ? 'Guest change after fire' : '')?.trim();
-
       if (!reason) {
         toast.error('A reason is required for audited voids');
         return;
@@ -100,15 +98,17 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
     return (
       <div
         className={clsx(
-          'flex flex-col items-center justify-center bg-slate-900 text-center text-slate-500',
-          mobile
-            ? 'h-full rounded-t-3xl border-t border-slate-700 px-6 py-10 xl:rounded-none xl:border-l xl:border-t-0'
-            : 'w-full border-l border-slate-700 px-6 py-10 xl:w-80',
+          'flex h-full flex-col items-center justify-center px-6 py-10 text-center',
+          mobile ? 'rounded-t-3xl' : 'rounded-[30px]',
         )}
       >
-        <span className="mb-3 text-4xl">Check</span>
-        <p className="text-sm font-medium text-slate-300">No active order</p>
-        <p className="mt-1 text-xs text-slate-500">Select a table to start a ticket.</p>
+        <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+          Check Summary
+        </div>
+        <h2 className="mt-5 text-2xl font-black text-slate-100">No active order</h2>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
+          Start by choosing a table, then this panel becomes the running ticket with totals and the fastest actions.
+        </p>
       </div>
     );
   }
@@ -116,34 +116,50 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
   return (
     <div
       className={clsx(
-        'flex h-full flex-col bg-slate-900',
-        mobile
-          ? 'rounded-t-3xl border-t border-slate-700 shadow-2xl xl:rounded-none xl:border-l xl:border-t-0 xl:shadow-none'
-          : 'w-full border-l border-slate-700 xl:w-80',
+        'flex h-full flex-col bg-transparent',
+        mobile ? 'rounded-t-3xl' : 'rounded-[30px]',
       )}
     >
-      <div className="border-b border-slate-700 px-4 py-4">
-        <div className="flex items-center justify-between">
+      <div className="ops-toolbar px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-slate-100">
-              {tableName ? `Table ${tableName}` : orderType.replace('_', ' ')}
+            <p className="section-kicker">Active check</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-100">
+              {tableName ? `Table ${tableName}` : String(orderType || 'Order').replace('_', ' ')}
             </h2>
-            <p className="text-xs text-slate-500">
-              {activeItems.length} item{activeItems.length === 1 ? '' : 's'}
+            <p className="mt-1 text-sm text-slate-400">
+              {activeItems.length} item{activeItems.length === 1 ? '' : 's'} on ticket
             </p>
           </div>
-          <span className="rounded-xl border border-blue-700/50 bg-blue-900/50 px-2 py-1 text-xs font-medium text-blue-300">
+
+          <span className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-slate-200">
             #{orderId.slice(-6).toUpperCase()}
           </span>
         </div>
 
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="ops-stat">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Subtotal</p>
+            <p className="mt-1 text-xl font-black text-slate-100">${subtotal.toFixed(2)}</p>
+          </div>
+          <div className="ops-stat">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Tax</p>
+            <p className="mt-1 text-xl font-black text-slate-100">${taxTotal.toFixed(2)}</p>
+          </div>
+          <div className="ops-stat">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Total</p>
+            <p className="mt-1 text-xl font-black text-cyan-300">${total.toFixed(2)}</p>
+          </div>
+        </div>
+
         {courses.length > 1 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
+              type="button"
               onClick={() => setCourseFilter(null)}
               className={clsx(
-                'touch-target rounded-xl px-3 text-xs font-medium transition-all',
-                !courseFilter ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400',
+                'touch-target rounded-2xl px-4 py-2 text-sm font-bold transition-all',
+                !courseFilter ? 'bg-cyan-300 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-300',
               )}
             >
               All Courses
@@ -151,12 +167,13 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
             {courses.map((course) => (
               <button
                 key={course}
+                type="button"
                 onClick={() => setCourseFilter(course === courseFilter ? null : course)}
                 className={clsx(
-                  'touch-target rounded-xl px-3 text-xs font-medium transition-all',
+                  'touch-target rounded-2xl px-4 py-2 text-sm font-bold transition-all',
                   courseFilter === course
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-800 text-slate-400',
+                    ? 'bg-cyan-300 text-slate-950'
+                    : 'border border-white/10 bg-white/5 text-slate-300',
                 )}
               >
                 Course {course}
@@ -166,85 +183,83 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-4 py-4">
         <AnimatePresence initial={false}>
           {displayItems.map((item: any) => (
             <motion.div
               key={item.id}
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -12, height: 0 }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10, height: 0 }}
               className={clsx(
-                'border-b border-slate-700/50 transition-all',
-                item.isFired && 'opacity-70',
+                'mb-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 transition-all',
+                item.isFired && 'opacity-85',
               )}
             >
-              <button
-                type="button"
-                onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
-                className="flex w-full items-start gap-3 px-3 py-3 text-left hover:bg-slate-800/40"
-              >
-                <div className="flex shrink-0 flex-col items-center gap-1">
+              <div className="flex items-start gap-3">
+                <div className="flex shrink-0 flex-col items-center gap-2">
                   {!item.isFired && (
                     <button
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        updateItemMutation.mutate({
-                          itemId: item.id,
-                          quantity: item.quantity + 1,
-                        });
+                        updateItemMutation.mutate({ itemId: item.id, quantity: item.quantity + 1 });
                       }}
-                      className="touch-target inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-slate-100 transition hover:bg-slate-600"
+                      className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10"
                     >
-                      <PlusIcon className="h-4 w-4" />
+                      <PlusIcon className="h-5 w-5" />
                     </button>
                   )}
-                  <span className="w-8 text-center text-sm font-bold text-slate-100">{item.quantity}</span>
+                  <span className="w-10 text-center text-xl font-black text-slate-100">{item.quantity}</span>
                   {!item.isFired && item.quantity > 1 && (
                     <button
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        updateItemMutation.mutate({
-                          itemId: item.id,
-                          quantity: item.quantity - 1,
-                        });
+                        updateItemMutation.mutate({ itemId: item.id, quantity: item.quantity - 1 });
                       }}
-                      className="touch-target inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-slate-100 transition hover:bg-slate-600"
+                      className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10"
                     >
-                      <MinusIcon className="h-4 w-4" />
+                      <MinusIcon className="h-5 w-5" />
                     </button>
                   )}
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-semibold text-slate-100">{item.menuItemName}</p>
-                    <span className="text-sm font-bold text-slate-200">${item.totalPrice.toFixed(2)}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-bold text-slate-100">{item.menuItemName}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {item.seatNumber ? `Seat ${item.seatNumber}` : 'No seat'} · Course {item.courseNumber || 1}
+                      </p>
+                    </div>
+                    <span className="text-lg font-black text-slate-100">${Number(item.totalPrice || 0).toFixed(2)}</span>
                   </div>
 
                   {Array.isArray(item.modifiers) && item.modifiers.length > 0 && (
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-2 text-sm text-slate-400">
                       {item.modifiers.map((modifier: any) => modifier.modifierName).join(', ')}
                     </p>
                   )}
 
-                  {item.notes && <p className="mt-1 text-xs italic text-amber-300">Note: {item.notes}</p>}
+                  {item.notes && (
+                    <p className="mt-2 rounded-2xl border border-amber-300/15 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-100">
+                      Note: {item.notes}
+                    </p>
+                  )}
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
+                      className="touch-target rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/10"
+                    >
+                      Options
+                    </button>
                     {item.isFired && (
-                      <span className="rounded-full bg-orange-900/50 px-2 py-0.5 text-[11px] font-medium text-orange-300">
+                      <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-100">
                         Fired
                       </span>
-                    )}
-                    {item.status === 'READY' && (
-                      <span className="rounded-full bg-emerald-900/50 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
-                        Ready
-                      </span>
-                    )}
-                    {item.seatNumber && (
-                      <span className="text-[11px] font-medium text-slate-500">Seat {item.seatNumber}</span>
                     )}
                   </div>
                 </div>
@@ -256,31 +271,30 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
                     handleVoidItem(item);
                   }}
                   disabled={voidItemMutation.isPending}
-                  className="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-red-600/10 hover:text-red-400"
+                  className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-transparent text-slate-500 transition hover:border-red-300/20 hover:bg-red-500/10 hover:text-red-300"
                 >
-                  <TrashIcon className="h-4 w-4" />
+                  <TrashIcon className="h-5 w-5" />
                 </button>
-              </button>
+              </div>
 
               {expandedItemId === item.id && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="bg-slate-800/50 px-3 pb-3"
+                  className="mt-4 border-t border-white/10 pt-4"
                 >
                   <div className="flex flex-wrap gap-2">
                     {[1, 2, 3].map((course) => (
                       <button
                         key={course}
-                        onClick={() =>
-                          updateItemMutation.mutate({ itemId: item.id, courseNumber: course })
-                        }
+                        type="button"
+                        onClick={() => updateItemMutation.mutate({ itemId: item.id, courseNumber: course })}
                         className={clsx(
-                          'touch-target rounded-xl px-3 text-xs font-medium transition-all',
+                          'touch-target rounded-2xl px-3 py-2 text-sm font-bold transition-all',
                           item.courseNumber === course
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-700 text-slate-300',
+                            ? 'bg-cyan-300 text-slate-950'
+                            : 'border border-white/10 bg-white/5 text-slate-300',
                         )}
                       >
                         Course {course}
@@ -289,12 +303,13 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
                     {[1, 2, 3, 4].map((seat) => (
                       <button
                         key={seat}
+                        type="button"
                         onClick={() => updateItemMutation.mutate({ itemId: item.id, seatNumber: seat })}
                         className={clsx(
-                          'touch-target rounded-xl px-3 text-xs font-medium transition-all',
+                          'touch-target rounded-2xl px-3 py-2 text-sm font-bold transition-all',
                           item.seatNumber === seat
-                            ? 'bg-violet-600 text-white'
-                            : 'bg-slate-700 text-slate-300',
+                            ? 'bg-fuchsia-500 text-white'
+                            : 'border border-white/10 bg-white/5 text-slate-300',
                         )}
                       >
                         Seat {seat}
@@ -308,112 +323,111 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
         </AnimatePresence>
 
         {activeItems.length === 0 && (
-          <div className="flex h-40 flex-col items-center justify-center text-slate-500">
-            <p className="text-sm font-medium">No items added yet</p>
-            <p className="mt-1 text-xs text-slate-600">Tap menu items to build the check.</p>
+          <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[28px] border border-dashed border-white/10 bg-white/[0.03] text-center text-slate-400">
+            <p className="text-lg font-bold text-slate-200">No items added yet</p>
+            <p className="mt-2 text-sm text-slate-500">Use the menu to build the check, then fire when ready.</p>
           </div>
         )}
       </div>
 
-      <div className="border-t border-slate-700 px-4 py-3">
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between text-slate-400">
+      <div className="border-t border-white/10 bg-slate-950/45 p-4">
+        <button
+          type="button"
+          onClick={() => setShowDiscounts((current) => !current)}
+          className="touch-target mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] py-3 text-sm font-bold text-slate-300 transition hover:bg-white/[0.06]"
+        >
+          <TagIcon className="h-5 w-5" />
+          Apply Discount
+          <ChevronDownIcon className={clsx('h-5 w-5 transition-transform', showDiscounts && 'rotate-180')} />
+        </button>
+
+        {showDiscounts && <DiscountPicker onApply={(payload) => addDiscountMutation.mutate(payload)} />}
+
+        <div className="mt-4 space-y-2 text-base">
+          <div className="flex justify-between font-medium text-slate-300">
             <span>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>
           </div>
           {discountTotal > 0 && (
-            <div className="flex justify-between text-emerald-400">
+            <div className="flex justify-between font-medium text-emerald-300">
               <span>Discount</span>
               <span>-${discountTotal.toFixed(2)}</span>
             </div>
           )}
-          <div className="flex justify-between text-slate-400">
+          <div className="flex justify-between font-medium text-slate-300">
             <span>Tax</span>
             <span>${taxTotal.toFixed(2)}</span>
           </div>
           {tipTotal > 0 && (
-            <div className="flex justify-between text-slate-400">
+            <div className="flex justify-between font-medium text-slate-300">
               <span>Tip</span>
               <span>${tipTotal.toFixed(2)}</span>
             </div>
           )}
-          <div className="flex justify-between border-t border-slate-700 pt-2 text-base font-bold text-slate-100">
-            <span>Total</span>
-            <span>${total.toFixed(2)}</span>
-          </div>
         </div>
-      </div>
 
-      <div className="px-4 pb-3">
-        <button
-          onClick={() => setShowDiscounts((current) => !current)}
-          className="touch-target flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-700 px-3 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
-        >
-          <TagIcon className="h-4 w-4" />
-          Apply Discount
-          <ChevronDownIcon
-            className={clsx('h-4 w-4 transition-transform', showDiscounts && 'rotate-180')}
-          />
-        </button>
+        <div className="mt-4 grid gap-3">
+          <AnimatePresence mode="wait">
+            {fireConfirm ? (
+              <motion.div
+                key="fire-confirm"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                className="rounded-[24px] border border-amber-300/20 bg-amber-400/10 p-4"
+              >
+                <p className="text-center text-sm font-bold text-amber-100">
+                  Send all unfired items to the kitchen now?
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFireConfirm(false)}
+                    className="touch-target rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-bold text-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFireConfirm(false);
+                      onFire();
+                    }}
+                    disabled={isFiring}
+                    className="touch-target flex items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-sm font-black text-white disabled:opacity-60"
+                  >
+                    <FireIcon className="h-5 w-5" />
+                    {isFiring ? 'Sending...' : 'Fire Now'}
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.button
+                key="fire-idle"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                type="button"
+                onClick={() => setFireConfirm(true)}
+                disabled={isFiring || activeItems.length === 0}
+                className="touch-target flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-300/25 bg-orange-500/12 py-4 text-base font-black text-orange-200 transition hover:bg-orange-500/18 disabled:opacity-50"
+              >
+                <FireIcon className="h-6 w-6" />
+                Fire to Kitchen
+              </motion.button>
+            )}
+          </AnimatePresence>
 
-        {showDiscounts && <DiscountPicker onApply={(payload) => addDiscountMutation.mutate(payload)} />}
-      </div>
-
-      <div className="space-y-2 px-4 pb-4">
-        {/* ── Fire button: 2-step confirm ────────────────── */}
-        <AnimatePresence mode="wait">
-          {fireConfirm ? (
-            <motion.div
-              key="fire-confirm"
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              className="space-y-2"
-            >
-              <p className="text-center text-xs font-semibold text-amber-300">
-                Confirm — send all unfired items to kitchen?
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setFireConfirm(false)}
-                  className="touch-target rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => { setFireConfirm(false); onFire(); }}
-                  disabled={isFiring}
-                  className="touch-target flex items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:opacity-50 fire-confirm-ring"
-                >
-                  <FireIcon className="h-4 w-4" />
-                  {isFiring ? 'Sending…' : 'Fire Now'}
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.button
-              key="fire-idle"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setFireConfirm(true)}
-              disabled={isFiring || activeItems.length === 0}
-              className="touch-target flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-400/30 bg-orange-500/15 px-4 py-3.5 text-sm font-bold text-orange-100 transition hover:bg-orange-500/25 disabled:opacity-50"
-            >
-              <FireIcon className="h-5 w-5" />
-              Fire to Kitchen
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        <button
-          onClick={onPay}
-          disabled={activeItems.length === 0 || total <= 0}
-          className="touch-target btn-success flex w-full items-center justify-center gap-2 rounded-2xl text-base"
-        >
-          <CreditCardIcon className="h-5 w-5" />
-          Pay ${total.toFixed(2)}
-        </button>
+          <button
+            type="button"
+            onClick={onPay}
+            disabled={activeItems.length === 0 || total <= 0}
+            className="touch-target flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-400 py-4 text-lg font-black text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
+          >
+            <CreditCardIcon className="h-6 w-6" />
+            Pay ${total.toFixed(2)}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -432,15 +446,16 @@ function DiscountPicker({ onApply }: { onApply: (payload: any) => void }) {
   const discounts: any[] = data?.data || [];
 
   return (
-    <div className="mt-2 overflow-hidden rounded-2xl border border-slate-700 bg-slate-800">
+    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04]">
       {discounts.map((discount: any) => (
         <button
           key={discount.id}
+          type="button"
           onClick={() => onApply({ discountId: discount.id })}
-          className="touch-target flex w-full items-center justify-between border-b border-slate-700/50 px-3 text-left transition hover:bg-slate-700 last:border-0"
+          className="touch-target flex w-full items-center justify-between border-b border-white/10 px-4 py-3 text-left transition hover:bg-white/[0.05] last:border-b-0"
         >
-          <span className="text-xs font-medium text-slate-200">{discount.name}</span>
-          <span className="text-xs font-bold text-emerald-400">
+          <span className="text-sm font-semibold text-slate-200">{discount.name}</span>
+          <span className="text-sm font-black text-emerald-300">
             {discount.type === 'FLAT'
               ? `-$${discount.value}`
               : discount.type === 'COMP'
@@ -450,7 +465,7 @@ function DiscountPicker({ onApply }: { onApply: (payload: any) => void }) {
         </button>
       ))}
       {discounts.length === 0 && (
-        <p className="py-3 text-center text-xs text-slate-500">No discounts configured</p>
+        <p className="py-4 text-center text-sm text-slate-500">No discounts configured</p>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { TableCellsIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -28,11 +29,11 @@ interface Props {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  AVAILABLE: 'bg-emerald-900/60 border-emerald-600 text-emerald-200',
-  OCCUPIED: 'bg-blue-900/60 border-blue-500 text-blue-200',
-  RESERVED: 'bg-purple-900/60 border-purple-500 text-purple-200',
-  DIRTY: 'bg-yellow-900/60 border-yellow-500 text-yellow-200',
-  BLOCKED: 'bg-slate-800 border-slate-600 text-slate-500',
+  AVAILABLE: 'bg-green-500/10 border-green-500/80 text-green-300',
+  OCCUPIED: 'bg-blue-500/10 border-blue-500/80 text-blue-300',
+  RESERVED: 'bg-purple-500/10 border-purple-500/80 text-purple-300',
+  DIRTY: 'bg-yellow-500/10 border-yellow-500/80 text-yellow-300',
+  BLOCKED: 'bg-slate-700/50 border-slate-600/80 text-slate-400',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -52,7 +53,12 @@ const STATUS_ACCENTS: Record<string, string> = {
 };
 
 function formatCurrency(amount?: number) {
-  return `$${Number(amount || 0).toFixed(0)}`;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
 }
 
 export function TableMap({ locationId, onTableSelect, selectedTableId, initialTables = [] }: Props) {
@@ -276,21 +282,15 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           height: renderedRoom.height,
         }}
         className={clsx(
-          'rounded-[32px] border shadow-2xl transition-all overflow-hidden',
+          'rounded-3xl border-2 shadow-lg transition-all overflow-hidden',
           renderedRoom.type === 'bar'
-            ? 'bg-[linear-gradient(160deg,rgba(120,53,15,0.38),rgba(15,23,42,0.92))]'
-            : 'bg-[linear-gradient(160deg,rgba(15,23,42,0.92),rgba(30,41,59,0.88))]',
-          false ? 'border-blue-400 shadow-blue-950/50' : 'border-slate-700 shadow-black/40'
+            ? 'bg-slate-800/50 border-slate-700'
+            : 'bg-slate-800/50 border-slate-700',
         )}
       >
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.12),transparent_40%)]" />
-        <div className="absolute left-4 top-4 z-[2] rounded-full border border-white/10 bg-slate-950/85 px-3 py-1.5 text-xs font-semibold text-slate-100">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.08),transparent_40%)]" />
+        <div className="absolute left-4 top-3 z-[2] rounded-full bg-slate-900/80 px-3 py-1 text-sm font-semibold text-slate-100 backdrop-blur-sm">
           {renderedRoom.name}
-        </div>
-        <div className="absolute right-4 top-4 z-[2] rounded-full bg-slate-950/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-          {renderedRoom.type === 'bar'
-            ? `${barSeatCount} stools / ${roomTables.length - barSeatCount} tables`
-            : `${roomTables.length} tables`}
         </div>
 
         {renderBarFeature(renderedRoom)}
@@ -323,32 +323,31 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                   table.shape === 'circle'
                     ? '50%'
                     : table.shape === 'square'
-                      ? '12px'
-                      : '12px',
+                      ? '16px'
+                      : '16px',
               }}
               className={clsx(
-                'border-2 flex flex-col items-center justify-center transition-shadow backdrop-blur-sm',
+                'border-2 flex flex-col items-center justify-center transition-all backdrop-blur-sm shadow-md',
                 STATUS_STYLES[table.status] || STATUS_STYLES.AVAILABLE,
-                isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-950 shadow-xl' : '',
-                isBarSeat ? 'border-amber-300/80 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]' : '',
-                false ? 'opacity-80' : '',
-                table.status === 'BLOCKED' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:brightness-110'
+                isSelected ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : 'hover:ring-2 hover:ring-cyan-400',
+                isBarSeat ? 'border-amber-400/80' : '',
+                table.status === 'BLOCKED' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
               )}
             >
-              <span className="font-bold text-sm leading-none">{table.name}</span>
+              <span className="font-bold text-base leading-none">{table.name}</span>
               {table.capacity && (
-                <span className="mt-0.5 text-xs leading-none opacity-70">{table.capacity}p</span>
+                <span className="mt-1 text-xs leading-none opacity-80">{table.capacity}p</span>
               )}
               {hasOrder && (
-                <span className="mt-0.5 text-xs font-semibold leading-none opacity-90">{elapsed}m</span>
+                <span className="mt-1 text-xs font-semibold leading-none opacity-90">{elapsed}m</span>
               )}
               {order && (
-                <span className="mt-0.5 truncate px-1 text-xs leading-none opacity-75">
+                <span className="mt-1 truncate px-1 text-xs leading-none opacity-80">
                   {formatCurrency(order.total)}
                 </span>
               )}
               {assignment && (
-                <span className="mt-1 max-w-[88%] truncate text-[10px] font-semibold leading-none text-blue-100/80">
+                <span className="mt-1.5 max-w-[88%] truncate rounded-full bg-slate-900/50 px-2 py-0.5 text-[10px] font-semibold leading-none text-blue-200">
                   {assignment.serverName}
                 </span>
               )}
@@ -361,30 +360,32 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b border-white/10 bg-slate-950/55 px-4 py-4 backdrop-blur">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="section-kicker">Floor view</p>
-            <h2 className="mt-1 text-lg font-black text-white">
-              {focusedSection ? `${focusedSection} dining map` : 'All rooms'}
-            </h2>
-            <p className="mt-1 text-xs text-slate-400">
-              {filtered.length} visible tables · {rooms.length} room{rooms.length === 1 ? '' : 's'}
-            </p>
+      <div className="ops-toolbar shrink-0 px-4 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <TableCellsIcon className="h-6 w-6 text-slate-300" />
+            <div>
+              <h2 className="text-xl font-black text-white">
+                {focusedSection ? `${focusedSection}` : 'All Rooms'}
+              </h2>
+              <p className="text-sm text-slate-400">
+                {filtered.length} tables ready to view and manage
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <div className="workspace-chip">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
-              <span>{counts.available} Available</span>
+            <div className="ops-stat min-w-[110px]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Available</p>
+              <p className="mt-1 text-2xl font-black text-emerald-100">{counts.available}</p>
             </div>
-            <div className="workspace-chip">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
-              <span>{counts.occupied} Occupied</span>
+            <div className="ops-stat min-w-[110px]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Occupied</p>
+              <p className="mt-1 text-2xl font-black text-sky-100">{counts.occupied}</p>
             </div>
-            <div className="workspace-chip">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-500" />
-              <span>{counts.dirty} Dirty</span>
+            <div className="ops-stat min-w-[110px]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Dirty</p>
+              <p className="mt-1 text-2xl font-black text-amber-100">{counts.dirty}</p>
             </div>
           </div>
         </div>
@@ -395,11 +396,12 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               key={section}
               type="button"
               onClick={() => setActiveSection(section)}
-              className={`touch-target whitespace-nowrap rounded-2xl border px-3 py-2 text-xs font-semibold transition-all ${
+              className={clsx(
+                'touch-target whitespace-nowrap rounded-2xl border px-4 py-2 text-sm font-bold transition-all',
                 focusedSection === section
-                  ? 'border-cyan-200 bg-cyan-300 text-slate-950 shadow-[0_12px_30px_rgba(34,211,238,0.16)]'
-                  : 'border-white/10 bg-white/5 text-slate-300'
-              }`}
+                  ? 'border-cyan-400 bg-cyan-400 text-slate-950'
+                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white',
+              )}
             >
               {section}
             </button>
@@ -407,15 +409,20 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
         </div>
 
         {assignmentSummary.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {assignmentSummary.map((summary) => (
-              <div key={summary.serverId} className="workspace-subtle px-3 py-2 text-[11px] text-slate-300">
-                <span className="font-semibold text-slate-100">{summary.serverName}</span>
-                <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
-                <span className="ml-2 text-emerald-300">{summary.open} open</span>
-              </div>
-            ))}
-          </div>
+          <details className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-300">
+              Server Assignments
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {assignmentSummary.map((summary) => (
+                <div key={summary.serverId} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-slate-300">
+                  <span className="font-semibold text-slate-100">{summary.serverName}</span>
+                  <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
+                  <span className="ml-2 text-emerald-400">{summary.open} open</span>
+                </div>
+              ))}
+            </div>
+          </details>
         )}
       </div>
 
@@ -437,11 +444,12 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                     key={table.id}
                     type="button"
                     onClick={() => handleTablePress(table)}
-                    className={`touch-target flex min-h-[112px] flex-col rounded-[28px] border-2 p-4 text-left transition
-                      ${STATUS_STYLES[table.status] || 'table-available'}
-                      ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-950' : ''}
-                      ${table.status === 'BLOCKED' ? 'opacity-60' : 'hover:brightness-110'}
-                    `}
+                    className={clsx(
+                      'touch-target flex min-h-[112px] flex-col rounded-3xl border-2 p-4 text-left transition-all',
+                      STATUS_STYLES[table.status] || 'table-available',
+                      isSelected ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : 'hover:bg-slate-800/50',
+                      table.status === 'BLOCKED' ? 'opacity-60' : '',
+                    )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -450,9 +458,9 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                           {getTableRoomName(table)}
                           {table.capacity ? ` | ${table.capacity} seats` : ''}
                         </p>
-                        {assignment && <p className="mt-1 text-xs font-semibold text-blue-100/80">{assignment.serverName}</p>}
+                        {assignment && <p className="mt-1 text-xs font-semibold text-blue-200/80">{assignment.serverName}</p>}
                       </div>
-                      <span className={`text-xs font-semibold ${STATUS_ACCENTS[table.status] || 'text-slate-300'}`}>
+                      <span className={clsx('text-xs font-semibold', STATUS_ACCENTS[table.status] || 'text-slate-300')}>
                         {STATUS_LABELS[table.status] || table.status}
                       </span>
                     </div>
@@ -462,9 +470,8 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                         {hasOrder ? `${elapsed} min active` : 'Ready for service'}
                       </div>
                       <div className="text-right">
-                        <p className="text-xs opacity-70">{hasOrder ? 'Open check' : 'Status'}</p>
                         <p className="text-sm font-semibold">
-                          {hasOrder ? formatCurrency(order?.total) : STATUS_LABELS[table.status] || table.status}
+                          {hasOrder ? formatCurrency(order?.total) : ''}
                         </p>
                       </div>
                     </div>
@@ -473,7 +480,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               })}
             </div>
           ) : (
-            <div className="flex h-full min-h-[280px] items-center justify-center rounded-[28px] border border-dashed border-white/10 bg-white/5 px-6 text-center text-sm text-slate-500">
+            <div className="flex h-full min-h-[280px] items-center justify-center rounded-3xl border-2 border-dashed border-slate-700 bg-slate-800/50 px-6 text-center text-sm text-slate-500">
               No tables found. Add tables in Admin / Floor Plan.
             </div>
           )
@@ -486,22 +493,22 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               const barSeatCount = room.type === 'bar' ? getBarSeatCountForRoom(room, roomTables, floorPlan.tableMetadata) : 0;
 
               return (
-                <section key={room.name} className="rounded-[28px] border border-white/10 bg-white/5 p-4">
+                <section key={room.name} className="rounded-3xl border-2 border-slate-700 bg-slate-800/50 p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">{room.name}</h3>
-                      <p className="text-xs text-slate-500">
+                      <h3 className="text-base font-semibold text-slate-100">{room.name}</h3>
+                      <p className="text-xs text-slate-400">
                         {room.type === 'bar'
-                          ? `Bar map / ${barSeatCount} stools / ${roomTables.length - barSeatCount} tables`
-                          : `Room map / ${roomTables.length} tables`}
+                          ? `Bar / ${barSeatCount} stools / ${roomTables.length - barSeatCount} tables`
+                          : `Room / ${roomTables.length} tables`}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setActiveSection(room.name)}
-                      className="rounded-xl bg-white/8 px-3 py-2 text-xs font-medium text-slate-200"
+                      className="rounded-lg bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-950 transition-all hover:bg-cyan-300"
                     >
-                      Focus Room
+                      Focus
                     </button>
                   </div>
 
@@ -518,18 +525,19 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                             key={table.id}
                             type="button"
                             onClick={() => handleTablePress(table)}
-                            className={`touch-target flex min-h-[104px] flex-col rounded-[24px] border-2 p-4 text-left transition
-                              ${STATUS_STYLES[table.status] || 'table-available'}
-                              ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-950' : ''}
-                            `}
+                            className={clsx(
+                              'touch-target flex min-h-[104px] flex-col rounded-2xl border-2 p-4 text-left transition-all',
+                              STATUS_STYLES[table.status] || 'table-available',
+                              isSelected ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : 'hover:bg-slate-800/50',
+                            )}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-semibold">{table.name}</p>
                                 <p className="mt-1 text-xs opacity-80">{table.capacity || 0} seats</p>
-                                {assignment && <p className="mt-1 text-xs font-semibold text-blue-100/80">{assignment.serverName}</p>}
+                                {assignment && <p className="mt-1 text-xs font-semibold text-blue-200/80">{assignment.serverName}</p>}
                               </div>
-                              <span className={`text-xs font-semibold ${STATUS_ACCENTS[table.status] || 'text-slate-300'}`}>
+                              <span className={clsx('text-xs font-semibold', STATUS_ACCENTS[table.status] || 'text-slate-300')}>
                                 {STATUS_LABELS[table.status] || table.status}
                               </span>
                             </div>
@@ -541,7 +549,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/40 px-4 py-6 text-center text-sm text-slate-500">
+                    <div className="rounded-2xl border-2 border-dashed border-slate-700 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
                       No tables in this room yet.
                     </div>
                   )}
@@ -550,7 +558,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
             })}
           </div>
         ) : (
-          <div className="flex h-full min-h-[280px] items-center justify-center rounded-[28px] border border-dashed border-white/10 bg-white/5 px-6 text-center text-sm text-slate-500">
+          <div className="flex h-full min-h-[280px] items-center justify-center rounded-3xl border-2 border-dashed border-slate-700 bg-slate-800/50 px-6 text-center text-sm text-slate-500">
             No tables found. Add tables in Admin / Floor Plan.
           </div>
         )}
@@ -627,8 +635,8 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
 
       {blockedTable && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-slate-950 p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-slate-100">Table Not In Your Section</h3>
+          <div className="w-full max-w-md rounded-3xl border-2 border-slate-700 bg-slate-800 p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-100">Table Not In Your Section</h3>
             <p className="mt-2 text-sm text-slate-400">
               Table {blockedTable.table.name} is currently{' '}
               <span className="font-semibold text-slate-200">
@@ -636,7 +644,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               </span>
               .
             </p>
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+            <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900/50 p-4 text-sm text-slate-300">
               <p>
                 Assigned to:{' '}
                 <span className="font-semibold text-slate-100">
@@ -655,11 +663,11 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                 </p>
               )}
             </div>
-            <div className="mt-5 flex justify-end">
+            <div className="mt-6 flex justify-end">
               <button
                 type="button"
                 onClick={() => setBlockedTable(null)}
-                className="btn-primary px-4 py-2"
+                className="touch-target rounded-2xl bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-950 transition-all hover:bg-cyan-300"
               >
                 Close
               </button>
