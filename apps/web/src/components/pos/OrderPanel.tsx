@@ -43,6 +43,7 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showDiscounts, setShowDiscounts] = useState(false);
   const [courseFilter, setCourseFilter] = useState<number | null>(null);
+  const [fireConfirm, setFireConfirm] = useState(false);
 
   const voidItemMutation = useMutation({
     mutationFn: ({ itemId, reason }: { itemId: string; reason?: string }) =>
@@ -359,14 +360,51 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
       </div>
 
       <div className="space-y-2 px-4 pb-4">
-        <button
-          onClick={() => onFire()}
-          disabled={isFiring || activeItems.length === 0}
-          className="touch-target flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-500 disabled:opacity-50"
-        >
-          <FireIcon className="h-5 w-5" />
-          {isFiring ? 'Sending...' : 'Fire to Kitchen'}
-        </button>
+        {/* ── Fire button: 2-step confirm ────────────────── */}
+        <AnimatePresence mode="wait">
+          {fireConfirm ? (
+            <motion.div
+              key="fire-confirm"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              className="space-y-2"
+            >
+              <p className="text-center text-xs font-semibold text-amber-300">
+                Confirm — send all unfired items to kitchen?
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setFireConfirm(false)}
+                  className="touch-target rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setFireConfirm(false); onFire(); }}
+                  disabled={isFiring}
+                  className="touch-target flex items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:opacity-50 fire-confirm-ring"
+                >
+                  <FireIcon className="h-4 w-4" />
+                  {isFiring ? 'Sending…' : 'Fire Now'}
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.button
+              key="fire-idle"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setFireConfirm(true)}
+              disabled={isFiring || activeItems.length === 0}
+              className="touch-target flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-400/30 bg-orange-500/15 px-4 py-3.5 text-sm font-bold text-orange-100 transition hover:bg-orange-500/25 disabled:opacity-50"
+            >
+              <FireIcon className="h-5 w-5" />
+              Fire to Kitchen
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         <button
           onClick={onPay}

@@ -12,6 +12,8 @@ import {
   BuildingStorefrontIcon,
   CalendarDaysIcon,
   ChartBarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ClipboardDocumentListIcon,
   Cog6ToothIcon,
   CubeIcon,
@@ -27,6 +29,7 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
+import { WSStatusBanner } from '@/components/ui/WSStatusBanner';
 import { posWS } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
 import {
@@ -66,6 +69,8 @@ function Sidebar({
   onNavigate,
   onLogout,
   onPrefetch,
+  collapsed = false,
+  onToggleCollapse,
 }: {
   pathname: string;
   restaurantId: string;
@@ -73,6 +78,8 @@ function Sidebar({
   onNavigate: () => void;
   onLogout: () => void;
   onPrefetch: (href: string) => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   const currentSection = getCurrentSection(pathname, restaurantId);
   const navSections = [
@@ -123,58 +130,79 @@ function Sidebar({
   ];
 
   return (
-    <aside className="flex h-full w-80 flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.98),rgba(8,15,30,0.96))]">
-      <div className="border-b border-white/10 px-5 py-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_18px_40px_rgba(34,211,238,0.18)]">
+    <aside className={clsx(
+      'flex h-full flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.98),rgba(8,15,30,0.96))] transition-all duration-200',
+      collapsed ? 'w-[72px]' : 'w-80',
+    )}>
+      {/* ── Logo / collapse header ──────────────────────── */}
+      <div className="shrink-0 border-b border-white/10 px-3 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_18px_40px_rgba(34,211,238,0.18)]">
             RO
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-black leading-none text-white">RestaurantOS</p>
-            <p className="mt-1 text-sm leading-tight text-slate-400">Restaurant admin control room</p>
-          </div>
-        </div>
-
-        <div className="mt-4 admin-sidebar-highlight rounded-[28px] p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Current area</p>
-              <p className="mt-2 text-base font-bold text-white">
-                {currentSection === 'dashboard'
-                  ? 'Dashboard'
-                  : currentSection.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">/{restaurantId}/admin</p>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-black leading-none text-white">RestaurantOS</p>
+              <p className="mt-0.5 text-xs leading-tight text-slate-400">Admin panel</p>
             </div>
-            <span className="status-chip">Live</span>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Link
-              href={getRestaurantPublicPath(restaurantId)}
-              onClick={onNavigate}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+          )}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="touch-target ml-auto shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              Public site
-            </Link>
-            <Link
-              href={getRestaurantLoginPath(restaurantId)}
-              onClick={onNavigate}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-xs font-semibold text-slate-200 transition hover:bg-white/10"
-            >
-              Staff login
-            </Link>
-          </div>
+              {collapsed ? <ChevronRightIcon className="h-4 w-4" /> : <ChevronLeftIcon className="h-4 w-4" />}
+            </button>
+          )}
         </div>
+
+        {/* Current-area card — hidden when collapsed */}
+        {!collapsed && (
+          <div className="mt-4 admin-sidebar-highlight rounded-[28px] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Current area</p>
+                <p className="mt-2 text-base font-bold text-white">
+                  {currentSection === 'dashboard'
+                    ? 'Dashboard'
+                    : currentSection.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">/{restaurantId}/admin</p>
+              </div>
+              <span className="status-chip">Live</span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Link
+                href={getRestaurantPublicPath(restaurantId)}
+                onClick={onNavigate}
+                className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Public site
+              </Link>
+              <Link
+                href={getRestaurantLoginPath(restaurantId)}
+                onClick={onNavigate}
+                className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Staff login
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
 
-      <nav className="no-scrollbar flex-1 overflow-y-auto px-4 py-5">
+      {/* ── Nav ─────────────────────────────────────────── */}
+      <nav className="no-scrollbar flex-1 overflow-y-auto px-2 py-4">
         {navSections.map((section) => (
-          <div key={section.label} className="mb-5">
-            <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {section.label}
-            </p>
-            <div className="space-y-1.5">
+          <div key={section.label} className="mb-4">
+            {!collapsed && (
+              <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {section.label}
+              </p>
+            )}
+            <div className="space-y-1">
               {section.items.map(({ href, label, Icon }) => (
                 <Link
                   key={href}
@@ -182,17 +210,19 @@ function Sidebar({
                   onClick={onNavigate}
                   onMouseEnter={() => onPrefetch(href)}
                   onFocus={() => onPrefetch(href)}
+                  title={collapsed ? label : undefined}
                   className={clsx(
-                    'touch-target flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-semibold transition-all',
+                    'touch-target flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-all',
+                    collapsed && 'justify-center',
                     isActivePath(pathname, href)
                       ? 'bg-cyan-300 text-slate-950 shadow-[0_18px_38px_rgba(34,211,238,0.22)]'
                       : 'text-slate-300 hover:bg-white/6 hover:text-white',
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  {isActivePath(pathname, href) && (
-                    <span className="rounded-full bg-slate-950/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em]">
+                  {!collapsed && <span className="flex-1">{label}</span>}
+                  {!collapsed && isActivePath(pathname, href) && (
+                    <span className="rounded-full bg-slate-950/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]">
                       Open
                     </span>
                   )}
@@ -203,31 +233,38 @@ function Sidebar({
         ))}
       </nav>
 
-      <div className="border-t border-white/10 p-4">
+      {/* ── Footer ──────────────────────────────────────── */}
+      <div className="shrink-0 border-t border-white/10 p-3">
         <Link
           href={getRestaurantPOSPath(restaurantId)}
           onClick={onNavigate}
-          className="touch-target mb-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white"
+          title={collapsed ? 'Back to POS' : undefined}
+          className={clsx(
+            'touch-target mb-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white',
+            collapsed && 'justify-center',
+          )}
         >
-          <ArrowLeftIcon className="h-5 w-5" />
-          Back to POS
+          <ArrowLeftIcon className="h-5 w-5 shrink-0" />
+          {!collapsed && 'Back to POS'}
         </Link>
 
-        <div className="glass-panel flex items-center gap-3 px-3 py-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-bold text-slate-950">
-            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+        {!collapsed && (
+          <div className="glass-panel flex items-center gap-3 px-3 py-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-bold text-slate-950">
+              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-100">{user?.name || 'User'}</p>
+              <p className="truncate text-xs uppercase tracking-[0.16em] text-slate-400">{user?.role || 'staff'}</p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="touch-target rounded-xl px-3 text-xs font-semibold text-slate-300 transition hover:bg-red-500/10 hover:text-red-200"
+            >
+              Exit
+            </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-100">{user?.name || 'User'}</p>
-            <p className="truncate text-xs uppercase tracking-[0.16em] text-slate-400">{user?.role || 'staff'}</p>
-          </div>
-          <button
-            onClick={onLogout}
-            className="touch-target rounded-xl px-3 text-xs font-semibold text-slate-300 transition hover:bg-red-500/10 hover:text-red-200"
-          >
-            Exit
-          </button>
-        </div>
+        )}
       </div>
     </aside>
   );
@@ -242,6 +279,7 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
   const { user, isAuthenticated, clearAuth, locationId } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
@@ -415,7 +453,7 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen overflow-hidden bg-[linear-gradient(180deg,#07111f_0%,#0c1728_50%,#020617_100%)]">
-      <div className="hidden shrink-0 border-r border-white/10 xl:block">
+      <div className="hidden shrink-0 xl:block">
         <Sidebar
           pathname={pathname}
           restaurantId={restaurantId}
@@ -423,6 +461,8 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
           onNavigate={() => undefined}
           onLogout={handleLogout}
           onPrefetch={handlePrefetch}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         />
       </div>
 
@@ -447,6 +487,9 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
       )}
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* WS status banner — shown when disconnected */}
+        <WSStatusBanner bar />
+
         <div className="glass flex min-h-16 items-center gap-3 border-b border-white/10 px-4 xl:hidden">
           <button
             onClick={() => setSidebarOpen(true)}

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import {
   ArrowLeftOnRectangleIcon,
   Bars3Icon,
+  BellIcon,
   CalendarDaysIcon,
   ClipboardDocumentListIcon,
   CreditCardIcon,
@@ -18,6 +19,8 @@ import {
 } from '@heroicons/react/24/outline';
 
 import type { POSView } from '@/components/pos/type';
+import { NotificationDrawer } from '@/components/ui/NotificationDrawer';
+import { WSStatusBanner } from '@/components/ui/WSStatusBanner';
 import { posWS } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
 import { getRestaurantAdminPath, getRestaurantLoginPath, getRestaurantTeamPath } from '@/lib/paths';
@@ -62,6 +65,7 @@ export function POSHeader({
   const { unreadCount } = useNotificationStore();
   const router = useRouter();
   const [showMobileActions, setShowMobileActions] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const canOpenAdmin = canAccessAdmin(user?.role);
   const now = new Date();
@@ -111,6 +115,9 @@ export function POSHeader({
 
   return (
     <>
+      {/* WS offline/reconnecting banner */}
+      <WSStatusBanner bar />
+
       <header className="relative z-20 shrink-0 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl">
         <div className="flex min-h-16 items-center gap-3 px-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_16px_34px_rgba(34,211,238,0.18)]">
@@ -119,7 +126,7 @@ export function POSHeader({
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-bold text-slate-100">RestaurantOS Service</p>
+              <p className="truncate text-sm font-bold text-slate-100">RestaurantOS</p>
               {isOffline && (
                 <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
                   Offline
@@ -127,7 +134,7 @@ export function POSHeader({
               )}
             </div>
             <p className="truncate text-xs text-slate-400">
-              {user?.name || 'Staff'} | {timeLabel}
+              {user?.name || 'Staff'} · {timeLabel}
             </p>
           </div>
 
@@ -135,7 +142,6 @@ export function POSHeader({
             <nav className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
               {NAV_ITEMS.map(({ id, label, Icon }) => {
                 const active = view === id;
-
                 return (
                   <button
                     key={id}
@@ -204,14 +210,27 @@ export function POSHeader({
               My Shift
             </button>
 
+            {/* Notification bell */}
+            <button
+              type="button"
+              onClick={() => setNotifOpen(true)}
+              className="touch-target relative inline-flex items-center justify-center rounded-2xl bg-white/5 px-3 text-slate-200 transition hover:bg-white/10"
+              aria-label="Notifications"
+            >
+              <BellIcon className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
             <div className="hidden items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 lg:flex">
               <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-bold text-slate-950">
                 {user?.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-100">
-                  {user?.name || 'User'}
-                </p>
+                <p className="truncate text-sm font-semibold text-slate-100">{user?.name || 'User'}</p>
                 <p className="truncate text-xs text-slate-400">{user?.role || 'Staff'}</p>
               </div>
             </div>
@@ -398,6 +417,9 @@ export function POSHeader({
           </button>
         </div>
       </div>
+
+      {/* Notification Drawer */}
+      <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
     </>
   );
 }

@@ -225,4 +225,19 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Brief highlight flash for WS-driven live updates */
+  .highlight-flash {
+    animation: highlightFlash 0.8s ease-out forwards;
+  }
+  @keyframes highlightFlash {
+    0%   { background-color: rgba(34, 211, 238, 0.22); }
+    100% { background-color: transparent; }
+  }
+
+  /* Tabular numbers for timers / currency columns */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  /* Touch action: manipulation prevents 300ms delay on mobile */
+  .touch-manipulation { touch-action: manipulation; }
 }

@@ -14,6 +14,9 @@ import {
 } from 'recharts';
 import clsx from 'clsx';
 
+import { KPICard } from '@/components/ui/KPICard';
+import { StatusChip } from '@/components/ui/StatusChip';
+import { WSStatusBanner } from '@/components/ui/WSStatusBanner';
 import api from '@/lib/api';
 import {
   getRestaurantAdminPath,
@@ -24,32 +27,6 @@ import {
 } from '@/lib/paths';
 import { useAuthStore } from '@/store';
 
-function StatCard({
-  label,
-  value,
-  sub,
-  tone = 'cyan',
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  tone?: 'cyan' | 'emerald' | 'amber' | 'rose';
-}) {
-  const toneClasses: Record<string, string> = {
-    cyan: 'border-cyan-300/20 bg-cyan-400/10',
-    emerald: 'border-emerald-300/20 bg-emerald-400/10',
-    amber: 'border-amber-300/20 bg-amber-400/10',
-    rose: 'border-rose-300/20 bg-rose-400/10',
-  };
-
-  return (
-    <div className={clsx('metric-tile border', toneClasses[tone] || toneClasses.cyan)}>
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-3 text-4xl font-black text-white">{value}</p>
-      {sub && <p className="mt-2 text-sm text-slate-300">{sub}</p>}
-    </div>
-  );
-}
 
 const ROLE_DEMO_CARDS = [
   {
@@ -135,6 +112,9 @@ export default function RestaurantAdminDashboardPage() {
 
   return (
     <div className="flex-1 overflow-auto">
+      {/* WS reconnecting/offline warning bar */}
+      <WSStatusBanner bar />
+
       <div className="border-b border-white/10 bg-slate-950/55 px-6 py-5 backdrop-blur">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -145,14 +125,11 @@ export default function RestaurantAdminDashboardPage() {
             </p>
           </div>
 
-          <div className="status-chip">
-            {new Date().toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </div>
+          <StatusChip
+            label={new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            variant="info"
+            dot
+          />
         </div>
       </div>
 
@@ -184,25 +161,25 @@ export default function RestaurantAdminDashboardPage() {
         )}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
+          <KPICard
             label="Today's Sales"
             value={`$${(sales?.totalSales || 0).toFixed(2)}`}
             sub={`${sales?.totalOrders || 0} orders so far`}
             tone="emerald"
           />
-          <StatCard
+          <KPICard
             label="Open Orders"
             value={openOrders.length}
             sub={`${kds?.pending || 0} waiting in kitchen`}
             tone="cyan"
           />
-          <StatCard
+          <KPICard
             label="Average Check"
             value={`$${(sales?.averageOrderValue || 0).toFixed(2)}`}
             sub="Current day average"
             tone="amber"
           />
-          <StatCard
+          <KPICard
             label="Tips Collected"
             value={`$${(sales?.totalTips || 0).toFixed(2)}`}
             sub="Captured today"
@@ -397,18 +374,35 @@ export default function RestaurantAdminDashboardPage() {
 
             <div className="mt-6 grid gap-4">
               <div className="soft-panel p-4">
-                <p className="text-sm font-semibold text-white">Low stock alerts</p>
-                <div className="mt-3 space-y-2">
-                  {lowStock.length === 0 && <p className="text-sm text-slate-500">Nothing urgent right now.</p>}
-                  {lowStock.slice(0, 5).map((item: any) => (
-                    <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
-                      <span className="truncate text-slate-300">{item.name}</span>
-                      <span className="shrink-0 font-semibold text-amber-200">
-                        {item.currentStock} {item.unit}
-                      </span>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">Low stock alerts</p>
+                  {lowStock.length > 0 && (
+                    <Link
+                      href={getRestaurantAdminPath(restaurantId, 'inventory')}
+                      className="text-[11px] font-semibold text-cyan-400 hover:underline"
+                    >
+                      View all →
+                    </Link>
+                  )}
                 </div>
+                {lowStock.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">Nothing urgent right now.</p>
+                ) : (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {lowStock.slice(0, 8).map((item: any) => (
+                      <StatusChip
+                        key={item.id}
+                        label={`${item.name} · ${item.currentStock} ${item.unit || ''}`}
+                        variant="warning"
+                        dot
+                        size="sm"
+                      />
+                    ))}
+                    {lowStock.length > 8 && (
+                      <StatusChip label={`+${lowStock.length - 8} more`} variant="neutral" size="sm" />
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="soft-panel p-4">
