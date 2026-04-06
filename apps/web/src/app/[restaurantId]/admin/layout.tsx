@@ -16,10 +16,14 @@ import {
   ChevronRightIcon,
   ClipboardDocumentListIcon,
   Cog6ToothIcon,
+  CpuChipIcon,
   CubeIcon,
+  EnvelopeIcon,
   FireIcon,
   GiftIcon,
+  HeartIcon,
   HomeIcon,
+  PhoneIcon,
   SparklesIcon,
   Squares2X2Icon,
   TableCellsIcon,
@@ -84,9 +88,24 @@ function Sidebar({
   const currentSection = getCurrentSection(pathname, restaurantId);
   const navSections = [
     {
-      label: 'Operations',
+      label: 'Overview',
       items: [
         { href: getRestaurantAdminPath(restaurantId), label: 'Dashboard', Icon: HomeIcon },
+        {
+          href: getRestaurantAdminPath(restaurantId, 'intelligence'),
+          label: 'PULSE AI™',
+          Icon: CpuChipIcon,
+          badge: 'AI',
+        },
+      ],
+    },
+    {
+      label: 'Guest Experience',
+      items: [
+        { href: getRestaurantAdminPath(restaurantId, 'reservations'), label: 'Reservations', Icon: CalendarDaysIcon, badge: 'New' },
+        { href: getRestaurantAdminPath(restaurantId, 'guests'), label: 'Guest Intelligence', Icon: HeartIcon, badge: 'New' },
+        { href: getRestaurantAdminPath(restaurantId, 'marketing'), label: 'Marketing', Icon: EnvelopeIcon, badge: 'New' },
+        { href: getRestaurantAdminPath(restaurantId, 'support'), label: 'Support Center', Icon: PhoneIcon, badge: 'New' },
         { href: getRestaurantAdminPath(restaurantId, 'orders'), label: 'Orders', Icon: ClipboardDocumentListIcon },
         { href: getRestaurantAdminPath(restaurantId, 'floor'), label: 'Floor Plan', Icon: TableCellsIcon },
       ],
@@ -110,10 +129,10 @@ function Sidebar({
       ],
     },
     {
-      label: 'Staff & Reports',
+      label: 'People',
       items: [
         { href: getRestaurantAdminPath(restaurantId, 'staff'), label: 'Staff', Icon: UserGroupIcon },
-        { href: getRestaurantAdminPath(restaurantId, 'workforce'), label: 'Workforce', Icon: CalendarDaysIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'workforce'), label: 'SmartSchedule™', Icon: CalendarDaysIcon },
         { href: getRestaurantAdminPath(restaurantId, 'reports'), label: 'Reports', Icon: ChartBarIcon },
         { href: getRestaurantAdminPath(restaurantId, 'audit'), label: 'Audit Log', Icon: ClipboardDocumentListIcon },
       ],
@@ -203,7 +222,7 @@ function Sidebar({
               </p>
             )}
             <div className="space-y-1">
-              {section.items.map(({ href, label, Icon }) => (
+              {section.items.map(({ href, label, Icon, badge }: any) => (
                 <Link
                   key={href}
                   href={href}
@@ -221,6 +240,11 @@ function Sidebar({
                 >
                   <Icon className="h-5 w-5 shrink-0" />
                   {!collapsed && <span className="flex-1">{label}</span>}
+                  {!collapsed && badge && !isActivePath(pathname, href) && (
+                    <span className="rounded-full bg-cyan-300/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-300">
+                      {badge}
+                    </span>
+                  )}
                   {!collapsed && isActivePath(pathname, href) && (
                     <span className="rounded-full bg-slate-950/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]">
                       Open

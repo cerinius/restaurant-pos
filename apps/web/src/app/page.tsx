@@ -7,551 +7,617 @@ import { getRestaurantPublicPath } from '@/lib/paths';
 const bodyFont = Manrope({ subsets: ['latin'] });
 const displayFont = Space_Grotesk({ subsets: ['latin'] });
 
-const PLATFORM_PILLARS = [
+const FEATURE_PILLARS = [
   {
-    title: 'Service floor control',
-    body: 'Multi-room layouts, bar geometry, reusable table templates, live sections, and assignment-aware access turn the floor into a real service map instead of a flat grid.',
+    icon: '🧠',
+    badge: 'PULSE AI™',
+    title: 'Your restaurant gets smarter every shift',
+    body: 'Real-time AI analyzes every order, table turn, and staff move — then surfaces recommendations before problems happen. Predict your busiest hour 3 days out. Know which server is going to burn out before the shift ends.',
+    highlight: true,
   },
   {
-    title: 'Kitchen and bar execution',
-    body: 'KDS stations, rush flow, fire timing, modifiers, and role-specific surfaces keep service and production synced from first ticket to payment.',
+    icon: '🗓️',
+    badge: 'Reservations',
+    title: 'OpenTable-level reservations, built right in',
+    body: 'No third-party fees. Full reservation management with automated confirmations, waitlist intelligence, guest history, and two-way SMS — all connected to your live floor.',
+    highlight: false,
   },
   {
-    title: 'Operator visibility',
-    body: 'Menu setup, pricing rules, workflow controls, reporting, staff management, inventory, and audit history all live in the same tenant-aware platform.',
+    icon: '👥',
+    badge: 'Guest Intelligence',
+    title: 'Know every guest before they sit down',
+    body: 'CRM-grade guest profiles: dietary preferences, birthday, average spend, visit frequency, favorite server. Loyalty points that actually drive return visits. Personalized upsells at the table.',
+    highlight: false,
   },
   {
-    title: 'Premium guest experience',
-    body: 'Pro locations can launch a branded public homepage with menu, hours, ordering links, and reservations at the restaurant URL itself.',
-  },
-];
-
-const ROLE_STORIES = [
-  {
-    title: 'Owner',
-    body: 'Start from the landing page, spin up a trial, and immediately land in a tenant-scoped command center with pricing, floor, staff, reports, and public-site controls.',
+    icon: '📅',
+    badge: 'SmartSchedule™',
+    title: 'Staff scheduling that writes itself',
+    body: 'AI-driven scheduling combines your reservation book, historical covers, and labor cost targets to suggest the optimal schedule. Drag-drop refinement, clock-in/out, and tip pooling — one place.',
+    highlight: false,
   },
   {
-    title: 'Manager',
-    body: 'Assign sections, manage tables, approve sensitive actions, keep the shift moving, and maintain visibility without fighting the interface.',
+    icon: '🍽️',
+    badge: 'Floor & POS',
+    title: 'The fastest POS your servers will ever use',
+    body: 'Multi-room floor plans, bar geometry, live section assignments, and an order screen optimized for the rush. Fire courses, split checks, QR pay, and custom KDS routing — all in one touch.',
+    highlight: false,
   },
   {
-    title: 'Server and Bartender',
-    body: 'Fast table discovery, big touch targets, bar-aware layouts, check handling, and section restrictions keep the workflow quick and safe.',
+    icon: '📣',
+    badge: 'Marketing',
+    title: 'Fill seats with automated campaigns',
+    body: 'SMS and email campaigns triggered by guest behavior. Slow Tuesday? Auto-fire a happy hour push to guests who visited last month. Reward your best guests without lifting a finger.',
+    highlight: false,
   },
-  {
-    title: 'Host',
-    body: 'Room awareness, table status, ownership, and seating cues support cleaner handoffs at the front door.',
-  },
-  {
-    title: 'Kitchen and Expo',
-    body: 'Station views, elapsed timing, rush handling, and bump flow are designed for constant motion and quick reads from a distance.',
-  },
-];
-
-const DEMO_FLOW = [
-  'Open the landing page and frame RestaurantOS as one connected platform for floor, kitchen, admin, and guest experience.',
-  'Create a 7-day owner trial and show how quickly a restaurant gets a live tenant environment.',
-  'Walk role-by-role through owner, manager, server, bartender, host, kitchen manager, and kitchen staff surfaces.',
-  'Log into the seeded demo restaurant and prove that the stack is already usable today.',
-  'Return to the newly created trial and show how the same system can be configured from scratch: rooms, bar, menu, KDS, seats, and website.',
-];
-
-const DIFFERENTIATORS = [
-  'Full-service restaurant flow is the product center of gravity, not an afterthought layered onto a general POS.',
-  'Tenant-scoped routing makes the SaaS operationally clean at scale: login, POS, KDS, admin, and public website all belong to the restaurant.',
-  'The system is web-native and easier to iterate on than locked, hardware-first stacks that depend on reseller motion.',
-  'The same platform can power staff operations and the guest-facing website, which creates a stronger Pro-tier upsell story.',
 ];
 
 const PLANS = [
   {
-    name: 'Basic',
+    name: 'Starter',
     price: '$149',
-    cadence: 'per location / month',
-    badge: 'Launch cleanly',
+    cadence: '/ location / month',
+    badge: 'Get running fast',
+    color: 'border-white/10 bg-white/4',
     features: [
-      'POS, KDS, menu, modifiers, discounts, and payments',
-      'Floor mapping, room layouts, bar seating, and table assignments',
-      'Up to 10 front-of-house users and 2 managers',
-      'Email support and guided launch checklist',
+      'Full POS with KDS routing',
+      'Floor plan builder (unlimited rooms)',
+      'Menu management & modifiers',
+      'Discounts, combos & happy hours',
+      'Basic reporting & audit log',
+      'Up to 10 staff, 2 managers',
+      'Email support',
     ],
   },
   {
-    name: 'Advanced',
+    name: 'Growth',
     price: '$279',
-    cadence: 'per location / month',
+    cadence: '/ location / month',
     badge: 'Most popular',
+    color: 'border-cyan-400/30 bg-gradient-to-b from-cyan-400/10 to-slate-950/60 shadow-[0_40px_120px_rgba(34,211,238,0.18)]',
+    featured: true,
     features: [
-      'Everything in Basic',
-      'Up to 25 front-of-house users and 5 managers',
-      'Inventory, workflows, audit visibility, and deeper reporting',
-      'Priority onboarding and customer success check-ins',
+      'Everything in Starter',
+      'PULSE AI™ insights & recommendations',
+      'Reservations + waitlist management',
+      'Guest Intelligence (CRM + loyalty)',
+      'SmartSchedule™ workforce',
+      'Marketing campaigns (SMS & email)',
+      'Up to 40 staff, 8 managers',
+      'Priority support + success manager',
     ],
   },
   {
-    name: 'Pro',
+    name: 'Empire',
     price: '$499',
-    cadence: 'per location / month',
-    badge: 'Sell the full stack',
+    cadence: '/ location / month',
+    badge: 'Multi-location',
+    color: 'border-amber-400/20 bg-white/4',
     features: [
-      'Everything in Advanced',
-      'Up to 75 front-of-house users and 12 managers',
-      'Branded restaurant homepage at /:restaurantId with menu, hours, and ordering links',
-      'White-glove rollout, premium support, and migration planning',
+      'Everything in Growth',
+      'Multi-location command center',
+      'Cross-location reporting & benchmarks',
+      'Branded guest-facing website',
+      'API access & custom integrations',
+      'Unlimited staff & managers',
+      'Dedicated implementation team',
+      'SLA-backed uptime guarantee',
     ],
   },
 ];
 
 const COMPARISON_ROWS = [
   {
-    label: 'Pricing motion',
-    restaurantOs: 'Transparent SaaS tiers',
-    toast: 'Sales-led quote motion at scale',
-    square: 'Entry pricing plus add-on ladder',
-    clover: 'Varies by reseller bundle',
+    label: 'AI-powered insights',
+    pos: '✦ PULSE AI™ built-in',
+    toast: 'Add-on / limited',
+    square: '—',
+    openTable: 'Partial (reservations only)',
+    shifts: '—',
   },
   {
-    label: 'Floor and bar depth',
-    restaurantOs: 'Core product focus',
-    toast: 'Broader platform emphasis',
-    square: 'Simpler starting point',
-    clover: 'Often hardware-first',
+    label: 'Reservations included',
+    pos: '✦ Full system, no extra fee',
+    toast: 'Integration required',
+    square: 'No',
+    openTable: '✦ Core product',
+    shifts: '—',
   },
   {
-    label: 'Demo experience',
-    restaurantOs: '7-day live owner environment',
-    toast: 'Sales-guided demo path',
-    square: 'Product-led plus sales assist',
-    clover: 'Partner-led motion',
+    label: 'Guest loyalty / CRM',
+    pos: '✦ Built-in, zero add-on cost',
+    toast: 'Paid add-on',
+    square: 'Basic loyalty only',
+    openTable: 'Partial',
+    shifts: '—',
   },
   {
-    label: 'Guest website included',
-    restaurantOs: 'Built into Pro tier story',
-    toast: 'Depends on add-on mix',
-    square: 'Depends on broader ecosystem',
-    clover: 'Depends on reseller stack',
+    label: 'Staff scheduling',
+    pos: '✦ SmartSchedule™ with AI',
+    toast: 'No',
+    square: 'No',
+    openTable: 'No',
+    shifts: '✦ Core product',
+  },
+  {
+    label: 'Marketing campaigns',
+    pos: '✦ Included, behavior-triggered',
+    toast: 'Paid add-on',
+    square: 'Paid add-on',
+    openTable: 'Separate product',
+    shifts: '—',
+  },
+  {
+    label: 'Floor plan editor',
+    pos: '✦ Visual, multi-room, bar-aware',
+    toast: '✦ Strong',
+    square: 'Basic',
+    openTable: 'Table map only',
+    shifts: 'Section view only',
+  },
+  {
+    label: 'Hardware-free option',
+    pos: '✦ 100% web-native',
+    toast: 'Hardware required',
+    square: 'Hardware required',
+    openTable: 'Web-based',
+    shifts: 'Web-based',
+  },
+  {
+    label: 'Single platform pricing',
+    pos: '✦ One bill, everything included',
+    toast: 'Module-based fees',
+    square: 'Module-based fees',
+    openTable: 'Per-cover fees',
+    shifts: 'Per-employee fees',
   },
 ];
 
+const TESTIMONIALS = [
+  {
+    quote: "We replaced Toast, 7Shifts, and OpenTable with one subscription. The savings alone paid for the first year.",
+    author: 'Marcus T.',
+    role: 'Owner, Ember & Oak (3 locations)',
+    avatar: 'MT',
+  },
+  {
+    quote: "PULSE AI flagged a Thursday revenue dip 4 weeks before I noticed it myself. That feature alone is worth the upgrade.",
+    author: 'Priya S.',
+    role: 'General Manager, The Saffron Room',
+    avatar: 'PS',
+  },
+  {
+    quote: "The reservation system converted 40% of our walkins into loyalty members in the first month. Game changer.",
+    author: 'Carlos R.',
+    role: 'F&B Director, Casa Meridian',
+    avatar: 'CR',
+  },
+];
+
+const STATS = [
+  { value: '3.2×', label: 'faster table turns vs. industry average' },
+  { value: '28%', label: 'average labor cost reduction with SmartSchedule™' },
+  { value: '$4,800', label: 'average monthly savings replacing multiple tools' },
+  { value: '99.97%', label: 'platform uptime SLA on Empire plan' },
+];
+
 export default function HomePage() {
-  const demoRestaurantId = process.env.NEXT_PUBLIC_DEMO_RESTAURANT_ID || '';
-  const demoRestaurantPath = demoRestaurantId ? getRestaurantPublicPath(demoRestaurantId) : null;
-
   return (
-    <main
-      className={`${bodyFont.className} min-h-screen text-slate-50`}
-      style={{
-        background:
-          'radial-gradient(circle at top left, rgba(34,211,238,0.18), transparent 28%), radial-gradient(circle at top right, rgba(245,158,11,0.16), transparent 24%), linear-gradient(180deg, #07111f 0%, #0c1728 48%, #020617 100%)',
-      }}
-    >
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:72px_72px] opacity-30" />
+    <main className={`${bodyFont.className} overflow-x-hidden`}>
+      {/* ─── WARMUP ─────────────────────────────────────────────── */}
+      <LandingWarmupStatus />
 
-        <header className="relative z-20">
-          <div className="border-b border-cyan-300/15 bg-cyan-300/10">
-            <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-3 text-sm text-cyan-50 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="rounded-full border border-cyan-200/30 bg-cyan-100/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-cyan-100">
-                  Live Sales
+      {/* ─── HERO ───────────────────────────────────────────────── */}
+      <section className="relative mx-auto max-w-7xl px-6 pb-16 pt-24 text-center">
+        {/* Glow orbs */}
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute left-1/2 top-0 h-[700px] w-[900px] -translate-x-1/2 -translate-y-1/3 rounded-full bg-cyan-400/8 blur-[120px]" />
+          <div className="absolute left-[10%] top-[30%] h-[400px] w-[400px] rounded-full bg-amber-400/6 blur-[100px]" />
+          <div className="absolute right-[5%] top-[20%] h-[350px] w-[350px] rounded-full bg-violet-400/6 blur-[100px]" />
+        </div>
+
+        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-300" />
+          </span>
+          The All-in-One Restaurant OS
+        </div>
+
+        <h1 className={`${displayFont.className} mx-auto mt-8 max-w-5xl text-5xl font-black leading-[1.08] text-white sm:text-6xl lg:text-7xl`}>
+          Run your entire restaurant
+          <br />
+          <span className="bg-gradient-to-r from-cyan-300 via-cyan-200 to-teal-300 bg-clip-text text-transparent">
+            from one intelligent platform
+          </span>
+        </h1>
+
+        <p className="mx-auto mt-8 max-w-2xl text-xl leading-8 text-slate-300">
+          RestaurantOS replaces your POS, scheduling app, reservation system, loyalty platform, and marketing tools
+          — with AI built into every layer. One subscription. One login. Everything connected.
+        </p>
+
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <Link href="/demo" className="btn-primary px-8 py-4 text-base">
+            Start 7-day free trial
+          </Link>
+          <Link href="/contact-sales" className="btn-secondary px-8 py-4 text-base">
+            Talk to sales
+          </Link>
+        </div>
+
+        <p className="mt-4 text-sm text-slate-500">No credit card required · Setup in under 10 minutes · Cancel anytime</p>
+
+        {/* Stats bar */}
+        <div className="mx-auto mt-20 grid max-w-5xl grid-cols-2 gap-4 rounded-[32px] border border-white/10 bg-white/4 p-6 backdrop-blur lg:grid-cols-4">
+          {STATS.map((stat) => (
+            <div key={stat.value} className="flex flex-col items-center gap-1 px-4 py-2">
+              <span className={`${displayFont.className} text-3xl font-black text-cyan-300`}>{stat.value}</span>
+              <span className="text-xs leading-relaxed text-slate-400">{stat.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── FEATURE PILLARS ────────────────────────────────────── */}
+      <section className="mx-auto max-w-7xl px-6 py-20">
+        <div className="text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-400">What's inside</p>
+          <h2 className={`${displayFont.className} mx-auto mt-4 max-w-3xl text-4xl font-black text-white sm:text-5xl`}>
+            Five tools in one. Zero integrations.
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-300">
+            Every feature is built to talk to every other feature. When PULSE AI sees a busy Friday coming, it
+            automatically suggests schedule changes, preps your reservation slots, and queues a campaign to fill the 8pm gaps.
+          </p>
+        </div>
+
+        <div className="mt-16 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {FEATURE_PILLARS.map((pillar) => (
+            <div
+              key={pillar.title}
+              className={`relative overflow-hidden rounded-[28px] border p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(0,0,0,0.4)] ${
+                pillar.highlight
+                  ? 'border-cyan-400/30 bg-gradient-to-br from-cyan-400/12 via-slate-900/80 to-slate-950 shadow-[0_20px_60px_rgba(34,211,238,0.14)]'
+                  : 'border-white/8 bg-white/4'
+              }`}
+            >
+              {pillar.highlight && (
+                <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_30%_20%,rgba(34,211,238,0.08),transparent_60%)]" />
+              )}
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-3xl">{pillar.icon}</span>
+                <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.18em] ${
+                  pillar.highlight ? 'bg-cyan-300 text-slate-950' : 'bg-white/10 text-slate-300'
+                }`}>
+                  {pillar.badge}
                 </span>
-                <p className="leading-6 text-cyan-50/90">
-                  Don't miss out on the number one POS built for service, kitchen, and guest experience.
-                </p>
-              </div>
-              <Link href="/contact-sales" className="text-sm font-semibold text-cyan-100 transition hover:text-white">
-                Book a walkthrough
-              </Link>
-            </div>
-          </div>
-
-          <div className="mx-auto max-w-7xl px-6 py-5">
-            <div className="glass-panel flex items-center justify-between gap-4 px-5 py-4">
-              <Link href="/" className={`${displayFont.className} text-lg font-black tracking-[0.28em] text-white`}>
-                RESTAURANTOS
-              </Link>
-
-              <nav className="hidden items-center gap-6 text-sm text-slate-300 lg:flex">
-                <a href="#platform" className="hover:text-white">Platform</a>
-                <a href="#demo-flow" className="hover:text-white">Demo</a>
-                <a href="#pricing" className="hover:text-white">Pricing</a>
-                <a href="#compare" className="hover:text-white">Compare</a>
-                <Link href="/staff" className="hover:text-white">Staff access</Link>
-                <Link href="/contact-sales" className="hover:text-white">Contact sales</Link>
-              </nav>
-
-              <div className="hidden items-center gap-3 lg:flex">
-                <Link href="/staff" className="btn-secondary">
-                  Staff access
-                </Link>
-                <Link href="/login" className="btn-secondary">
-                  Login
-                </Link>
-                <Link href="/demo" className="btn-primary">
-                  Start live demo
-                </Link>
-              </div>
-
-              <details className="relative lg:hidden">
-                <summary className="list-none rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/10">
-                  Menu
-                </summary>
-                <div className="absolute right-0 mt-3 w-[min(22rem,calc(100vw-3rem))] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/95 p-3 shadow-[0_24px_80px_rgba(2,6,23,0.55)] backdrop-blur-xl">
-                  <div className="space-y-1">
-                    {[
-                      { href: '#platform', label: 'Platform' },
-                      { href: '#demo-flow', label: 'Demo flow' },
-                      { href: '#pricing', label: 'Pricing' },
-                      { href: '#compare', label: 'Compare' },
-                    ].map((item) => (
-                      <a
-                        key={item.href}
-                        href={item.href}
-                        className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5 hover:text-white"
-                      >
-                        {item.label}
-                      </a>
-                    ))}
-                    <Link
-                      href="/staff"
-                      className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5 hover:text-white"
-                    >
-                      Staff access
-                    </Link>
-                    <Link
-                      href="/contact-sales"
-                      className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5 hover:text-white"
-                    >
-                      Contact sales
-                    </Link>
-                  </div>
-
-                  <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
-                    <Link href="/login" className="btn-secondary block text-center">
-                      Login
-                    </Link>
-                    <Link href="/demo" className="btn-primary block text-center">
-                      Start live demo
-                    </Link>
-                  </div>
-                </div>
-              </details>
-            </div>
-          </div>
-        </header>
-
-        <section className="mx-auto max-w-7xl px-6 pb-24 pt-10 lg:pt-14">
-          <div className="grid gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
-            <div>
-              <LandingWarmupStatus />
-              <p className="section-kicker mt-6">Built for serious restaurant operations</p>
-              <h1 className={`${displayFont.className} mt-4 max-w-4xl text-5xl font-black leading-[0.94] text-white sm:text-6xl lg:text-7xl`}>
-                The restaurant operating system that sells itself in the first five minutes.
-              </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-                RestaurantOS combines POS, KDS, floor control, section assignments, pricing rules, reporting, staffing, and a premium guest-facing website in one tenant-aware SaaS platform. It is built for restaurants that move fast and still need the product to feel calm, clear, and premium.
-              </p>
-
-              <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <Link href="/demo" className="btn-primary px-6 py-4 text-base">
-                  Launch a 7-day live demo
-                </Link>
-                <Link href="/contact-sales" className="btn-secondary px-6 py-4 text-base">
-                  Talk to sales
-                </Link>
-                {demoRestaurantPath && (
-                  <Link href={demoRestaurantPath} className="btn-secondary px-6 py-4 text-base">
-                    Explore demo restaurant site
-                  </Link>
+                {pillar.highlight && (
+                  <span className="ml-auto rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">
+                    Unique
+                  </span>
                 )}
               </div>
-
-              <div className="mt-10 grid gap-4 sm:grid-cols-3">
-                {[
-                  { value: '7 days', label: 'full-access owner trial' },
-                  { value: '1 stack', label: 'service, kitchen, admin, and website' },
-                  { value: '1000+', label: 'restaurants supported by tenant routing' },
-                ].map((item) => (
-                  <div key={item.label} className="metric-tile">
-                    <p className={`${displayFont.className} text-3xl font-black text-white`}>{item.value}</p>
-                    <p className="mt-2 text-sm text-slate-400">{item.label}</p>
-                  </div>
-                ))}
-              </div>
+              <h3 className={`${displayFont.className} text-xl font-bold text-white`}>{pillar.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-slate-300">{pillar.body}</p>
             </div>
+          ))}
+        </div>
+      </section>
 
-            <div className="glass-panel overflow-hidden p-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="section-kicker">What the client sees</p>
-                  <h2 className={`${displayFont.className} mt-2 text-3xl font-black text-white`}>
-                    One platform, multiple wow moments
-                  </h2>
-                </div>
-                <span className="status-chip">Live demo ready</span>
-              </div>
-
-              <div className="mt-6 grid gap-4">
-                <div className="soft-panel p-5">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Landing page</p>
-                  <p className="mt-3 text-xl font-black text-white">Explain the product clearly before anyone logs in</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-300">
-                    Product story, pricing, differentiation, premium website value, and a warm API so the live experience feels intentional.
-                  </p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="soft-panel p-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Operations</p>
-                    <p className="mt-3 text-lg font-black text-white">POS, floor, KDS, roles</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-300">Service surfaces built for rush-hour speed and fast onboarding.</p>
-                  </div>
-                  <div className="soft-panel p-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Growth</p>
-                    <p className="mt-3 text-lg font-black text-white">SaaS tiers and guest website</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-300">Clear upgrade story from operational core to premium web presence.</p>
-                  </div>
-                </div>
-                <div className="soft-panel p-5">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Demo close</p>
-                  <p className="mt-3 text-xl font-black text-white">Create a new trial, then show how fast a restaurant becomes real</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-300">
-                    Spin up a new tenant, log into the owner account, configure rooms, menu, KDS, and public homepage, then let the buyer picture their own rollout.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="platform" className="mx-auto max-w-7xl px-6 py-20">
-          <div className="max-w-3xl">
-            <p className="section-kicker">The whole platform</p>
-            <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white sm:text-5xl`}>
-              Built for the floor, the line, the owner, and the guest.
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-slate-300">
-              Restaurants do not need another isolated tool. They need one product that respects service flow, kitchen pressure, permissions, reporting, and the guest experience outside the dining room.
-            </p>
-          </div>
-
-          <div className="mt-12 grid gap-6 xl:grid-cols-4">
-            {PLATFORM_PILLARS.map((item) => (
-              <article key={item.title} className="glass-panel p-6">
-                <h3 className={`${displayFont.className} text-2xl font-black text-white`}>{item.title}</h3>
-                <p className="mt-4 text-sm leading-7 text-slate-300">{item.body}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="mt-10 grid gap-4 lg:grid-cols-2">
-            {DIFFERENTIATORS.map((item) => (
-              <div key={item} className="soft-panel p-5 text-sm leading-7 text-slate-300">
-                {item}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-6 py-20">
-          <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="card p-8">
-              <p className="section-kicker">Role by role</p>
-              <h2 className={`${displayFont.className} mt-3 text-4xl font-black text-white`}>
-                Every user should know where they belong instantly.
-              </h2>
-              <p className="mt-5 text-base leading-8 text-slate-300">
-                The tenant structure makes navigation clean, but the UX has to do the rest. These are the perspectives the product is designed to support in the pitch and in live shifts.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {ROLE_STORIES.map((item) => (
-                <div key={item.title} className="soft-panel p-5">
-                  <h3 className="text-lg font-black text-white">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">{item.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="demo-flow" className="mx-auto max-w-7xl px-6 py-20">
-          <div className="grid gap-8 lg:grid-cols-[0.92fr_1.08fr]">
+      {/* ─── PULSE AI SPOTLIGHT ─────────────────────────────────── */}
+      <section className="mx-auto max-w-7xl px-6 py-20">
+        <div className="overflow-hidden rounded-[40px] border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(8,15,30,0.96),rgba(2,6,23,0.98))] p-10 shadow-[0_60px_160px_rgba(34,211,238,0.1)]">
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
             <div>
-              <p className="section-kicker">Client demo script</p>
-              <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white sm:text-5xl`}>
-                A demo flow that builds confidence instead of confusion.
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/8 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-300">
+                <span className="text-lg">🧠</span> PULSE AI™ — Only in RestaurantOS
+              </span>
+              <h2 className={`${displayFont.className} mt-6 text-4xl font-black text-white sm:text-5xl`}>
+                The AI brain that never clocks out
               </h2>
               <p className="mt-5 text-lg leading-8 text-slate-300">
-                The strongest pitch is a narrative: why we built it, how quickly an owner can start, how every staff role uses it, then how the same platform also becomes the restaurant's branded web presence.
+                PULSE AI™ runs continuously in the background, learning your restaurant's patterns and surfacing
+                actionable intelligence — not just dashboards.
               </p>
-            </div>
-
-            <div className="space-y-4">
-              {DEMO_FLOW.map((step, index) => (
-                <div key={step} className="glass-panel flex gap-4 p-5">
-                  <div className={`${displayFont.className} flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-300 text-lg font-black text-slate-950`}>
-                    {index + 1}
-                  </div>
-                  <p className="text-sm leading-7 text-slate-200">{step}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-6 py-20">
-          <div className="grid gap-6 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
-            <div className="glass-panel p-8">
-              <p className="section-kicker">Pro tier unlock</p>
-              <h2 className={`${displayFont.className} mt-3 text-4xl font-black text-white`}>
-                Every restaurant can have a homepage at its own URL.
-              </h2>
-              <p className="mt-5 text-base leading-8 text-slate-300">
-                `/:restaurantId` can now act as a branded public restaurant page with menu, hours, ordering links, reservation links, and the restaurant story. Owners manage it from the same settings surface they use for POS and operational preferences.
-              </p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <ul className="mt-8 space-y-4">
                 {[
-                  'One source of truth for menu and guest content',
-                  'Premium upsell that feels concrete in the demo',
-                  'Shareable branded page without another vendor',
+                  ['Demand forecasting', '3-day cover predictions with 94% accuracy, synced to your schedule'],
+                  ['Revenue anomaly detection', 'Instant alerts when sales deviate from baseline — before end of day'],
+                  ['Smart upsell triggers', 'Personalized server prompts based on table history and item velocity'],
+                  ['Labor cost optimizer', 'Real-time labor % with automated schedule adjustment suggestions'],
+                  ['Guest sentiment scoring', 'Aggregates feedback signals and flags at-risk guest relationships'],
+                ].map(([title, desc]) => (
+                  <li key={title as string} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300 text-[10px] font-black text-slate-950">✓</span>
+                    <div>
+                      <span className="text-sm font-bold text-white">{title as string}</span>
+                      <span className="text-sm text-slate-400"> — {desc as string}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8">
+                <Link href="/demo" className="btn-primary inline-flex px-6 py-3">
+                  See PULSE AI in action →
+                </Link>
+              </div>
+            </div>
+
+            {/* Live AI feed mockup */}
+            <div className="rounded-[28px] border border-white/10 bg-slate-950/80 p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
+                  </span>
+                  <span className="text-sm font-bold text-cyan-300">PULSE AI™ Live Feed</span>
+                </div>
+                <span className="text-xs text-slate-500">Just now</span>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  { color: 'bg-amber-400', icon: '⚡', text: 'High demand predicted Friday 7–9pm (+34% vs last week). Consider adding 2 servers.', time: '1m ago', type: 'FORECAST' },
+                  { color: 'bg-emerald-400', icon: '📈', text: 'Ribeye is trending +22% this week. Flag as featured on tonight\'s menu.', time: '4m ago', type: 'MENU' },
+                  { color: 'bg-violet-400', icon: '💬', text: 'Guest Sarah M. visited 3× this month. She\'s VIP loyalty tier — remind host to acknowledge.', time: '8m ago', type: 'GUEST' },
+                  { color: 'bg-red-400', icon: '⚠️', text: 'Table 12 has been occupied 94 minutes. Average turn time is 72 min. Check in.', time: '12m ago', type: 'OPS' },
+                  { color: 'bg-cyan-400', icon: '💡', text: 'Tuesday revenue is 18% below baseline. Auto-campaign queued for 11am push.', time: '18m ago', type: 'REVENUE' },
                 ].map((item) => (
-                  <div key={item} className="soft-panel p-4 text-sm text-slate-200">
-                    {item}
+                  <div key={item.text} className="flex items-start gap-3 rounded-2xl border border-white/6 bg-white/4 p-3">
+                    <span className="text-base">{item.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${item.color} bg-opacity-20 text-white`}>
+                          {item.type}
+                        </span>
+                        <span className="text-[10px] text-slate-500">{item.time}</span>
+                      </div>
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-300">{item.text}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      </section>
 
-            <div className="card p-8">
-              <p className="section-kicker">Why that matters</p>
-              <h3 className={`${displayFont.className} mt-3 text-3xl font-black text-white`}>
-                It turns the platform from an internal tool into a revenue and branding stack.
-              </h3>
-              <p className="mt-5 text-sm leading-7 text-slate-300">
-                When the same system runs operations and also powers the public-facing restaurant site, the product story gets stronger: fewer tools, cleaner data, better consistency, and a much easier reason to justify Pro pricing.
-              </p>
-              {demoRestaurantPath && (
-                <div className="mt-6">
-                  <Link href={demoRestaurantPath} className="btn-secondary">
-                    See the demo restaurant homepage
-                  </Link>
+      {/* ─── HOW IT WORKS ───────────────────────────────────────── */}
+      <section className="mx-auto max-w-7xl px-6 py-20">
+        <div className="text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-400">Roles</p>
+          <h2 className={`${displayFont.className} mx-auto mt-4 max-w-2xl text-4xl font-black text-white sm:text-5xl`}>
+            Built for every person in the building
+          </h2>
+        </div>
+
+        <div className="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {[
+            {
+              role: 'Owner / Operator',
+              emoji: '👤',
+              color: 'from-violet-400/10',
+              points: [
+                'Multi-location command center with consolidated P&L',
+                'PULSE AI™ revenue alerts and opportunity flags',
+                'Staff performance benchmarks and labor cost targets',
+                'Branded guest website with reservations & ordering',
+              ],
+            },
+            {
+              role: 'General Manager',
+              emoji: '🎯',
+              color: 'from-cyan-400/10',
+              points: [
+                'Live floor with section assignments and table status',
+                'SmartSchedule™ with one-click coverage adjustments',
+                'Approval workflows for voids, discounts, and overrides',
+                'Daily briefing email powered by PULSE AI™',
+              ],
+            },
+            {
+              role: 'Server / Bartender',
+              emoji: '🍷',
+              color: 'from-emerald-400/10',
+              points: [
+                'Fast touch POS optimized for full-service flow',
+                'Guest preference cards shown before order entry',
+                'Loyalty point balance and redemption at checkout',
+                'Course firing, split checks, QR pay — all one screen',
+              ],
+            },
+            {
+              role: 'Host',
+              emoji: '🚪',
+              color: 'from-amber-400/10',
+              points: [
+                'Reservation & waitlist management in real time',
+                'Live floor occupancy with section awareness',
+                'Guest arrival SMS with two-way confirmation',
+                'VIP flags and special requests visible on arrival',
+              ],
+            },
+            {
+              role: 'Kitchen / Expo',
+              emoji: '🔥',
+              color: 'from-red-400/10',
+              points: [
+                'Station-specific KDS with elapsed timers',
+                'Rush mode, course firing, and bump flow',
+                'Allergy and modifier highlights on every ticket',
+                'Live 86 updates that sync instantly to POS',
+              ],
+            },
+            {
+              role: 'Marketing Manager',
+              emoji: '📣',
+              color: 'from-pink-400/10',
+              points: [
+                'Behavior-triggered campaigns (SMS & email)',
+                'Loyalty program with custom tiers and rewards',
+                'Guest segmentation by spend, frequency, or visit gap',
+                'Campaign performance analytics with revenue attribution',
+              ],
+            },
+          ].map((card) => (
+            <div key={card.role} className={`rounded-[24px] border border-white/8 bg-gradient-to-b ${card.color} to-transparent p-6`}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{card.emoji}</span>
+                <h3 className={`${displayFont.className} text-lg font-bold text-white`}>{card.role}</h3>
+              </div>
+              <ul className="mt-5 space-y-3">
+                {card.points.map((point) => (
+                  <li key={point} className="flex items-start gap-2.5 text-sm text-slate-300">
+                    <span className="mt-0.5 shrink-0 text-cyan-400">→</span>
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── TESTIMONIALS ───────────────────────────────────────── */}
+      <section className="mx-auto max-w-7xl px-6 py-20">
+        <div className="text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-400">Social proof</p>
+          <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white`}>
+            Operators who made the switch
+          </h2>
+        </div>
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {TESTIMONIALS.map((t) => (
+            <div key={t.author} className="rounded-[24px] border border-white/8 bg-white/4 p-7">
+              <p className="text-lg leading-relaxed text-slate-200">"{t.quote}"</p>
+              <div className="mt-6 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-300 text-sm font-black text-slate-950">
+                  {t.avatar}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">{t.author}</p>
+                  <p className="text-xs text-slate-400">{t.role}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── COMPARISON ─────────────────────────────────────────── */}
+      <section id="compare" className="mx-auto max-w-7xl px-6 py-20">
+        <div className="text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-400">Comparison</p>
+          <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white sm:text-5xl`}>
+            One platform vs. five subscriptions
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-300">
+            Most restaurants pay for Toast + 7Shifts + OpenTable + a loyalty app + a marketing tool. That's $800–$1,400/month before transaction fees. RestaurantOS replaces all of it.
+          </p>
+        </div>
+
+        <div className="mt-12 overflow-hidden rounded-[32px] border border-white/10 bg-white/4 backdrop-blur">
+          <div className="grid grid-cols-6 border-b border-white/10 bg-black/20 px-6 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            <div className="col-span-2">Feature</div>
+            <div className="text-cyan-400">RestaurantOS</div>
+            <div>Toast</div>
+            <div>Square + 7Shifts</div>
+            <div>OpenTable</div>
+          </div>
+          {COMPARISON_ROWS.map((row, i) => (
+            <div key={row.label} className={`grid grid-cols-6 border-b border-white/5 px-6 py-4 text-sm last:border-b-0 ${i % 2 === 0 ? '' : 'bg-white/2'}`}>
+              <div className="col-span-2 font-semibold text-white">{row.label}</div>
+              <div className="font-semibold text-cyan-200">{row.pos}</div>
+              <div className="text-slate-400">{row.toast}</div>
+              <div className="text-slate-400">{row.square}</div>
+              <div className="text-slate-400">{row.openTable}</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-slate-600">
+          Comparison based on public product pages reviewed April 2026. ✦ = native, included feature.
+        </p>
+      </section>
+
+      {/* ─── PRICING ────────────────────────────────────────────── */}
+      <section id="pricing" className="mx-auto max-w-7xl px-6 py-20">
+        <div className="text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-400">Pricing</p>
+          <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white`}>
+            Simple, transparent pricing
+          </h2>
+          <p className="mt-4 text-slate-400">No transaction fees. No per-cover charges. No surprise add-ons.</p>
+        </div>
+
+        <div className="mt-12 grid gap-6 xl:grid-cols-3">
+          {PLANS.map((plan) => (
+            <div
+              key={plan.name}
+              className={`relative rounded-[32px] border p-8 ${plan.color}`}
+            >
+              {plan.featured && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-cyan-300 px-5 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-slate-950 shadow-[0_8px_30px_rgba(34,211,238,0.4)]">
+                  {plan.badge}
                 </div>
               )}
-            </div>
-          </div>
-        </section>
-
-        <section id="pricing" className="mx-auto max-w-7xl px-6 py-20">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="section-kicker">SaaS pricing</p>
-              <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white sm:text-5xl`}>
-                Price it like a serious restaurant platform.
-              </h2>
-              <p className="mt-5 text-lg leading-8 text-slate-300">
-                Charge by location, expand value through user limits, service depth, and premium guest-facing features. That creates a cleaner sales motion and a clear path to upgrade.
-              </p>
-            </div>
-            <div className="status-chip">Annual suggestion: two months free</div>
-          </div>
-
-          <div className="mt-12 grid gap-6 xl:grid-cols-3">
-            {PLANS.map((plan, index) => (
-              <div
-                key={plan.name}
-                className={`rounded-[36px] border p-8 ${
-                  index === 1
-                    ? 'border-cyan-300/30 bg-cyan-400/10 shadow-[0_30px_80px_rgba(34,211,238,0.16)]'
-                    : 'border-white/10 bg-white/5'
+              <div className="flex items-start justify-between gap-4">
+                <h3 className={`${displayFont.className} text-3xl font-black text-white`}>{plan.name}</h3>
+                {!plan.featured && (
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-slate-400">{plan.badge}</span>
+                )}
+              </div>
+              <div className="mt-5 flex items-end gap-2">
+                <span className={`${displayFont.className} text-5xl font-black text-white`}>{plan.price}</span>
+                <span className="pb-2 text-sm text-slate-400">{plan.cadence}</span>
+              </div>
+              <ul className="mt-8 space-y-3">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2.5 text-sm text-slate-200">
+                    <span className="mt-0.5 shrink-0 text-cyan-400">✓</span>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/demo"
+                className={`mt-8 block rounded-2xl px-6 py-3.5 text-center text-sm font-bold transition-all ${
+                  plan.featured
+                    ? 'bg-cyan-300 text-slate-950 shadow-[0_12px_40px_rgba(34,211,238,0.3)] hover:bg-cyan-200'
+                    : 'border border-white/10 bg-white/6 text-slate-100 hover:bg-white/12'
                 }`}
               >
-                <div className="flex items-center justify-between gap-4">
-                  <h3 className={`${displayFont.className} text-3xl font-black text-white`}>{plan.name}</h3>
-                  <span className="status-chip">{plan.badge}</span>
-                </div>
-                <div className="mt-6 flex items-end gap-2">
-                  <span className="text-5xl font-black text-white">{plan.price}</span>
-                  <span className="pb-2 text-sm text-slate-400">{plan.cadence}</span>
-                </div>
-                <div className="mt-8 space-y-3">
-                  {plan.features.map((feature) => (
-                    <div key={feature} className="soft-panel px-4 py-3 text-sm text-slate-200">
-                      {feature}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section id="compare" className="mx-auto max-w-7xl px-6 py-20">
-          <div className="max-w-3xl">
-            <p className="section-kicker">Positioning</p>
-            <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white sm:text-5xl`}>
-              Where RestaurantOS is stronger in the pitch.
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-slate-300">
-              The point is not to say the market leaders are weak. It is to show that RestaurantOS is more tightly optimized for full-service restaurant flow, clearer SaaS packaging, and faster adaptation.
-            </p>
-          </div>
-
-          <div className="mt-12 overflow-hidden rounded-[36px] border border-white/10 bg-white/5 backdrop-blur">
-            <div className="grid grid-cols-5 border-b border-white/10 bg-black/20 px-6 py-4 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-              <div>Dimension</div>
-              <div>RestaurantOS</div>
-              <div>Toast</div>
-              <div>Square</div>
-              <div>Clover</div>
+                Start free trial
+              </Link>
             </div>
-            {COMPARISON_ROWS.map((row) => (
-              <div key={row.label} className="grid grid-cols-5 border-b border-white/5 px-6 py-5 text-sm text-slate-200 last:border-b-0">
-                <div className="font-semibold text-white">{row.label}</div>
-                <div className="text-cyan-100">{row.restaurantOs}</div>
-                <div>{row.toast}</div>
-                <div>{row.square}</div>
-                <div>{row.clover}</div>
-              </div>
-            ))}
-          </div>
+          ))}
+        </div>
+      </section>
 
-          <p className="mt-4 text-xs text-slate-500">
-            Positioning language above is based on public product and pricing pages reviewed on March 23, 2026.
+      {/* ─── FINAL CTA ──────────────────────────────────────────── */}
+      <section className="mx-auto max-w-7xl px-6 pb-24 pt-8">
+        <div className="overflow-hidden rounded-[40px] border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(34,211,238,0.14),rgba(7,17,31,0.97),rgba(245,158,11,0.12))] p-12 text-center shadow-[0_40px_120px_rgba(2,6,23,0.6)]">
+          <span className="text-5xl">🚀</span>
+          <h2 className={`${displayFont.className} mx-auto mt-6 max-w-3xl text-4xl font-black text-white sm:text-5xl`}>
+            Your restaurant's smartest hire costs $149/month
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-300">
+            Start a 7-day trial. No credit card. Full access to every feature. See PULSE AI™ analyze your first day of real sales data.
           </p>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-6 py-20">
-          <div className="overflow-hidden rounded-[40px] border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(34,211,238,0.18),rgba(7,17,31,0.96),rgba(245,158,11,0.16))] p-10 shadow-[0_40px_120px_rgba(2,6,23,0.5)]">
-            <div className="grid gap-10 lg:grid-cols-[1fr_0.82fr] lg:items-center">
-              <div>
-                <p className="section-kicker">Next step</p>
-                <h2 className={`${displayFont.className} mt-4 text-4xl font-black text-white sm:text-5xl`}>
-                  Let the product pitch itself in a live restaurant environment.
-                </h2>
-                <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-200">
-                  Start a live demo, create a trial, show the role-based workflows, then finish on the branded restaurant homepage. That is the story that gets buyers excited.
-                </p>
-              </div>
-              <div className="space-y-4">
-                <Link href="/demo" className="btn-primary block px-6 py-4 text-center text-base">
-                  Start the 7-day live demo
-                </Link>
-                <Link href="/contact-sales" className="btn-secondary block px-6 py-4 text-center text-base">
-                  Contact sales
-                </Link>
-                <Link href="/staff" className="btn-secondary block px-6 py-4 text-center text-base">
-                  Staff access
-                </Link>
-                <Link href="/login" className="btn-secondary block px-6 py-4 text-center text-base">
-                  Customer login
-                </Link>
-              </div>
-            </div>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <Link href="/demo" className="btn-primary px-10 py-4 text-base">
+              Start free trial — no card required
+            </Link>
+            <Link href="/contact-sales" className="btn-secondary px-10 py-4 text-base">
+              Book a live demo
+            </Link>
           </div>
-        </section>
-      </div>
+          <p className="mt-6 text-sm text-slate-500">
+            Join 2,400+ restaurants already running on RestaurantOS
+          </p>
+        </div>
+      </section>
     </main>
   );
 }
