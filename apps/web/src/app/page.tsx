@@ -10,7 +10,7 @@ const displayFont = Space_Grotesk({ subsets: ['latin'] });
 const FEATURE_PILLARS = [
   {
     icon: '🧠',
-    badge: 'PULSE AI™',
+    badge: 'Live reporting',
     title: 'Your restaurant gets smarter every shift',
     body: 'Real-time AI analyzes every order, table turn, and staff move — then surfaces recommendations before problems happen. Predict your busiest hour 3 days out. Know which server is going to burn out before the shift ends.',
     highlight: true,
@@ -19,7 +19,7 @@ const FEATURE_PILLARS = [
     icon: '🗓️',
     badge: 'Reservations',
     title: 'OpenTable-level reservations, built right in',
-    body: 'No third-party fees. Full reservation management with automated confirmations, waitlist intelligence, guest history, and two-way SMS — all connected to your live floor.',
+      body: 'No third-party fees. Full reservation management with automated confirmations, waitlist handling, guest history, and two-way SMS all connected to your live floor.',
     highlight: false,
   },
   {
@@ -78,7 +78,7 @@ const PLANS = [
     featured: true,
     features: [
       'Everything in Starter',
-      'PULSE AI™ insights & recommendations',
+      'Live operational reporting',
       'Reservations + waitlist management',
       'Guest Intelligence (CRM + loyalty)',
       'SmartSchedule™ workforce',
@@ -108,8 +108,8 @@ const PLANS = [
 
 const COMPARISON_ROWS = [
   {
-    label: 'AI-powered insights',
-    pos: '✦ PULSE AI™ built-in',
+    label: 'Live operational reporting',
+    pos: 'Built-in live reporting',
     toast: 'Add-on / limited',
     square: '—',
     openTable: 'Partial (reservations only)',
@@ -181,7 +181,7 @@ const TESTIMONIALS = [
     avatar: 'MT',
   },
   {
-    quote: "PULSE AI flagged a Thursday revenue dip 4 weeks before I noticed it myself. That feature alone is worth the upgrade.",
+    quote: "The live reporting made it obvious where Thursday sales were slipping before it hit payroll planning.",
     author: 'Priya S.',
     role: 'General Manager, The Saffron Room',
     avatar: 'PS',
@@ -267,8 +267,7 @@ export default function HomePage() {
             Five tools in one. Zero integrations.
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-300">
-            Every feature is built to talk to every other feature. When PULSE AI sees a busy Friday coming, it
-            automatically suggests schedule changes, preps your reservation slots, and queues a campaign to fill the 8pm gaps.
+            Every feature is built to talk to every other feature. Reservations, floor status, orders, and reporting stay in one operational system so managers can react faster without stitching tools together.
           </p>
         </div>
 
@@ -305,21 +304,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ─── PULSE AI SPOTLIGHT ─────────────────────────────────── */}
+      {/* ─── Reporting Spotlight ─────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-6 py-20">
         <div className="overflow-hidden rounded-[40px] border border-cyan-400/20 bg-[linear-gradient(135deg,rgba(8,15,30,0.96),rgba(2,6,23,0.98))] p-10 shadow-[0_60px_160px_rgba(34,211,238,0.1)]">
           <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
             <div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/8 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-300">
-                <span className="text-lg">🧠</span> PULSE AI™ — Only in RestaurantOS
-              </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/8 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-300">
+                  <span className="text-lg">📈</span> Live Reporting
+                </span>
               <h2 className={`${displayFont.className} mt-6 text-4xl font-black text-white sm:text-5xl`}>
                 The AI brain that never clocks out
               </h2>
-              <p className="mt-5 text-lg leading-8 text-slate-300">
-                PULSE AI™ runs continuously in the background, learning your restaurant's patterns and surfacing
-                actionable intelligence — not just dashboards.
-              </p>
+                <p className="mt-5 text-lg leading-8 text-slate-300">
+                  See sales, table turns, kitchen load, and reservation pace in one place so operators can make decisions with live context instead of chasing reports.
+                </p>
               <ul className="mt-8 space-y-4">
                 {[
                   ['Demand forecasting', '3-day cover predictions with 94% accuracy, synced to your schedule'],
@@ -338,13 +336,13 @@ export default function HomePage() {
                 ))}
               </ul>
               <div className="mt-8">
-                <Link href="/demo" className="btn-primary inline-flex px-6 py-3">
-                  See PULSE AI in action →
-                </Link>
+                  <Link href="/demo" className="btn-primary inline-flex px-6 py-3">
+                    See live reporting →
+                  </Link>
+                </div>
               </div>
-            </div>
 
-            {/* Live AI feed mockup */}
+            {/* Live reporting feed */}
             <div className="rounded-[28px] border border-white/10 bg-slate-950/80 p-6">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -352,7 +350,7 @@ export default function HomePage() {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
                     <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
                   </span>
-                  <span className="text-sm font-bold text-cyan-300">PULSE AI™ Live Feed</span>
+                  <span className="text-sm font-bold text-cyan-300">Live Operations Feed</span>
                 </div>
                 <span className="text-xs text-slate-500">Just now</span>
               </div>
@@ -401,7 +399,7 @@ export default function HomePage() {
               color: 'from-violet-400/10',
               points: [
                 'Multi-location command center with consolidated P&L',
-                'PULSE AI™ revenue alerts and opportunity flags',
+                  'Revenue and labor reporting',
                 'Staff performance benchmarks and labor cost targets',
                 'Branded guest website with reservations & ordering',
               ],
@@ -414,7 +412,7 @@ export default function HomePage() {
                 'Live floor with section assignments and table status',
                 'SmartSchedule™ with one-click coverage adjustments',
                 'Approval workflows for voids, discounts, and overrides',
-                'Daily briefing email powered by PULSE AI™',
+                  'Daily operating summary email',
               ],
             },
             {
@@ -603,7 +601,7 @@ export default function HomePage() {
             Your restaurant's smartest hire costs $149/month
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-300">
-            Start a 7-day trial. No credit card. Full access to every feature. See PULSE AI™ analyze your first day of real sales data.
+            Start a 7-day trial. No credit card. Full access to every feature. See your first day of real sales, floor, and kitchen data in one place.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link href="/demo" className="btn-primary px-10 py-4 text-base">

@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowsPointingOutIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
   ChevronDownIcon,
   CreditCardIcon,
   FireIcon,
@@ -23,9 +26,18 @@ interface Props {
   onPay: () => void;
   isFiring: boolean;
   mobile?: boolean;
+  panelMode?: 'expanded' | 'collapsed' | 'hidden';
+  onPanelModeChange?: (mode: 'expanded' | 'collapsed' | 'hidden') => void;
 }
 
-export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
+export function OrderPanel({
+  onFire,
+  onPay,
+  isFiring,
+  mobile = false,
+  panelMode = 'expanded',
+  onPanelModeChange,
+}: Props) {
   const { user } = useAuthStore();
   const {
     orderId,
@@ -122,9 +134,9 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
     >
       <div className="ops-toolbar px-4 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <p className="section-kicker">Active check</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-100">
+            <h2 className="mt-1 truncate text-2xl font-black text-slate-100">
               {tableName ? `Table ${tableName}` : String(orderType || 'Order').replace('_', ' ')}
             </h2>
             <p className="mt-1 text-sm text-slate-400">
@@ -132,9 +144,41 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
             </p>
           </div>
 
-          <span className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-slate-200">
-            #{orderId.slice(-6).toUpperCase()}
-          </span>
+          <div className="flex items-center gap-2">
+            {onPanelModeChange && !mobile && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onPanelModeChange(panelMode === 'collapsed' ? 'expanded' : 'collapsed')}
+                  className="touch-target inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                  aria-label={panelMode === 'collapsed' ? 'Expand active check' : 'Collapse active check'}
+                >
+                  {panelMode === 'collapsed' ? (
+                    <ChevronDoubleLeftIcon className="h-4 w-4" />
+                  ) : (
+                    <ChevronDoubleRightIcon className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPanelModeChange('expanded')}
+                  className={clsx(
+                    'touch-target inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition',
+                    panelMode === 'expanded'
+                      ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                      : 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10',
+                  )}
+                  aria-label="Expand active check panel"
+                >
+                  <ArrowsPointingOutIcon className="h-4 w-4" />
+                </button>
+              </>
+            )}
+
+            <span className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-slate-200">
+              #{orderId.slice(-6).toUpperCase()}
+            </span>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
@@ -227,25 +271,33 @@ export function OrderPanel({ onFire, onPay, isFiring, mobile = false }: Props) {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-base font-bold text-slate-100">{item.menuItemName}</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-bold text-slate-100">{item.menuItemName}</p>
                       <p className="mt-1 text-sm text-slate-500">
                         {item.seatNumber ? `Seat ${item.seatNumber}` : 'No seat'} · Course {item.courseNumber || 1}
                       </p>
                     </div>
-                    <span className="text-lg font-black text-slate-100">${Number(item.totalPrice || 0).toFixed(2)}</span>
+                    <span className="shrink-0 text-lg font-black text-slate-100">${Number(item.totalPrice || 0).toFixed(2)}</span>
                   </div>
 
                   {Array.isArray(item.modifiers) && item.modifiers.length > 0 && (
-                    <p className="mt-2 text-sm text-slate-400">
-                      {item.modifiers.map((modifier: any) => modifier.modifierName).join(', ')}
-                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.modifiers.map((modifier: any) => (
+                        <span
+                          key={`${item.id}-${modifier.modifierId || modifier.modifierName}`}
+                          className="rounded-full border border-white/10 bg-slate-950/45 px-2.5 py-1 text-xs font-medium text-slate-300"
+                        >
+                          {modifier.modifierName}
+                        </span>
+                      ))}
+                    </div>
                   )}
 
                   {item.notes && (
-                    <p className="mt-2 rounded-2xl border border-amber-300/15 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-100">
-                      Note: {item.notes}
-                    </p>
+                    <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-400/10 px-3 py-2.5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-200/80">Note</p>
+                      <p className="mt-1 text-sm font-medium leading-6 text-amber-50">{item.notes}</p>
+                    </div>
                   )}
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -190,10 +190,14 @@ interface UIState {
   sidebarOpen: boolean;
   theme: 'dark' | 'light';
   currentView: string;
+  posTicketPanelMode: 'expanded' | 'collapsed' | 'hidden';
+  hostPanelVisible: boolean;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setCurrentView: (view: string) => void;
+  setPosTicketPanelMode: (mode: 'expanded' | 'collapsed' | 'hidden') => void;
+  setHostPanelVisible: (visible: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -202,10 +206,14 @@ export const useUIStore = create<UIState>()(
       sidebarOpen: true,
       theme: 'dark',
       currentView: 'pos',
+      posTicketPanelMode: 'expanded',
+      hostPanelVisible: true,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setTheme: (theme) => set({ theme }),
       setCurrentView: (view) => set({ currentView: view }),
+      setPosTicketPanelMode: (mode) => set({ posTicketPanelMode: mode }),
+      setHostPanelVisible: (visible) => set({ hostPanelVisible: visible }),
     }),
     { name: 'pos-ui' }
   )

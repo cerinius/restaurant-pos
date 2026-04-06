@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TableCellsIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, TableCellsIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -66,6 +66,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const desktopViewportRef = useRef<HTMLDivElement>(null);
   const [desktopViewport, setDesktopViewport] = useState({ width: 0, height: 0 });
+  const [zoomLevel, setZoomLevel] = useState(1);
   const [blockedTable, setBlockedTable] = useState<{
     table: any;
     assignment: ReturnType<typeof getTableAssignment>;
@@ -174,12 +175,16 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   const desktopScale = useMemo(() => {
     if (!activeRoom || desktopViewport.width === 0 || desktopViewport.height === 0) return 1;
 
-    const widthScale = (desktopViewport.width - 32) / canvasSize.width;
-    const heightScale = (desktopViewport.height - 32) / canvasSize.height;
+    const widthScale = (desktopViewport.width - 24) / canvasSize.width;
+    const heightScale = (desktopViewport.height - 24) / canvasSize.height;
 
-    // Keep natural size as the maximum and only shrink to fit the viewport.
-    return Math.max(0.45, Math.min(widthScale, heightScale, 1));
+    // Bias toward larger default table sizing on roomy viewports, while still fitting dense plans.
+    return Math.max(0.62, Math.min(widthScale, heightScale, activeRoom ? 1.45 : 1.25));
   }, [activeRoom, canvasSize.height, canvasSize.width, desktopViewport.height, desktopViewport.width]);
+
+  useEffect(() => {
+    setZoomLevel(1);
+  }, [focusedSection, locationId]);
 
   const counts = {
     available: tables.filter((table: any) => table.status === 'AVAILABLE').length,
@@ -317,8 +322,8 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                 position: 'absolute',
                 left: table.positionX,
                 top: table.positionY,
-                width: table.width || 80,
-                height: table.height || 80,
+                width: Math.max(table.width || 80, isBarSeat ? 68 : 96),
+                height: Math.max(table.height || 80, isBarSeat ? 68 : 96),
                 borderRadius:
                   table.shape === 'circle'
                     ? '50%'
@@ -327,14 +332,14 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                       : '16px',
               }}
               className={clsx(
-                'border-2 flex flex-col items-center justify-center transition-all backdrop-blur-sm shadow-md',
+                'border-2 flex flex-col items-center justify-center px-2 text-center transition-all backdrop-blur-sm shadow-md',
                 STATUS_STYLES[table.status] || STATUS_STYLES.AVAILABLE,
                 isSelected ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : 'hover:ring-2 hover:ring-cyan-400',
                 isBarSeat ? 'border-amber-400/80' : '',
                 table.status === 'BLOCKED' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
               )}
             >
-              <span className="font-bold text-base leading-none">{table.name}</span>
+              <span className="font-bold text-lg leading-none">{table.name}</span>
               {table.capacity && (
                 <span className="mt-1 text-xs leading-none opacity-80">{table.capacity}p</span>
               )}
@@ -360,12 +365,12 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
 
   return (
     <div className="flex h-full flex-col">
-      <div className="ops-toolbar shrink-0 px-4 py-4">
+      <div className="ops-toolbar shrink-0 px-3 py-3 md:px-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <TableCellsIcon className="h-6 w-6 text-slate-300" />
             <div>
-              <h2 className="text-xl font-black text-white">
+              <h2 className="text-lg font-black text-white md:text-xl">
                 {focusedSection ? `${focusedSection}` : 'All Rooms'}
               </h2>
               <p className="text-sm text-slate-400">
@@ -386,6 +391,31 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
             <div className="ops-stat min-w-[110px]">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Dirty</p>
               <p className="mt-1 text-2xl font-black text-amber-100">{counts.dirty}</p>
+            </div>
+            <div className="hidden items-center gap-2 md:flex">
+              <button
+                type="button"
+                onClick={() => setZoomLevel((current) => Math.max(0.8, Number((current - 0.1).toFixed(2))))}
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                aria-label="Zoom out floor plan"
+              >
+                <MagnifyingGlassMinusIcon className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomLevel(1)}
+                className="touch-target rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Fit
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomLevel((current) => Math.min(1.35, Number((current + 0.1).toFixed(2))))}
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                aria-label="Zoom in floor plan"
+              >
+                <MagnifyingGlassPlusIcon className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>
@@ -564,12 +594,12 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
         )}
       </div>
 
-      <div ref={desktopViewportRef} className="relative hidden flex-1 overflow-auto p-4 md:block">
-        <div className="workspace-panel flex min-h-full w-full items-center justify-center p-4">
+      <div ref={desktopViewportRef} className="relative hidden flex-1 overflow-auto p-3 md:block">
+        <div className="workspace-panel flex min-h-full w-full items-start justify-center p-3">
           <div
             style={{
-              width: canvasSize.width * desktopScale,
-              height: canvasSize.height * desktopScale,
+              width: canvasSize.width * desktopScale * zoomLevel,
+              height: canvasSize.height * desktopScale * zoomLevel,
             }}
           >
             <div
@@ -577,7 +607,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               style={{
                 width: canvasSize.width,
                 height: canvasSize.height,
-                transform: `scale(${desktopScale})`,
+                transform: `scale(${desktopScale * zoomLevel})`,
                 backgroundImage: 'radial-gradient(circle, rgba(71,85,105,0.45) 1px, transparent 1px)',
                 backgroundSize: '30px 30px',
               }}

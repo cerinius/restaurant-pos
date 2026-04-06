@@ -114,6 +114,23 @@ export enum StationType {
   CUSTOM = 'CUSTOM',
 }
 
+export enum ReservationStatus {
+  CONFIRMED = 'CONFIRMED',
+  ARRIVED = 'ARRIVED',
+  SEATED = 'SEATED',
+  COMPLETED = 'COMPLETED',
+  NO_SHOW = 'NO_SHOW',
+  CANCELLED = 'CANCELLED',
+  WAITLIST = 'WAITLIST',
+}
+
+export enum ReservationSource {
+  PHONE = 'PHONE',
+  ONLINE = 'ONLINE',
+  WALK_IN = 'WALK_IN',
+  APP = 'APP',
+}
+
 // ---- Core Interfaces ----
 
 export interface Restaurant {
@@ -277,6 +294,34 @@ export interface Order {
   customerPhone?: string;
 }
 
+export interface Reservation {
+  id: string;
+  restaurantId: string;
+  locationId: string;
+  tableId?: string | null;
+  orderId?: string | null;
+  guestName: string;
+  guestPhone: string;
+  guestEmail?: string | null;
+  partySize: number;
+  reservationAt: string;
+  status: ReservationStatus;
+  source: ReservationSource;
+  confirmationCode: string;
+  notes?: string | null;
+  specialRequests?: string | null;
+  tags: string[];
+  isVip: boolean;
+  visitCount: number;
+  quotedWaitMinutes?: number | null;
+  seatedAt?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  noShowAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OrderItem {
   id: string;
   orderId: string;
@@ -406,6 +451,7 @@ export enum WSEventType {
   STAFF_CLOCKED_IN = 'STAFF_CLOCKED_IN',
   STAFF_CLOCKED_OUT = 'STAFF_CLOCKED_OUT',
   TABLE_UPDATED = 'TABLE_UPDATED',
+  RESERVATION_UPDATED = 'RESERVATION_UPDATED',
   // Support / Live Chat
   SUPPORT_MESSAGE = 'SUPPORT_MESSAGE',
   SUPPORT_TICKET_UPDATE = 'SUPPORT_TICKET_UPDATE',

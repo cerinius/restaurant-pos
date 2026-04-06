@@ -16,7 +16,6 @@ import {
   ChevronRightIcon,
   ClipboardDocumentListIcon,
   Cog6ToothIcon,
-  CpuChipIcon,
   CubeIcon,
   EnvelopeIcon,
   FireIcon,
@@ -36,6 +35,7 @@ import toast from 'react-hot-toast';
 import { WSStatusBanner } from '@/components/ui/WSStatusBanner';
 import { posWS } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
+import { OPERATIONS_INTELLIGENCE_ENABLED } from '@/lib/features';
 import {
   getRestaurantAdminPath,
   getRestaurantLoginPath,
@@ -53,16 +53,17 @@ function isActivePath(pathname: string, href: string) {
   const normalizedHref = href.replace(/\/+$/, '') || '/';
 
   if (normalizedPath === normalizedHref) return true;
-
-  const isAdminRoot = normalizedHref.endsWith('/admin');
-  if (isAdminRoot) return false;
+  if (normalizedHref.endsWith('/admin')) return false;
 
   return normalizedPath.startsWith(`${normalizedHref}/`);
 }
 
 function getCurrentSection(pathname: string, restaurantId: string) {
   const adminRoot = getRestaurantAdminPath(restaurantId);
-  const suffix = pathname.startsWith(adminRoot) ? pathname.slice(adminRoot.length).replace(/^\/+/, '') : '';
+  const suffix = pathname.startsWith(adminRoot)
+    ? pathname.slice(adminRoot.length).replace(/^\/+/, '')
+    : '';
+
   return suffix.split('/')[0] || 'dashboard';
 }
 
@@ -86,26 +87,23 @@ function Sidebar({
   onToggleCollapse?: () => void;
 }) {
   const currentSection = getCurrentSection(pathname, restaurantId);
-  const navSections = [
+  const navSections: Array<{
+    label: string;
+    items: Array<{ href: string; label: string; Icon: any; badge?: string }>;
+  }> = [
     {
       label: 'Overview',
       items: [
         { href: getRestaurantAdminPath(restaurantId), label: 'Dashboard', Icon: HomeIcon },
-        {
-          href: getRestaurantAdminPath(restaurantId, 'intelligence'),
-          label: 'PULSE AI™',
-          Icon: CpuChipIcon,
-          badge: 'AI',
-        },
       ],
     },
     {
       label: 'Guest Experience',
       items: [
-        { href: getRestaurantAdminPath(restaurantId, 'reservations'), label: 'Reservations', Icon: CalendarDaysIcon, badge: 'New' },
-        { href: getRestaurantAdminPath(restaurantId, 'guests'), label: 'Guest Intelligence', Icon: HeartIcon, badge: 'New' },
-        { href: getRestaurantAdminPath(restaurantId, 'marketing'), label: 'Marketing', Icon: EnvelopeIcon, badge: 'New' },
-        { href: getRestaurantAdminPath(restaurantId, 'support'), label: 'Support Center', Icon: PhoneIcon, badge: 'New' },
+        { href: getRestaurantAdminPath(restaurantId, 'reservations'), label: 'Reservations', Icon: CalendarDaysIcon, badge: 'Live' },
+        { href: getRestaurantAdminPath(restaurantId, 'guests'), label: 'Guest Profiles', Icon: HeartIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'marketing'), label: 'Marketing', Icon: EnvelopeIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'support'), label: 'Support Center', Icon: PhoneIcon },
         { href: getRestaurantAdminPath(restaurantId, 'orders'), label: 'Orders', Icon: ClipboardDocumentListIcon },
         { href: getRestaurantAdminPath(restaurantId, 'floor'), label: 'Floor Plan', Icon: TableCellsIcon },
       ],
@@ -132,7 +130,7 @@ function Sidebar({
       label: 'People',
       items: [
         { href: getRestaurantAdminPath(restaurantId, 'staff'), label: 'Staff', Icon: UserGroupIcon },
-        { href: getRestaurantAdminPath(restaurantId, 'workforce'), label: 'SmartSchedule™', Icon: CalendarDaysIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'workforce'), label: 'Workforce', Icon: CalendarDaysIcon },
         { href: getRestaurantAdminPath(restaurantId, 'reports'), label: 'Reports', Icon: ChartBarIcon },
         { href: getRestaurantAdminPath(restaurantId, 'audit'), label: 'Audit Log', Icon: ClipboardDocumentListIcon },
       ],
@@ -148,27 +146,37 @@ function Sidebar({
     },
   ];
 
+  if (OPERATIONS_INTELLIGENCE_ENABLED) {
+    navSections[0].items.push({
+      href: getRestaurantAdminPath(restaurantId, 'intelligence'),
+      label: 'Operations Intelligence',
+      Icon: SparklesIcon,
+      badge: 'Internal',
+    });
+  }
+
   return (
-    <aside className={clsx(
-      'flex h-full flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.98),rgba(8,15,30,0.96))] transition-all duration-200',
-      collapsed ? 'w-[72px]' : 'w-80',
-    )}>
-      {/* ── Logo / collapse header ──────────────────────── */}
-      <div className="shrink-0 border-b border-white/10 px-3 py-4">
+    <aside
+      className={clsx(
+        'flex h-full flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.98),rgba(8,15,30,0.96))] transition-all duration-200',
+        collapsed ? 'w-[72px]' : 'w-[296px]',
+      )}
+    >
+      <div className="shrink-0 border-b border-white/10 px-3 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_18px_40px_rgba(34,211,238,0.18)]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_18px_40px_rgba(34,211,238,0.18)]">
             RO
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-black leading-none text-white">RestaurantOS</p>
-              <p className="mt-0.5 text-xs leading-tight text-slate-400">Admin panel</p>
+              <p className="truncate text-sm font-black uppercase tracking-[0.16em] text-white">Admin</p>
+              <p className="mt-0.5 truncate text-xs text-slate-400">Restaurant operating system</p>
             </div>
           )}
           {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
-              className="touch-target ml-auto shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+              className="touch-target ml-auto inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {collapsed ? <ChevronRightIcon className="h-4 w-4" /> : <ChevronLeftIcon className="h-4 w-4" />}
@@ -176,23 +184,22 @@ function Sidebar({
           )}
         </div>
 
-        {/* Current-area card — hidden when collapsed */}
         {!collapsed && (
-          <div className="mt-4 admin-sidebar-highlight rounded-[28px] p-4">
+          <div className="mt-3 rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Current area</p>
-                <p className="mt-2 text-base font-bold text-white">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Current area</p>
+                <p className="mt-1 text-base font-bold text-white">
                   {currentSection === 'dashboard'
                     ? 'Dashboard'
-                    : currentSection.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                    : currentSection.replace(/-/g, ' ').replace(/\b\w/g, (value) => value.toUpperCase())}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">/{restaurantId}/admin</p>
               </div>
-              <span className="status-chip">Live</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-300">
+                Live
+              </span>
             </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <Link
                 href={getRestaurantPublicPath(restaurantId)}
                 onClick={onNavigate}
@@ -212,7 +219,6 @@ function Sidebar({
         )}
       </div>
 
-      {/* ── Nav ─────────────────────────────────────────── */}
       <nav className="no-scrollbar flex-1 overflow-y-auto px-2 py-4">
         {navSections.map((section) => (
           <div key={section.label} className="mb-4">
@@ -222,7 +228,7 @@ function Sidebar({
               </p>
             )}
             <div className="space-y-1">
-              {section.items.map(({ href, label, Icon, badge }: any) => (
+              {section.items.map(({ href, label, Icon, badge }) => (
                 <Link
                   key={href}
                   href={href}
@@ -257,7 +263,6 @@ function Sidebar({
         ))}
       </nav>
 
-      {/* ── Footer ──────────────────────────────────────── */}
       <div className="shrink-0 border-t border-white/10 p-3">
         <Link
           href={getRestaurantPOSPath(restaurantId)}
@@ -366,6 +371,9 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
         safePrefetch(['kds-stats-dash', locationId], () => api.getKDSStats(locationId || undefined));
         safePrefetch(['low-stock'], () => api.getLowStockAlerts());
         safePrefetch(['recent-audit'], () => api.getAuditLogs({ limit: '10' }));
+        safePrefetch(['dashboard-tables', locationId], () => api.getTables({ locationId }));
+        safePrefetch(['dashboard-reservations', today], () => api.getReservations({ date: today }));
+        safePrefetch(['dashboard-staff'], () => api.getStaff());
         return;
       }
 
@@ -486,7 +494,7 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
           onLogout={handleLogout}
           onPrefetch={handlePrefetch}
           collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+          onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
         />
       </div>
 
@@ -511,10 +519,9 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
       )}
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* WS status banner — shown when disconnected */}
         <WSStatusBanner bar />
 
-        <div className="glass flex min-h-16 items-center gap-3 border-b border-white/10 px-4 xl:hidden">
+        <div className="glass flex min-h-[58px] items-center gap-3 border-b border-white/10 px-3 xl:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
             className="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl bg-white/6 text-slate-100"

@@ -5,13 +5,14 @@ import clsx from 'clsx';
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WSEventType } from '@pos/shared';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 import { POSHeader } from '@/components/pos/POSHeader';
 import type { POSView } from '@/components/pos/type';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
 import { enqueueOfflineAction, flushOfflineActions } from '@/lib/offline-sync';
-import { useAuthStore, useOrderStore } from '@/store';
+import { useAuthStore, useOrderStore, useUIStore } from '@/store';
 import toast from 'react-hot-toast';
 
 const MenuGrid = dynamic(
@@ -146,9 +147,22 @@ function applyOptimisticItems(snapshot: ReturnType<typeof snapshotActiveOrder>, 
   };
 }
 
+function getDesktopTicketWidthClass(mode: 'expanded' | 'collapsed' | 'hidden') {
+  if (mode === 'expanded') {
+    return 'xl:grid-cols-[minmax(0,0.92fr)_minmax(460px,0.88fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.9fr)]';
+  }
+
+  if (mode === 'collapsed') {
+    return 'xl:grid-cols-[minmax(0,1.28fr)_360px] 2xl:grid-cols-[minmax(0,1.35fr)_380px]';
+  }
+
+  return 'xl:grid-cols-1';
+}
+
 export default function POSContent({ initialData }: POSContentProps) {
   const { locationId, setLocation } = useAuthStore();
   const { orderId, setOrder, clearOrder } = useOrderStore();
+  const { posTicketPanelMode, setPosTicketPanelMode } = useUIStore();
   const queryClient = useQueryClient();
   const [view, setView] = useState<POSView>('tables');
   const [selectedTable, setSelectedTable] = useState<any>(null);
@@ -411,6 +425,9 @@ export default function POSContent({ initialData }: POSContentProps) {
 
   const categories = menuData?.data?.categories || [];
   const activeHappyHour = menuData?.data?.activeHappyHour;
+  const hasActiveTicket = !!orderId;
+  const desktopTicketVisible = posTicketPanelMode !== 'hidden';
+  const showMobileTicketOverlay = hasActiveTicket && posTicketPanelMode !== 'hidden';
   const viewLabel =
     view === 'tables' ? 'Floor' : view === 'open-orders' ? 'Open checks' : 'Menu';
   const mainPanel = useMemo(() => {
@@ -471,6 +488,8 @@ export default function POSContent({ initialData }: POSContentProps) {
         onNewOrder={handleNewOrder}
         hasActiveOrder={!!orderId}
         isOffline={isOffline}
+        ticketPanelMode={posTicketPanelMode}
+        onTicketPanelModeChange={setPosTicketPanelMode}
       />
 
       {isOffline && (
@@ -480,13 +499,13 @@ export default function POSContent({ initialData }: POSContentProps) {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden px-3 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] pt-3 md:px-4 md:pb-4 md:pt-4">
-        <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1.15fr)_420px]">
+      <main className="flex-1 overflow-hidden px-2 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] pt-2 md:px-3 md:pb-3 md:pt-3">
+        <div className={clsx('grid h-full gap-3', getDesktopTicketWidthClass(posTicketPanelMode))}>
           <section className="ops-shell flex min-h-0 flex-col overflow-hidden">
-            <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
+            <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-3 py-3 md:px-4">
               <div>
                 <p className="section-kicker">Service flow</p>
-                <h2 className="mt-1 text-xl font-black text-white md:text-2xl">{viewLabel}</h2>
+                <h2 className="mt-1 text-lg font-black text-white md:text-xl">{viewLabel}</h2>
                 <p className="mt-1 text-sm text-slate-400">
                   {view === 'tables'
                     ? 'Tap a table to open or continue service.'
@@ -497,34 +516,79 @@ export default function POSContent({ initialData }: POSContentProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="ops-chip">
-                  {initialData.tables.length} tables
-                </span>
-                <span className="ops-chip">
-                  {initialData.openOrders.length} open orders
-                </span>
+                <span className="ops-chip">{initialData.tables.length} tables</span>
+                <span className="ops-chip">{initialData.openOrders.length} open orders</span>
                 {activeHappyHour && (
                   <span className="ops-chip border-amber-300/20 bg-amber-400/10 text-amber-100">
                     Happy hour live
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPosTicketPanelMode(
+                      posTicketPanelMode === 'hidden' ? 'expanded' : 'hidden',
+                    )
+                  }
+                  className={clsx(
+                    'touch-target rounded-2xl border px-3 py-2 text-sm font-semibold transition xl:hidden',
+                    posTicketPanelMode === 'hidden'
+                      ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                      : 'border-white/10 bg-white/5 text-slate-200',
+                  )}
+                >
+                  {posTicketPanelMode === 'hidden' ? 'Show Check' : 'Hide Check'}
+                </button>
               </div>
             </div>
 
             <div className="min-h-0 flex-1">{mainPanel}</div>
           </section>
 
-          <section className="ops-shell min-h-0 overflow-hidden">
-            <OrderPanel
-              onFire={(courseNumber, priority) =>
-                fireMutation.mutate({ courseNumber, priority })
-              }
-              onPay={() => setShowPayment(true)}
-              isFiring={fireMutation.isPending}
-            />
-          </section>
+          {desktopTicketVisible && (
+            <section className="ops-shell hidden min-h-0 overflow-hidden xl:block">
+              <OrderPanel
+                onFire={(courseNumber, priority) =>
+                  fireMutation.mutate({ courseNumber, priority })
+                }
+                onPay={() => setShowPayment(true)}
+                isFiring={fireMutation.isPending}
+                panelMode={posTicketPanelMode}
+                onPanelModeChange={setPosTicketPanelMode}
+              />
+            </section>
+          )}
         </div>
       </main>
+
+      {showMobileTicketOverlay && (
+        <div className="fixed inset-y-0 right-0 z-30 hidden w-full max-w-[min(92vw,540px)] border-l border-white/10 bg-slate-950/96 shadow-2xl backdrop-blur-xl md:block xl:hidden">
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Active check</p>
+              <p className="text-sm font-semibold text-slate-100">Ticket workspace</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPosTicketPanelMode('hidden')}
+              className="touch-target inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-slate-200"
+              aria-label="Close active check"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <OrderPanel
+            onFire={(courseNumber, priority) =>
+              fireMutation.mutate({ courseNumber, priority })
+            }
+            onPay={() => setShowPayment(true)}
+            isFiring={fireMutation.isPending}
+            panelMode="expanded"
+            onPanelModeChange={setPosTicketPanelMode}
+          />
+        </div>
+      )}
 
       {pendingItem && (
         <ModifierModal

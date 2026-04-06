@@ -25,6 +25,7 @@ import SupportPage from '@/app/admin/support/page';
 import TaxesPage from '@/app/admin/taxes/page';
 import WorkflowsPage from '@/app/admin/workflows/page';
 import WorkforcePage from '@/app/admin/workforce/page';
+import { OPERATIONS_INTELLIGENCE_ENABLED } from '@/lib/features';
 
 const PAGE_MAP: Record<string, ComponentType> = {
   '': RestaurantAdminDashboardPage,
@@ -35,7 +36,6 @@ const PAGE_MAP: Record<string, ComponentType> = {
   'gift-cards': GiftCardsPage,
   guests: GuestsPage,
   'happy-hours': HappyHoursPage,
-  intelligence: IntelligencePage,
   inventory: InventoryPage,
   marketing: MarketingPage,
   menu: MenuPage,
@@ -52,6 +52,10 @@ const PAGE_MAP: Record<string, ComponentType> = {
   workforce: WorkforcePage,
   workflows: WorkflowsPage,
 };
+
+if (OPERATIONS_INTELLIGENCE_ENABLED) {
+  PAGE_MAP.intelligence = IntelligencePage;
+}
 
 export default function RestaurantAdminPage({
   params,

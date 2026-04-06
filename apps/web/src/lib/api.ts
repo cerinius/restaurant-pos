@@ -354,6 +354,24 @@ class ApiClient {
     return data;
   }
 
+  // Reservations
+  async getReservations(params?: any) {
+    const { data } = await this.client.get('/api/reservations', { params });
+    return data;
+  }
+  async createReservation(payload: any) {
+    const { data } = await this.client.post('/api/reservations', payload);
+    return data;
+  }
+  async updateReservation(id: string, payload: any) {
+    const { data } = await this.client.patch(`/api/reservations/${id}`, payload);
+    return data;
+  }
+  async seatReservation(id: string, payload: any) {
+    const { data } = await this.client.post(`/api/reservations/${id}/seat`, payload);
+    return data;
+  }
+
   // KDS
   async getKDSTickets(params?: any) {
     const { data } = await this.client.get('/api/kds/tickets', { params });

@@ -5,10 +5,10 @@ import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { UserGroupIcon } from '@heroicons/react/24/outline';
+import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 
 import api from '@/lib/api';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useUIStore } from '@/store';
 
 const TableMap = dynamic(
   () => import('@/components/pos/TableMap').then((module) => module.TableMap),
@@ -27,6 +27,7 @@ interface HostContentProps {
 export default function HostContent({ initialData }: HostContentProps) {
   const qc = useQueryClient();
   const { locationId, setLocation } = useAuthStore();
+  const { hostPanelVisible, setHostPanelVisible } = useUIStore();
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [selectedServer, setSelectedServer] = useState<any>(null);
   const [guestCount, setGuestCount] = useState(4);
@@ -118,13 +119,18 @@ export default function HostContent({ initialData }: HostContentProps) {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#08111f_0%,#0b1728_52%,#020617_100%)] px-3 py-3 md:px-4 md:py-4">
-      <div className="ops-shell flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#08111f_0%,#0b1728_52%,#020617_100%)] px-2 py-2 md:px-3 md:py-3">
+      <div className={clsx(
+        'ops-shell flex min-h-0 flex-1 flex-col overflow-hidden xl:grid',
+        hostPanelVisible
+          ? 'xl:grid-cols-[minmax(0,1.2fr)_320px] 2xl:grid-cols-[minmax(0,1.28fr)_360px]'
+          : 'xl:grid-cols-1',
+      )}>
         <div className="min-h-0 overflow-hidden">
-          <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-4 py-4">
+          <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-3 py-3 md:px-4">
             <div>
               <p className="section-kicker">Host station</p>
-              <h1 className="mt-1 text-2xl font-black text-white">Seat guests quickly and confidently</h1>
+              <h1 className="mt-1 text-xl font-black text-white md:text-2xl">Seat guests quickly and confidently</h1>
               <p className="mt-1 text-sm text-slate-400">
                 Choose a table, assign the best next server, and keep the floor moving.
               </p>
@@ -143,10 +149,22 @@ export default function HostContent({ initialData }: HostContentProps) {
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Dirty</p>
                 <p className="mt-1 text-2xl font-black text-amber-100">{counts.dirty}</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setHostPanelVisible(!hostPanelVisible)}
+                className={clsx(
+                  'touch-target rounded-2xl border px-3 py-2 text-sm font-semibold transition',
+                  hostPanelVisible
+                    ? 'border-white/10 bg-white/5 text-slate-200'
+                    : 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100',
+                )}
+              >
+                {hostPanelVisible ? 'Hide server rail' : 'Show server rail'}
+              </button>
             </div>
           </div>
 
-          <div className="min-h-0 h-[calc(100%-101px)]">
+          <div className="min-h-0 h-[calc(100%-93px)]">
             <TableMap
               initialTables={tables}
               locationId={effectiveLocationId || ''}
@@ -156,7 +174,8 @@ export default function HostContent({ initialData }: HostContentProps) {
           </div>
         </div>
 
-        <aside className="border-t border-white/10 bg-slate-950/35 p-4 lg:border-l lg:border-t-0">
+        {hostPanelVisible && (
+        <aside className="border-t border-white/10 bg-slate-950/35 p-3 xl:border-l xl:border-t-0">
           <div className="flex h-full flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-slate-950">
@@ -166,6 +185,14 @@ export default function HostContent({ initialData }: HostContentProps) {
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Servers</p>
                 <h2 className="text-xl font-black text-white">{activeServers.length} available</h2>
               </div>
+              <button
+                type="button"
+                onClick={() => setHostPanelVisible(false)}
+                className="touch-target ml-auto inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-slate-200 transition hover:bg-white/10"
+                aria-label="Hide server rail"
+              >
+                <ChevronDoubleRightIcon className="h-4 w-4" />
+              </button>
             </div>
 
             <p className="mt-4 text-sm text-slate-400">
@@ -207,7 +234,19 @@ export default function HostContent({ initialData }: HostContentProps) {
             </div>
           </div>
         </aside>
+        )}
       </div>
+
+      {!hostPanelVisible && (
+        <button
+          type="button"
+          onClick={() => setHostPanelVisible(true)}
+          className="absolute right-4 top-24 z-20 hidden items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/88 px-3 py-2 text-sm font-semibold text-slate-100 shadow-xl backdrop-blur xl:inline-flex"
+        >
+          <ChevronDoubleLeftIcon className="h-4 w-4" />
+          Servers
+        </button>
+      )}
 
       {showSeatingModal && selectedTable && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm md:items-center">

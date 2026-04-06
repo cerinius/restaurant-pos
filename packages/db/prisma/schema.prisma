@@ -46,6 +46,7 @@ model Restaurant {
   supportTickets   SupportTicket[]
   supportAgents    SupportAgent[]
   supportCustomers SupportCustomer[]
+  reservations     Reservation[]
 
   @@map("restaurants")
 }
@@ -67,6 +68,7 @@ model Location {
   orders     Order[]
   stations   Station[]
   userLocations UserLocation[]
+  reservations Reservation[]
 
   @@map("locations")
 }
@@ -368,8 +370,46 @@ model Table {
 
   location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   orders   Order[]
+  reservations Reservation[]
 
   @@map("tables")
+}
+
+model Reservation {
+  id                String            @id @default(cuid())
+  restaurantId      String
+  locationId        String
+  tableId           String?
+  orderId           String?           @unique
+  guestName         String
+  guestPhone        String
+  guestEmail        String?
+  partySize         Int               @default(2)
+  reservationAt     DateTime
+  status            ReservationStatus @default(CONFIRMED)
+  source            ReservationSource @default(ONLINE)
+  confirmationCode  String            @unique
+  notes             String?
+  specialRequests   String?
+  tags              String[]          @default([])
+  isVip             Boolean           @default(false)
+  visitCount        Int               @default(0)
+  quotedWaitMinutes Int?
+  seatedAt          DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  noShowAt          DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location   Location   @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  table      Table?     @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  order      Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, locationId, reservationAt])
+  @@index([restaurantId, status, reservationAt])
+  @@map("reservations")
 }
 
 // ==========================================
@@ -411,6 +451,7 @@ model Order {
   discounts   OrderDiscount[]
   kdsTickets  KDSTicket[]
   auditLogs   AuditLog[]
+  reservation Reservation?
 
   @@map("orders")
 }
@@ -862,6 +903,23 @@ enum ClockEventType {
   CLOCK_OUT
   BREAK_START
   BREAK_END
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  ARRIVED
+  SEATED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+  WAITLIST
+}
+
+enum ReservationSource {
+  PHONE
+  ONLINE
+  WALK_IN
+  APP
 }
 
 // ==========================================
