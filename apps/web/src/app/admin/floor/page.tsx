@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 
 import api from '@/lib/api';
+import { FloorWorkspaceEmptyState } from '@/components/floor/FloorWorkspaceEmptyState';
 import {
   BAR_SEAT_SIZE,
   CANVAS_PADDING,
@@ -174,6 +175,7 @@ export default function FloorPlanPage() {
   const qc = useQueryClient();
   const workspaceRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const activePointerIdRef = useRef<number | null>(null);
   const [workspaceViewport, setWorkspaceViewport] = useState({ width: 0, height: 0 });
 
   const [draggingTable, setDraggingTable] = useState<{ id: string; roomName: string } | null>(null);
@@ -530,7 +532,7 @@ export default function FloorPlanPage() {
 
   const getTablePos = (table: any) => positions[table.id] || { x: table.positionX, y: table.positionY };
 
-  const getCanvasPointer = (event: React.MouseEvent | MouseEvent) => {
+  const getCanvasPointer = (event: React.MouseEvent | MouseEvent | React.PointerEvent | PointerEvent) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
 
     const rect = canvasRef.current.getBoundingClientRect();
@@ -989,9 +991,14 @@ export default function FloorPlanPage() {
     };
   };
 
-  const handleTableMouseDown = (event: React.MouseEvent, table: any, roomName: string) => {
+  const handleTablePointerDown = (event: React.PointerEvent, table: any, roomName: string) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
     event.preventDefault();
     event.stopPropagation();
+
+    activePointerIdRef.current = event.pointerId;
+    canvasRef.current?.setPointerCapture?.(event.pointerId);
 
     const room = roomMap.get(roomName);
     if (!room) return;
@@ -1009,11 +1016,15 @@ export default function FloorPlanPage() {
     setSelectedRoomName(roomName);
   };
 
-  const handleRoomMouseDown = (event: React.MouseEvent, room: FloorPlanRoom) => {
+  const handleRoomPointerDown = (event: React.PointerEvent, room: FloorPlanRoom) => {
     if (focusedRoomName || isSingleRoomLayout) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
 
     event.preventDefault();
     event.stopPropagation();
+
+    activePointerIdRef.current = event.pointerId;
+    canvasRef.current?.setPointerCapture?.(event.pointerId);
 
     const pointer = getCanvasPointer(event);
 
@@ -1034,7 +1045,7 @@ export default function FloorPlanPage() {
     }
   };
 
-  const handleMouseMove = (event: React.MouseEvent) => {
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (draggingRoom) {
       const pointer = getCanvasPointer(event);
 
@@ -1100,7 +1111,7 @@ export default function FloorPlanPage() {
     }));
   };
 
-  const handleMouseUp = () => {
+  const finishPointerDrag = () => {
     if (draggingTable && isSingleRoomLayout) {
       updateDraftPlan((current) => ({
         ...current,
@@ -1122,6 +1133,11 @@ export default function FloorPlanPage() {
     setDraggingTable(null);
     setDraggingRoom(null);
     clearDragGuides();
+
+    if (activePointerIdRef.current !== null && canvasRef.current?.hasPointerCapture?.(activePointerIdRef.current)) {
+      canvasRef.current.releasePointerCapture(activePointerIdRef.current);
+    }
+    activePointerIdRef.current = null;
   };
 
   const openAddTableForm = () => {
@@ -1523,12 +1539,13 @@ export default function FloorPlanPage() {
 
         <button
           type="button"
-          onMouseDown={(event) => handleRoomMouseDown(event, room)}
+          onPointerDown={(event) => handleRoomPointerDown(event, room)}
           className={clsx(
             'absolute left-4 top-4 z-[2] rounded-full px-3 py-1.5 text-xs font-semibold tracking-wide',
             getRoomBadgeStyle(interactiveRoom.type),
             focusedRoomName || isSingleRoomLayout ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
           )}
+          style={{ touchAction: focusedRoomName || isSingleRoomLayout ? 'auto' : 'none' }}
         >
           {room.name}
         </button>
@@ -1552,7 +1569,7 @@ export default function FloorPlanPage() {
           return (
             <div
               key={table.id}
-              onMouseDown={(event) => handleTableMouseDown(event, table, room.name)}
+              onPointerDown={(event) => handleTablePointerDown(event, table, room.name)}
               style={{
                 position: 'absolute',
                 left: pos.x,
@@ -1563,6 +1580,7 @@ export default function FloorPlanPage() {
                   table.shape === 'circle' ? '50%' : table.shape === 'square' ? '12px' : '10px',
                 cursor: draggingTable?.id === table.id ? 'grabbing' : 'grab',
                 zIndex: draggingTable?.id === table.id ? 10 : isSelected ? 6 : 2,
+                touchAction: 'none',
               }}
               className={clsx(
                 'border-2 flex flex-col items-center justify-center transition-shadow backdrop-blur-sm',
@@ -1596,147 +1614,165 @@ export default function FloorPlanPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between gap-4 border-b border-slate-700 bg-slate-950/50 px-6 py-4 shrink-0">
-        <div>
-          <h1 className="text-xl font-bold text-slate-100">Floor Plan Editor</h1>
-          <p className="text-sm text-slate-400">
-            Focus one room at a time, then place and align tables across the full workspace.
-          </p>
+    <div className="flex flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,#060f1d_0%,#0b1728_55%,#020617_100%)]">
+      <div className="shrink-0 border-b border-slate-800/90 bg-slate-950/72 px-3 py-3 backdrop-blur md:px-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.26em] text-slate-500">Floor planner</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-black text-slate-100 md:text-xl">Floor Plan Editor</h1>
+              <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                {rooms.length} room{rooms.length === 1 ? '' : 's'}
+              </span>
+              <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                {tables.length} table{tables.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            <p className="mt-1 hidden text-xs text-slate-400 md:block">
+              Keep the canvas primary, then place, align, and assign tables without leaving the map.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {!focusedRoomName && rooms.length > 1 && (
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-1">
+                <button
+                  type="button"
+                  onClick={setLayoutModeAuto}
+                  className={clsx(
+                    'touch-target rounded-xl px-3 text-xs font-semibold transition-all',
+                    draftFloorPlan.layoutMode === 'auto'
+                      ? 'bg-emerald-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  )}
+                >
+                  Auto rooms
+                </button>
+                <button
+                  type="button"
+                  onClick={setLayoutModeManual}
+                  className={clsx(
+                    'touch-target rounded-xl px-3 text-xs font-semibold transition-all',
+                    draftFloorPlan.layoutMode === 'manual'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  )}
+                >
+                  Manual
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSnapToGuides((current) => !current)}
+              className={clsx(
+                'touch-target rounded-2xl border px-3 text-xs font-semibold transition-all',
+                snapToGuides
+                  ? 'border-cyan-200 bg-cyan-300 text-slate-950'
+                  : 'border-slate-700 bg-slate-900/80 text-slate-300 hover:border-slate-500'
+              )}
+            >
+              {snapToGuides ? 'Snap on' : 'Snap off'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                beginTemplateEdit();
+                setShowTemplateManager(true);
+              }}
+              className="touch-target rounded-2xl border border-slate-700 bg-slate-900/80 px-3 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+            >
+              Templates
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowAddRoomForm(true)}
+              className="touch-target inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/80 px-3 text-xs font-semibold text-slate-100 transition hover:border-slate-500"
+            >
+              <PlusIcon className="h-4 w-4" />
+              Add room
+            </button>
+
+            <button
+              type="button"
+              onClick={openAddTableForm}
+              className="touch-target inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-3 text-xs font-black text-slate-950 transition hover:bg-cyan-200"
+            >
+              <PlusIcon className="h-4 w-4" />
+              Add table
+            </button>
+
+            {hasPendingChanges && (
+              <button
+                onClick={saveAllChanges}
+                disabled={saveLayoutMutation.isPending}
+                className="touch-target rounded-2xl bg-emerald-500 px-4 text-xs font-black text-slate-950 disabled:opacity-60"
+              >
+                {saveLayoutMutation.isPending ? 'Saving...' : 'Save layout'}
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {!focusedRoomName && rooms.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={setLayoutModeAuto}
-                className={clsx(
-                  'px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
-                  draftFloorPlan.layoutMode === 'auto'
-                    ? 'bg-emerald-600 border-emerald-500 text-white'
-                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
-                )}
-              >
-                Auto Arrange Rooms
-              </button>
-              <button
-                type="button"
-                onClick={setLayoutModeManual}
-                className={clsx(
-                  'px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
-                  draftFloorPlan.layoutMode === 'manual'
-                    ? 'bg-blue-600 border-blue-500 text-white'
-                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
-                )}
-              >
-                Manual Map
-              </button>
-            </>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {rooms.length > 1 && (
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Rooms</span>
+              {rooms.map((room) => (
+                <button
+                  key={room.name}
+                  type="button"
+                  onClick={() => {
+                    setActiveRoom(room.name);
+                    setSelectedRoomName(null);
+                    setSelectedId(null);
+                  }}
+                  className={clsx(
+                    'touch-target shrink-0 rounded-full border px-3 text-xs font-semibold transition-all',
+                    focusedRoomName === room.name
+                      ? 'border-blue-500 bg-blue-600 text-white'
+                      : 'border-slate-700 bg-slate-900/80 text-slate-300 hover:border-slate-500 hover:text-slate-100'
+                  )}
+                >
+                  {room.name}
+                </button>
+              ))}
+            </div>
           )}
 
-          {hasPendingChanges && (
-            <button
-              onClick={saveAllChanges}
-              disabled={saveLayoutMutation.isPending}
-              className="btn-success flex items-center gap-2 text-sm"
-            >
-              {saveLayoutMutation.isPending ? 'Saving...' : 'Save Layout'}
-            </button>
+          {assignmentSummary.length > 0 && !focusedRoomName && (
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Sections</span>
+              {assignmentSummary.map((summary) => (
+                <div
+                  key={summary.serverId}
+                  className="shrink-0 rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-300"
+                >
+                  <span className="font-semibold text-slate-100">{summary.serverName}</span>
+                  <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
+                  <span className="ml-2 text-emerald-300">{summary.open} open</span>
+                </div>
+              ))}
+            </div>
           )}
-
-          <button
-            onClick={() => setShowAddRoomForm(true)}
-            className="btn-secondary flex items-center gap-2 text-sm"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Add Room
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              beginTemplateEdit();
-              setShowTemplateManager(true);
-            }}
-            className="btn-secondary text-sm"
-          >
-            Templates
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSnapToGuides((current) => !current)}
-            className={clsx(
-              'px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
-              snapToGuides
-                ? 'bg-cyan-300 text-slate-950 border-cyan-200'
-                : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
-            )}
-          >
-            {snapToGuides ? 'Snap Guides On' : 'Snap Guides Off'}
-          </button>
-
-          <button onClick={openAddTableForm} className="btn-primary flex items-center gap-2 text-sm">
-            <PlusIcon className="w-4 h-4" />
-            Add Table
-          </button>
         </div>
       </div>
 
-      {rooms.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-950/40 px-6 py-3 shrink-0">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Rooms</span>
-
-          {rooms.map((room) => (
-            <button
-              key={room.name}
-              type="button"
-              onClick={() => {
-                setActiveRoom(room.name);
-                setSelectedRoomName(null);
-                setSelectedId(null);
-              }}
-              className={clsx(
-                'px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
-                focusedRoomName === room.name
-                  ? 'bg-blue-600 border-blue-500 text-white'
-                  : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-              )}
-            >
-              {room.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {assignmentSummary.length > 0 && !focusedRoomName && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-950/30 px-6 py-3 shrink-0">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Sections</span>
-          {assignmentSummary.map((summary) => (
-            <div
-              key={summary.serverId}
-              className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-300"
-            >
-              <span className="font-semibold text-slate-100">{summary.serverName}</span>
-              <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
-              <span className="ml-2 text-emerald-300">{summary.open} open</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div ref={workspaceRef} className="relative flex flex-1 min-h-0 overflow-hidden">
+      <div ref={workspaceRef} className="relative flex flex-1 min-h-0 overflow-hidden bg-slate-950/45">
         <div
           ref={canvasRef}
-          className="flex-1 min-h-0 overflow-auto bg-slate-950 select-none"
+          className="no-scrollbar flex-1 min-h-0 overflow-auto bg-slate-950/65 select-none"
           style={{
             backgroundImage: 'radial-gradient(circle, rgba(71,85,105,0.45) 1px, transparent 1px)',
             backgroundSize: '30px 30px',
           }}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishPointerDrag}
+          onPointerCancel={finishPointerDrag}
+          onPointerLeave={finishPointerDrag}
         >
           <div
             className="relative min-w-full min-h-full"
@@ -1816,19 +1852,36 @@ export default function FloorPlanPage() {
             {visibleRooms.map(renderRoom)}
 
             {visibleRooms.length === 0 && visibleRoomTables.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-600">
-                <div className="text-center">
-                  <p className="mb-3 text-4xl">Floor</p>
-                  <p className="font-medium">{emptyStateTitle}</p>
-                  <p className="mt-1 text-sm">{emptyStateBody}</p>
-                </div>
-              </div>
+              <FloorWorkspaceEmptyState
+                title={emptyStateTitle}
+                description={emptyStateBody}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddRoomForm(true)}
+                      className="touch-target inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/80 px-4 text-sm font-semibold text-slate-100 transition hover:border-slate-500"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add room
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openAddTableForm}
+                      className="touch-target inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-4 text-sm font-black text-slate-950 transition hover:bg-cyan-200"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add table
+                    </button>
+                  </>
+                }
+              />
             )}
           </div>
         </div>
 
         {(selected || selectedRoomView) && (
-          <div className="absolute inset-y-0 right-0 z-20 w-full max-w-[22rem] overflow-y-auto border-l border-slate-700 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl">
+          <div className="absolute inset-y-3 right-3 z-20 w-[min(21rem,calc(100%-1.5rem))] overflow-y-auto rounded-[28px] border border-slate-700/80 bg-slate-900/94 p-4 shadow-2xl backdrop-blur-xl">
             {selected ? (
               <>
                 <div className="mb-4 flex items-center justify-between">

@@ -125,20 +125,20 @@ export function POSHeader({
       <WSStatusBanner bar />
 
       <header className="relative z-20 shrink-0 border-b border-white/10 bg-slate-950/88 backdrop-blur-xl">
-        <div className="flex min-h-[58px] items-center gap-3 px-3 py-2 md:px-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-300 text-xs font-black text-slate-950 shadow-[0_12px_28px_rgba(34,211,238,0.16)]">
+        <div className="flex min-h-[54px] items-center gap-2 px-2.5 py-2 md:px-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-300 text-[11px] font-black text-slate-950 shadow-[0_12px_28px_rgba(34,211,238,0.16)]">
             POS
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-black uppercase tracking-[0.18em] text-slate-100">Service</p>
+            <p className="truncate text-xs font-black uppercase tracking-[0.16em] text-slate-100">Service</p>
             <p className="truncate text-xs text-slate-400" suppressHydrationWarning>
               {user?.name || 'Staff'} | {user?.role || 'Team'}
               {timeLabel ? ` | ${timeLabel}` : ''}
             </p>
           </div>
 
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="hidden items-center gap-1.5 md:flex">
             <nav className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
               {NAV_ITEMS.map(({ id, label, Icon }) => {
                 const active = view === id;
@@ -148,7 +148,7 @@ export function POSHeader({
                     type="button"
                     onClick={() => onViewChange(id)}
                     className={clsx(
-                      'touch-target inline-flex min-h-[42px] items-center gap-2 rounded-xl px-3 text-sm font-semibold transition',
+                      'touch-target inline-flex min-h-[40px] items-center gap-2 rounded-xl px-3 text-[13px] font-semibold transition',
                       active
                         ? 'bg-cyan-300 text-slate-950'
                         : 'text-slate-200 hover:bg-white/8 hover:text-white',
@@ -166,7 +166,7 @@ export function POSHeader({
               onClick={onNewOrder}
               disabled={hasActiveOrder}
               className={clsx(
-                'touch-target inline-flex min-h-[42px] items-center gap-2 rounded-2xl px-4 text-sm font-bold transition',
+                'touch-target inline-flex min-h-[40px] items-center gap-2 rounded-2xl px-4 text-[13px] font-bold transition',
                 hasActiveOrder
                   ? 'cursor-not-allowed bg-white/5 text-slate-500'
                   : 'bg-emerald-400 text-slate-950 hover:bg-emerald-300',
@@ -176,32 +176,35 @@ export function POSHeader({
               New Order
             </button>
 
-            {canOpenAdmin && (
+            <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
+              {canOpenAdmin && (
+                <button
+                  type="button"
+                  onClick={goToAdmin}
+                  className="touch-target inline-flex min-h-[40px] items-center gap-2 rounded-2xl px-3 text-[13px] font-semibold text-slate-100 transition hover:bg-white/10 xl:px-4"
+                  aria-label="Open admin"
+                >
+                  <ShieldCheckIcon className="h-4 w-4" />
+                  <span className="hidden xl:inline">Admin</span>
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={goToAdmin}
-                className="touch-target inline-flex min-h-[42px] items-center gap-2 rounded-2xl bg-white/5 px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+                onClick={goToTeam}
+                className="touch-target inline-flex min-h-[40px] items-center gap-2 rounded-2xl px-3 text-[13px] font-semibold text-slate-100 transition hover:bg-white/10 xl:px-4"
+                aria-label="Open my shift"
               >
-                <ShieldCheckIcon className="h-4 w-4" />
-                Admin
+                <CalendarDaysIcon className="h-4 w-4" />
+                <span className="hidden xl:inline">My Shift</span>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={goToTeam}
-              className="touch-target inline-flex min-h-[42px] items-center gap-2 rounded-2xl bg-white/5 px-4 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
-            >
-              <CalendarDaysIcon className="h-4 w-4" />
-              My Shift
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setNotifOpen(true)}
-              className="touch-target relative inline-flex min-h-[42px] items-center justify-center rounded-2xl bg-white/5 px-3 text-slate-200 transition hover:bg-white/10"
-              aria-label="Notifications"
-            >
+              <button
+                type="button"
+                onClick={() => setNotifOpen(true)}
+                className="touch-target relative inline-flex min-h-[40px] items-center justify-center rounded-2xl px-3 text-slate-200 transition hover:bg-white/10"
+                aria-label="Notifications"
+              >
               <BellIcon className="h-5 w-5" />
               {unreadCount > 0 && (
                 <span className="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-black text-white">
@@ -210,14 +213,15 @@ export function POSHeader({
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="touch-target inline-flex min-h-[42px] items-center justify-center rounded-2xl bg-white/5 px-3 text-slate-200 transition hover:bg-red-500/15 hover:text-white"
-              aria-label="Log out"
-            >
-              <ArrowLeftOnRectangleIcon className="h-5 w-5" />
-            </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="touch-target inline-flex min-h-[40px] items-center justify-center rounded-2xl px-3 text-slate-200 transition hover:bg-red-500/15 hover:text-white"
+                aria-label="Log out"
+              >
+                <ArrowLeftOnRectangleIcon className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <button

@@ -435,6 +435,7 @@ export default function POSContent({ initialData }: POSContentProps) {
   const ticketLabel = tableName
     ? `Table ${tableName}`
     : String(orderType || 'Order').replace('_', ' ');
+  const isTablesView = view === 'tables';
 
   const mainPanel = useMemo(() => {
     if (view === 'tables') {
@@ -503,54 +504,70 @@ export default function POSContent({ initialData }: POSContentProps) {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden px-2 pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] pt-2 md:px-3 md:pt-3 md:pb-3">
-        <div className={clsx('grid h-full gap-3', getDesktopTicketWidthClass(posTicketPanelMode))}>
-          <section className="ops-shell flex min-h-0 flex-col overflow-hidden">
-            <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-3 py-3 md:px-4">
-              <div className="min-w-0">
-                <p className="section-kicker">Service workspace</p>
-                <h2 className="mt-1 text-lg font-black text-white md:text-xl">{activeContextLabel}</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  {view === 'tables'
-                    ? 'Tap a table to open or continue service.'
-                    : view === 'open-orders'
+      <main
+        className={clsx(
+          'flex-1 overflow-hidden',
+          isTablesView
+            ? 'px-0 pb-[calc(env(safe-area-inset-bottom,0px)+5.1rem)] pt-0 md:px-0 md:pt-0 md:pb-0'
+            : 'px-2 pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] pt-2 md:px-3 md:pt-3 md:pb-3'
+        )}
+      >
+        <div
+          className={clsx(
+            'grid h-full',
+            isTablesView ? 'gap-0' : 'gap-3',
+            getDesktopTicketWidthClass(posTicketPanelMode)
+          )}
+        >
+          <section
+            className={clsx(
+              'flex min-h-0 flex-col overflow-hidden',
+              isTablesView ? 'bg-transparent' : 'ops-shell'
+            )}
+          >
+            {!isTablesView && (
+              <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-3 py-3 md:px-4">
+                <div className="min-w-0">
+                  <p className="section-kicker">Service workspace</p>
+                  <h2 className="mt-1 text-lg font-black text-white md:text-xl">{activeContextLabel}</h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {view === 'open-orders'
                       ? 'Jump back into any live check without leaving service.'
                       : hasActiveTicket
-                        ? `${ticketLabel} · ${activeItemCount} item${activeItemCount === 1 ? '' : 's'}`
+                        ? `${ticketLabel} | ${activeItemCount} item${activeItemCount === 1 ? '' : 's'}`
                         : 'Add items fast and keep the active check visible.'}
-                </p>
-              </div>
+                  </p>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {hasActiveTicket && (
-                  <>
-                    <span className="ops-chip">{ticketLabel}</span>
-                    <span className="ops-chip">{pendingItemCount} ready to fire</span>
-                    <span className="ops-chip">${total.toFixed(2)} total</span>
-                  </>
-                )}
-                {view !== 'tables' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {hasActiveTicket && (
+                    <>
+                      <span className="ops-chip">{ticketLabel}</span>
+                      <span className="ops-chip">{pendingItemCount} ready to fire</span>
+                      <span className="ops-chip">${total.toFixed(2)} total</span>
+                    </>
+                  )}
                   <span className="ops-chip">{initialData.openOrders.length} open orders</span>
-                )}
-                {view === 'menu' && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPosTicketPanelMode(posTicketPanelMode === 'hidden' ? 'expanded' : 'hidden')
-                    }
-                    className={clsx(
-                      'touch-target inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition lg:hidden',
-                      posTicketPanelMode === 'hidden'
-                        ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
-                        : 'border-white/10 bg-white/5 text-slate-200',
-                    )}
-                  >
-                    <RectangleStackIcon className="h-4 w-4" />
-                    {posTicketPanelMode === 'hidden' ? 'Show Check' : 'Hide Check'}
-                  </button>
-                )}
+                  {view === 'menu' && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPosTicketPanelMode(posTicketPanelMode === 'hidden' ? 'expanded' : 'hidden')
+                      }
+                      className={clsx(
+                        'touch-target inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition lg:hidden',
+                        posTicketPanelMode === 'hidden'
+                          ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                          : 'border-white/10 bg-white/5 text-slate-200',
+                      )}
+                    >
+                      <RectangleStackIcon className="h-4 w-4" />
+                      {posTicketPanelMode === 'hidden' ? 'Show Check' : 'Hide Check'}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="min-h-0 flex-1">{mainPanel}</div>
           </section>

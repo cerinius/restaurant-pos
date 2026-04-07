@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, TableCellsIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowTopRightOnSquareIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
+  TableCellsIcon,
+  UsersIcon,
+} from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -19,6 +26,7 @@ import {
   isBarSeatTable,
   sortFloorRooms,
 } from '@/lib/floor-plan';
+import { getRestaurantAdminPath } from '@/lib/paths';
 import { useAuthStore } from '@/store';
 
 interface Props {
@@ -27,6 +35,8 @@ interface Props {
   selectedTableId?: string;
   initialTables?: any[];
 }
+
+type TableStatusFilter = 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'DIRTY';
 
 const STATUS_STYLES: Record<string, string> = {
   AVAILABLE: 'bg-green-500/10 border-green-500/80 text-green-300',
@@ -52,6 +62,37 @@ const STATUS_ACCENTS: Record<string, string> = {
   BLOCKED: 'text-slate-400',
 };
 
+const FILTER_META: Array<{
+  id: TableStatusFilter;
+  label: string;
+  countKey?: 'available' | 'occupied' | 'dirty';
+  activeClass: string;
+}> = [
+  {
+    id: 'ALL',
+    label: 'All',
+    activeClass: 'border-cyan-300/30 bg-cyan-300 text-slate-950',
+  },
+  {
+    id: 'AVAILABLE',
+    label: 'Open',
+    countKey: 'available',
+    activeClass: 'border-emerald-300/30 bg-emerald-400/90 text-slate-950',
+  },
+  {
+    id: 'OCCUPIED',
+    label: 'Occupied',
+    countKey: 'occupied',
+    activeClass: 'border-sky-300/30 bg-sky-400/90 text-slate-950',
+  },
+  {
+    id: 'DIRTY',
+    label: 'Dirty',
+    countKey: 'dirty',
+    activeClass: 'border-amber-300/30 bg-amber-400/90 text-slate-950',
+  },
+];
+
 function formatCurrency(amount?: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -61,9 +102,53 @@ function formatCurrency(amount?: number) {
   }).format(amount || 0);
 }
 
+function canOpenAdmin(role?: string) {
+  return ['OWNER', 'MANAGER'].includes(String(role || '').toUpperCase());
+}
+
+function EmptyFloorState({
+  title,
+  description,
+  canManageFloor,
+  onOpenAdmin,
+}: {
+  title: string;
+  description: string;
+  canManageFloor: boolean;
+  onOpenAdmin: () => void;
+}) {
+  return (
+    <div className="flex h-full min-h-[280px] items-center justify-center px-4 py-6 md:min-h-[360px] md:px-8">
+      <div className="flex max-w-md flex-col items-center rounded-[28px] border border-dashed border-white/12 bg-slate-950/72 px-6 py-8 text-center shadow-[0_24px_80px_rgba(2,6,23,0.34)] backdrop-blur-xl md:px-8">
+        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-3xl border border-cyan-300/18 bg-cyan-300/10 text-cyan-200">
+          <TableCellsIcon className="h-7 w-7" />
+        </div>
+        <h3 className="text-lg font-black text-slate-50 md:text-xl">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
+        {canManageFloor ? (
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="touch-target mt-5 inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-200"
+          >
+            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+            Open Floor Plan Admin
+          </button>
+        ) : (
+          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Add tables in Admin / Floor Plan
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TableMap({ locationId, onTableSelect, selectedTableId, initialTables = [] }: Props) {
   const { user } = useAuthStore();
+  const router = useRouter();
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [activeStatusFilter, setActiveStatusFilter] = useState<TableStatusFilter>('ALL');
   const desktopViewportRef = useRef<HTMLDivElement>(null);
   const [desktopViewport, setDesktopViewport] = useState({ width: 0, height: 0 });
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -110,10 +195,16 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   const sections = rooms.map((room) => room.name);
   const focusedSection = activeSection || sections[0] || null;
   const activeRoom = focusedSection ? roomMap.get(focusedSection) || null : null;
-  const filtered = focusedSection
+  const sectionTables = focusedSection
     ? tables.filter((table: any) => getTableRoomName(table) === focusedSection)
     : tables;
-  const mobileTables = [...filtered].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  const visibleTables = useMemo(() => {
+    if (activeStatusFilter === 'ALL') return sectionTables;
+    return sectionTables.filter((table: any) => table.status === activeStatusFilter);
+  }, [activeStatusFilter, sectionTables]);
+  const mobileTables = [...visibleTables].sort((a, b) =>
+    String(a.name || '').localeCompare(String(b.name || ''))
+  );
   const canvasSize = activeRoom
     ? getCanvasBounds([
         {
@@ -130,6 +221,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     floorPlan.tableAssignments.forEach((assignment) => {
       const table = tables.find((entry) => entry.id === assignment.tableId);
       if (!table) return;
+      if (focusedSection && getTableRoomName(table) !== focusedSection) return;
 
       const current = counts.get(assignment.serverId) || {
         serverId: assignment.serverId,
@@ -187,11 +279,12 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   }, [focusedSection, locationId]);
 
   const counts = {
-    available: tables.filter((table: any) => table.status === 'AVAILABLE').length,
-    occupied: tables.filter((table: any) => table.status === 'OCCUPIED').length,
-    dirty: tables.filter((table: any) => table.status === 'DIRTY').length,
+    available: sectionTables.filter((table: any) => table.status === 'AVAILABLE').length,
+    occupied: sectionTables.filter((table: any) => table.status === 'OCCUPIED').length,
+    dirty: sectionTables.filter((table: any) => table.status === 'DIRTY').length,
   };
   const totalAssignedTables = assignmentSummary.reduce((sum, entry) => sum + entry.assigned, 0);
+  const canManageFloor = canOpenAdmin(user?.role) && !!user?.restaurantId;
 
   const handleTablePress = (table: any) => {
     const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
@@ -203,6 +296,11 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     }
 
     onTableSelect(table);
+  };
+
+  const openAdminFloorPlan = () => {
+    if (!user?.restaurantId) return;
+    router.push(getRestaurantAdminPath(user.restaurantId, 'floor'));
   };
 
   const renderBarFeature = (room: any) => {
@@ -269,13 +367,14 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
         }
       : room;
     const roomOrigin = activeRoom ? { x: CANVAS_PADDING, y: CANVAS_PADDING } : { x: renderedRoom.x, y: renderedRoom.y };
-    const roomTables = (tablesByRoom.get(room.name) || []).sort((a, b) =>
-      String(a.name || '').localeCompare(String(b.name || ''))
-    );
+    const roomTables = ((tablesByRoom.get(room.name) || []) as any[])
+      .filter((table) => activeStatusFilter === 'ALL' || table.status === activeStatusFilter)
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     const barSeatCount =
       renderedRoom.type === 'bar'
         ? getBarSeatCountForRoom(renderedRoom, roomTables, floorPlan.tableMetadata)
         : 0;
+    const roomIsEmpty = roomTables.length === 0;
 
     return (
       <div
@@ -287,19 +386,32 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           width: renderedRoom.width,
           height: renderedRoom.height,
         }}
-        className={clsx(
-          'rounded-3xl border-2 shadow-lg transition-all overflow-hidden',
-          renderedRoom.type === 'bar'
-            ? 'bg-slate-800/50 border-slate-700'
-            : 'bg-slate-800/50 border-slate-700',
-        )}
+        className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/58 shadow-[0_18px_50px_rgba(2,6,23,0.34)]"
       >
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.08),transparent_40%)]" />
-        <div className="absolute left-4 top-3 z-[2] rounded-full bg-slate-900/80 px-3 py-1 text-sm font-semibold text-slate-100 backdrop-blur-sm">
-          {renderedRoom.name}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(148,163,184,0.1),transparent_42%)]" />
+        <div className="absolute left-3 top-3 z-[2] flex items-center gap-2 rounded-full bg-slate-950/84 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-100 backdrop-blur-sm md:text-xs">
+          <span>{renderedRoom.name}</span>
+          {renderedRoom.type === 'bar' && (
+            <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] tracking-[0.12em] text-amber-100">
+              {barSeatCount} stools
+            </span>
+          )}
         </div>
 
         {renderBarFeature(renderedRoom)}
+
+        {roomIsEmpty && (
+          <div className="absolute inset-0 flex items-center justify-center px-8">
+            <div className="rounded-3xl border border-dashed border-white/10 bg-slate-950/48 px-5 py-4 text-center">
+              <p className="text-sm font-semibold text-slate-200">No matching tables here</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {activeStatusFilter === 'ALL'
+                  ? 'Add tables in Floor Plan Admin.'
+                  : `No ${FILTER_META.find((entry) => entry.id === activeStatusFilter)?.label.toLowerCase()} tables in this area.`}
+              </p>
+            </div>
+          </div>
+        )}
 
         {roomTables.map((table: any) => {
           const isSelected = table.id === selectedTableId;
@@ -365,45 +477,91 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b border-white/10 bg-slate-950/70 px-2 py-2 md:px-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-950/28">
+      <div className="shrink-0 border-b border-white/10 bg-slate-950/78 px-2.5 py-2 backdrop-blur-xl md:px-3 md:py-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-auto flex min-w-0 items-center gap-2">
-            <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-slate-200">
+          <div className="mr-auto flex min-w-0 items-center gap-2.5">
+            <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-slate-200">
               <TableCellsIcon className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-sm font-black text-white md:text-base">
-                {focusedSection ? focusedSection : 'Floor'}
-              </h2>
-              <p className="truncate text-[11px] text-slate-500">
-                {filtered.length} tables
-                {assignmentSummary.length > 0 ? ` • ${totalAssignedTables} assigned` : ''}
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-black text-white md:text-lg">Floor</h2>
+                {focusedSection && (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
+                    {focusedSection}
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-[11px] text-slate-400 md:text-xs">
+                {activeStatusFilter === 'ALL'
+                  ? `${sectionTables.length} table${sectionTables.length === 1 ? '' : 's'}`
+                  : `${visibleTables.length} ${FILTER_META.find((entry) => entry.id === activeStatusFilter)?.label.toLowerCase()} table${visibleTables.length === 1 ? '' : 's'}`}
+                {assignmentSummary.length > 0 ? ` | ${totalAssignedTables} assigned` : ''}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
-              {counts.available} open
-            </span>
-            <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-blue-200">
-              {counts.occupied} occupied
-            </span>
-            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
-              {counts.dirty} dirty
-            </span>
-            {assignmentSummary.length > 0 && (
-              <span className="hidden rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300 lg:inline-flex lg:items-center lg:gap-1.5">
-                <UsersIcon className="h-3.5 w-3.5" />
-                {assignmentSummary.length} sections
-              </span>
-            )}
-            <div className="ml-1 hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1.5 lg:flex">
+            {assignmentSummary.slice(0, 3).map((summary) => (
+              <div
+                key={summary.serverId}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-300"
+              >
+                <span className="font-semibold text-slate-100">{summary.serverName}</span>
+                <span className="ml-1.5 text-slate-500">{summary.assigned}</span>
+                <span className="ml-1 text-emerald-300">{summary.open} open</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="flex max-w-full items-center gap-2 overflow-x-auto no-scrollbar">
+            {sections.map((section) => (
+              <button
+                key={section}
+                type="button"
+                onClick={() => setActiveSection(section)}
+                className={clsx(
+                  'touch-target whitespace-nowrap rounded-2xl border px-3 py-2 text-xs font-bold transition-all md:px-3.5',
+                  focusedSection === section
+                    ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                    : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                )}
+              >
+                {section}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            {FILTER_META.map((filter) => {
+              const count = filter.countKey !== undefined ? counts[filter.countKey] : sectionTables.length;
+
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setActiveStatusFilter(filter.id)}
+                  className={clsx(
+                    'touch-target inline-flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-bold transition-all',
+                    activeStatusFilter === filter.id
+                      ? filter.activeClass
+                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                  )}
+                >
+                  <span>{filter.label}</span>
+                  <span className="tabular-nums opacity-75">{count}</span>
+                </button>
+              );
+            })}
+
+            <div className="ml-0.5 flex items-center gap-1 rounded-[20px] border border-white/10 bg-white/5 p-1">
               <button
                 type="button"
                 onClick={() => setZoomLevel((current) => Math.max(0.82, Number((current - 0.08).toFixed(2))))}
-                className="touch-target inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl text-slate-200 transition hover:bg-white/10"
                 aria-label="Zoom out floor plan"
               >
                 <MagnifyingGlassMinusIcon className="h-4 w-4" />
@@ -411,14 +569,14 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               <button
                 type="button"
                 onClick={() => setZoomLevel(1)}
-                className="touch-target rounded-2xl border border-white/10 bg-white/5 px-2.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+                className="touch-target rounded-2xl px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-white/10"
               >
                 Fit
               </button>
               <button
                 type="button"
                 onClick={() => setZoomLevel((current) => Math.min(1.42, Number((current + 0.08).toFixed(2))))}
-                className="touch-target inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl text-slate-200 transition hover:bg-white/10"
                 aria-label="Zoom in floor plan"
               >
                 <MagnifyingGlassPlusIcon className="h-4 w-4" />
@@ -427,237 +585,180 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
           </div>
         </div>
 
-        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-          {sections.map((section) => (
-            <button
-              key={section}
-              type="button"
-              onClick={() => setActiveSection(section)}
-              className={clsx(
-                'touch-target whitespace-nowrap rounded-xl border px-3 py-1.5 text-xs font-bold transition-all',
-                focusedSection === section
-                  ? 'border-cyan-400 bg-cyan-400 text-slate-950'
-                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white',
-              )}
-            >
-              {section}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {assignmentSummary.length > 0 && (
-        <div className="hidden shrink-0 border-b border-white/10 bg-slate-950/40 px-3 py-1.5 lg:block">
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+        {assignmentSummary.length > 0 && (
+          <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar lg:hidden">
             {assignmentSummary.map((summary) => (
-              <div key={summary.serverId} className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-300">
+              <div
+                key={summary.serverId}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-300"
+              >
+                <UsersIcon className="h-3.5 w-3.5 text-slate-500" />
                 <span className="font-semibold text-slate-100">{summary.serverName}</span>
-                <span className="ml-1.5 text-slate-500">{summary.assigned}</span>
-                <span className="ml-1 text-emerald-300">{summary.open} open</span>
+                <span className="text-slate-500">{summary.assigned}</span>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-auto p-3 md:hidden">
-        {focusedSection ? (
-          mobileTables.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {mobileTables.map((table: any) => {
-                const isSelected = table.id === selectedTableId;
-                const hasOrder = table.orders && table.orders.length > 0;
-                const order = hasOrder ? table.orders[0] : null;
-                const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
-                const elapsed = order
-                  ? Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000)
-                  : 0;
-
-                return (
-                  <button
-                    key={table.id}
-                    type="button"
-                    onClick={() => handleTablePress(table)}
-                    className={clsx(
-                      'touch-target flex min-h-[112px] flex-col rounded-3xl border-2 p-4 text-left transition-all',
-                      STATUS_STYLES[table.status] || 'table-available',
-                      isSelected ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : 'hover:bg-slate-800/50',
-                      table.status === 'BLOCKED' ? 'opacity-60' : '',
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-base font-semibold">{table.name}</p>
-                        <p className="mt-1 text-xs opacity-80">
-                          {getTableRoomName(table)}
-                          {table.capacity ? ` | ${table.capacity} seats` : ''}
-                        </p>
-                        {assignment && <p className="mt-1 text-xs font-semibold text-blue-200/80">{assignment.serverName}</p>}
-                      </div>
-                      <span className={clsx('text-xs font-semibold', STATUS_ACCENTS[table.status] || 'text-slate-300')}>
-                        {STATUS_LABELS[table.status] || table.status}
-                      </span>
-                    </div>
-
-                    <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-                      <div className="text-xs opacity-80">
-                        {hasOrder ? `${elapsed} min active` : 'Ready for service'}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold">
-                          {hasOrder ? formatCurrency(order?.total) : ''}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex h-full min-h-[280px] items-center justify-center rounded-3xl border-2 border-dashed border-slate-700 bg-slate-800/50 px-6 text-center text-sm text-slate-500">
-              No tables found. Add tables in Admin / Floor Plan.
-            </div>
-          )
-        ) : rooms.length > 0 ? (
-          <div className="space-y-4">
-            {rooms.map((room) => {
-              const roomTables = (tablesByRoom.get(room.name) || []).sort((a, b) =>
-                String(a.name || '').localeCompare(String(b.name || ''))
-              );
-              const barSeatCount = room.type === 'bar' ? getBarSeatCountForRoom(room, roomTables, floorPlan.tableMetadata) : 0;
-
-              return (
-                <section key={room.name} className="rounded-3xl border-2 border-slate-700 bg-slate-800/50 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-100">{room.name}</h3>
-                      <p className="text-xs text-slate-400">
-                        {room.type === 'bar'
-                          ? `Bar / ${barSeatCount} stools / ${roomTables.length - barSeatCount} tables`
-                          : `Room / ${roomTables.length} tables`}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSection(room.name)}
-                      className="rounded-lg bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-950 transition-all hover:bg-cyan-300"
-                    >
-                      Focus
-                    </button>
-                  </div>
-
-                  {roomTables.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {roomTables.map((table: any) => {
-                        const isSelected = table.id === selectedTableId;
-                        const hasOrder = table.orders && table.orders.length > 0;
-                        const order = hasOrder ? table.orders[0] : null;
-                        const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
-
-                        return (
-                          <button
-                            key={table.id}
-                            type="button"
-                            onClick={() => handleTablePress(table)}
-                            className={clsx(
-                              'touch-target flex min-h-[104px] flex-col rounded-2xl border-2 p-4 text-left transition-all',
-                              STATUS_STYLES[table.status] || 'table-available',
-                              isSelected ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : 'hover:bg-slate-800/50',
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold">{table.name}</p>
-                                <p className="mt-1 text-xs opacity-80">{table.capacity || 0} seats</p>
-                                {assignment && <p className="mt-1 text-xs font-semibold text-blue-200/80">{assignment.serverName}</p>}
-                              </div>
-                              <span className={clsx('text-xs font-semibold', STATUS_ACCENTS[table.status] || 'text-slate-300')}>
-                                {STATUS_LABELS[table.status] || table.status}
-                              </span>
-                            </div>
-                            <div className="mt-auto pt-3 text-xs opacity-80">
-                              {order ? `Open check ${formatCurrency(order.total)}` : 'Ready for service'}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border-2 border-dashed border-slate-700 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
-                      No tables in this room yet.
-                    </div>
-                  )}
-                </section>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex h-full min-h-[280px] items-center justify-center rounded-3xl border-2 border-dashed border-slate-700 bg-slate-800/50 px-6 text-center text-sm text-slate-500">
-            No tables found. Add tables in Admin / Floor Plan.
           </div>
         )}
       </div>
 
-      <div ref={desktopViewportRef} className="relative hidden min-h-0 flex-1 overflow-auto bg-slate-950/40 p-1.5 md:block">
-        <div className="workspace-panel flex min-h-full w-full items-start justify-start p-1.5">
-          <div
-            style={{
-              width: canvasSize.width * desktopScale * zoomLevel,
-              height: canvasSize.height * desktopScale * zoomLevel,
-            }}
-          >
+      <div className="flex-1 overflow-auto p-2 no-scrollbar md:hidden">
+        {mobileTables.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {mobileTables.map((table: any) => {
+              const isSelected = table.id === selectedTableId;
+              const hasOrder = table.orders && table.orders.length > 0;
+              const order = hasOrder ? table.orders[0] : null;
+              const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
+              const elapsed = order
+                ? Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000)
+                : 0;
+
+              return (
+                <button
+                  key={table.id}
+                  type="button"
+                  onClick={() => handleTablePress(table)}
+                  className={clsx(
+                    'touch-target flex min-h-[112px] flex-col rounded-[26px] border-2 p-4 text-left transition-all',
+                    STATUS_STYLES[table.status] || STATUS_STYLES.AVAILABLE,
+                    isSelected
+                      ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900'
+                      : 'hover:bg-slate-800/50',
+                    table.status === 'BLOCKED' ? 'opacity-60' : ''
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-semibold">{table.name}</p>
+                      <p className="mt-1 text-xs opacity-80">
+                        {getTableRoomName(table)}
+                        {table.capacity ? ` | ${table.capacity} seats` : ''}
+                      </p>
+                      {assignment && (
+                        <p className="mt-1 text-xs font-semibold text-blue-200/80">
+                          {assignment.serverName}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={clsx(
+                        'text-xs font-semibold',
+                        STATUS_ACCENTS[table.status] || 'text-slate-300'
+                      )}
+                    >
+                      {STATUS_LABELS[table.status] || table.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+                    <div className="text-xs opacity-80">
+                      {hasOrder ? `${elapsed} min active` : 'Ready for service'}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">
+                        {hasOrder ? formatCurrency(order?.total) : ''}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyFloorState
+            title={tables.length === 0
+              ? 'No tables on this floor yet'
+              : activeStatusFilter === 'ALL'
+                ? `No tables in ${focusedSection || 'this area'}`
+                : `No ${FILTER_META.find((entry) => entry.id === activeStatusFilter)?.label.toLowerCase()} tables in ${focusedSection || 'this area'}`}
+            description={tables.length === 0
+              ? 'Add tables in Admin > Floor Plan so staff can seat guests and manage live checks from the map.'
+              : activeStatusFilter === 'ALL'
+                ? 'This area does not have any tables yet. Add them in Admin > Floor Plan.'
+                : 'Try another status filter or switch to a different area to continue service.'}
+            canManageFloor={canManageFloor}
+            onOpenAdmin={openAdminFloorPlan}
+          />
+        )}
+      </div>
+
+      <div
+        ref={desktopViewportRef}
+        className="relative hidden min-h-0 flex-1 overflow-auto bg-slate-950/38 p-1.5 no-scrollbar md:block"
+      >
+        {tables.length === 0 || visibleTables.length === 0 ? (
+          <EmptyFloorState
+            title={tables.length === 0
+              ? 'No tables on this floor yet'
+              : activeStatusFilter === 'ALL'
+                ? `No tables in ${focusedSection || 'this area'}`
+                : `No ${FILTER_META.find((entry) => entry.id === activeStatusFilter)?.label.toLowerCase()} tables in ${focusedSection || 'this area'}`}
+            description={tables.length === 0
+              ? 'Add tables in Admin > Floor Plan so staff can seat guests and manage live checks from the map.'
+              : activeStatusFilter === 'ALL'
+                ? 'This area does not have any tables yet. Add them in Admin > Floor Plan.'
+                : 'Try another status filter or switch to a different area to continue service.'}
+            canManageFloor={canManageFloor}
+            onOpenAdmin={openAdminFloorPlan}
+          />
+        ) : (
+          <div className="flex min-h-full min-w-full items-start justify-start">
             <div
-              className="relative origin-top-left bg-slate-950 select-none"
               style={{
-                width: canvasSize.width,
-                height: canvasSize.height,
-                transform: `scale(${desktopScale * zoomLevel})`,
-                backgroundImage: 'radial-gradient(circle, rgba(71,85,105,0.45) 1px, transparent 1px)',
-                backgroundSize: '30px 30px',
-                borderRadius: '28px',
-                overflow: 'hidden',
+                width: canvasSize.width * desktopScale * zoomLevel,
+                height: canvasSize.height * desktopScale * zoomLevel,
               }}
             >
-              {!activeRoom && floorPlan.connections.length > 0 && (
-                <svg className="absolute inset-0 pointer-events-none" width={canvasSize.width} height={canvasSize.height}>
-                  {floorPlan.connections.map((connection) => {
-                    const fromRoom = roomMap.get(connection.from);
-                    const toRoom = roomMap.get(connection.to);
-                    if (!fromRoom || !toRoom) return null;
+              <div
+                className="relative origin-top-left select-none overflow-hidden rounded-[28px] bg-slate-950"
+                style={{
+                  width: canvasSize.width,
+                  height: canvasSize.height,
+                  transform: `scale(${desktopScale * zoomLevel})`,
+                  backgroundImage:
+                    'radial-gradient(circle, rgba(71,85,105,0.4) 1px, transparent 1px)',
+                  backgroundSize: '30px 30px',
+                }}
+              >
+                {!activeRoom && floorPlan.connections.length > 0 && (
+                  <svg
+                    className="pointer-events-none absolute inset-0"
+                    width={canvasSize.width}
+                    height={canvasSize.height}
+                  >
+                    {floorPlan.connections.map((connection) => {
+                      const fromRoom = roomMap.get(connection.from);
+                      const toRoom = roomMap.get(connection.to);
+                      if (!fromRoom || !toRoom) return null;
 
-                    const fromCenter = getRoomCenter(fromRoom);
-                    const toCenter = getRoomCenter(toRoom);
+                      const fromCenter = getRoomCenter(fromRoom);
+                      const toCenter = getRoomCenter(toRoom);
 
-                    return (
-                      <g key={connection.id}>
-                        <line
-                          x1={fromCenter.x}
-                          y1={fromCenter.y}
-                          x2={toCenter.x}
-                          y2={toCenter.y}
-                          stroke="rgba(96,165,250,0.55)"
-                          strokeWidth="8"
-                          strokeLinecap="round"
-                          strokeDasharray="10 12"
-                        />
-                        <circle cx={fromCenter.x} cy={fromCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
-                        <circle cx={toCenter.x} cy={toCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
-                      </g>
-                    );
-                  })}
-                </svg>
-              )}
+                      return (
+                        <g key={connection.id}>
+                          <line
+                            x1={fromCenter.x}
+                            y1={fromCenter.y}
+                            x2={toCenter.x}
+                            y2={toCenter.y}
+                            stroke="rgba(96,165,250,0.55)"
+                            strokeWidth="8"
+                            strokeLinecap="round"
+                            strokeDasharray="10 12"
+                          />
+                          <circle cx={fromCenter.x} cy={fromCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
+                          <circle cx={toCenter.x} cy={toCenter.y} r="6" fill="rgba(147,197,253,0.85)" />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
 
-              {(activeRoom ? [activeRoom] : rooms).map(renderDesktopRoom)}
-
-              {tables.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center text-slate-500">
-                  No tables found. Add tables in Admin / Floor Plan.
-                </div>
-              )}
+                {(activeRoom ? [activeRoom] : rooms).map(renderDesktopRoom)}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {blockedTable && (

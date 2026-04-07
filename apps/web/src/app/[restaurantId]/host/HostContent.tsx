@@ -9,7 +9,6 @@ import {
   CalendarDaysIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
-  ClockIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { ReservationStatus, WSEventType } from '@pos/shared';
@@ -277,72 +276,65 @@ export default function HostContent({ initialData }: HostContentProps) {
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#08111f_0%,#0b1728_52%,#020617_100%)] px-2 py-2 md:px-3 md:py-3">
-      <div
-        className={clsx(
-          'ops-shell flex min-h-0 flex-1 flex-col overflow-hidden xl:grid',
-          hostPanelVisible
-            ? 'xl:grid-cols-[minmax(0,1.18fr)_360px] 2xl:grid-cols-[minmax(0,1.24fr)_400px]'
-            : 'xl:grid-cols-1',
-        )}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-3 py-3 md:px-4">
-            <div>
-              <p className="section-kicker">Host station</p>
-              <h1 className="mt-1 text-xl font-black text-white md:text-2xl">Seat guests from one live floor</h1>
-              <p className="mt-1 text-sm text-slate-400">
-                Coordinate reservations, walk-ins, table status, and server balance without leaving the floor map.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <div className="ops-stat min-w-[110px]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Available</p>
-                <p className="mt-1 text-2xl font-black text-emerald-100">{counts.available}</p>
-              </div>
-              <div className="ops-stat min-w-[110px]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Occupied</p>
-                <p className="mt-1 text-2xl font-black text-sky-100">{counts.occupied}</p>
-              </div>
-              <div className="ops-stat min-w-[110px]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Waitlist</p>
-                <p className="mt-1 text-2xl font-black text-violet-100">{counts.waitlist}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setHostPanelVisible(!hostPanelVisible)}
-                className={clsx(
-                  'touch-target rounded-2xl border px-3 py-2 text-sm font-semibold transition',
-                  hostPanelVisible
-                    ? 'border-white/10 bg-white/5 text-slate-200'
-                    : 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100',
-                )}
-              >
-                {hostPanelVisible ? 'Hide host rail' : 'Show host rail'}
-              </button>
-            </div>
+      <div className="mb-2 shrink-0 rounded-[24px] border border-white/10 bg-slate-950/72 px-3 py-2.5 backdrop-blur md:px-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Host station</p>
+            <h1 className="mt-1 text-base font-black text-white md:text-lg">Live floor seating</h1>
+            <p className="mt-1 hidden text-xs text-slate-400 md:block">
+              Seat reservations, walk-ins, and balance servers without pulling focus from the map.
+            </p>
           </div>
 
-          <div className="min-h-0 h-[calc(100%-93px)]">
-            <TableMap
-              initialTables={tables}
-              locationId={effectiveLocationId || ''}
-              onTableSelect={handleTableSelect}
-              selectedTableId={selectedTable?.id || selectedReservation?.table?.id}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Available</p>
+              <p className="mt-1 text-lg font-black text-emerald-100">{counts.available}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Occupied</p>
+              <p className="mt-1 text-lg font-black text-sky-100">{counts.occupied}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Waitlist</p>
+              <p className="mt-1 text-lg font-black text-violet-100">{counts.waitlist}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHostPanelVisible(!hostPanelVisible)}
+              className={clsx(
+                'touch-target rounded-2xl border px-3 text-sm font-semibold transition',
+                hostPanelVisible
+                  ? 'border-white/10 bg-white/5 text-slate-200'
+                  : 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100',
+              )}
+            >
+              {hostPanelVisible ? 'Hide host rail' : 'Show host rail'}
+            </button>
           </div>
+        </div>
+      </div>
+
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="h-full overflow-hidden">
+          <TableMap
+            initialTables={tables}
+            locationId={effectiveLocationId || ''}
+            onTableSelect={handleTableSelect}
+            selectedTableId={selectedTable?.id || selectedReservation?.table?.id}
+          />
         </div>
 
         {hostPanelVisible && (
-          <aside className="border-t border-white/10 bg-slate-950/35 p-3 xl:border-l xl:border-t-0">
-            <div className="flex h-full flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-4">
+          <aside className="absolute inset-x-2 bottom-2 top-auto z-20 max-h-[62%] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/94 p-3 shadow-2xl backdrop-blur-xl md:inset-x-auto md:inset-y-2 md:right-2 md:w-[320px] md:max-h-none lg:w-[340px]">
+            <div className="flex h-full flex-col rounded-[24px] border border-white/10 bg-white/[0.04] p-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-slate-950">
-                  {hostRailTab === 'book' ? <CalendarDaysIcon className="h-6 w-6" /> : <UserGroupIcon className="h-6 w-6" />}
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-300 text-slate-950">
+                  {hostRailTab === 'book' ? <CalendarDaysIcon className="h-5 w-5" /> : <UserGroupIcon className="h-5 w-5" />}
                 </div>
-                <div>
-                  <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">Host rail</p>
-                  <h2 className="text-xl font-black text-white">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Host rail</p>
+                  <h2 className="truncate text-base font-black text-white">
                     {hostRailTab === 'book' ? `${actionableReservations.length} active bookings` : `${activeServers.length} servers`}
                   </h2>
                 </div>
@@ -591,7 +583,7 @@ export default function HostContent({ initialData }: HostContentProps) {
         <button
           type="button"
           onClick={() => setHostPanelVisible(true)}
-          className="absolute right-4 top-24 z-20 hidden items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/88 px-3 py-2 text-sm font-semibold text-slate-100 shadow-xl backdrop-blur xl:inline-flex"
+          className="absolute right-4 top-4 z-20 hidden items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/88 px-3 py-2 text-sm font-semibold text-slate-100 shadow-xl backdrop-blur md:inline-flex"
         >
           <ChevronDoubleLeftIcon className="h-4 w-4" />
           Host rail
