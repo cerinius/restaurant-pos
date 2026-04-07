@@ -494,6 +494,132 @@ class ApiClient {
     return data;
   }
 
+  // Operations
+  async getOperationsOverview(params?: any) {
+    const { data } = await this.client.get('/api/operations/overview', { params });
+    return data;
+  }
+  async getGuests(params?: any) {
+    const { data } = await this.client.get('/api/operations/guests', { params });
+    return data;
+  }
+  async getGuest(id: string) {
+    const { data } = await this.client.get(`/api/operations/guests/${id}`);
+    return data;
+  }
+  async saveGuest(payload: any) {
+    const { data } = await this.client.post('/api/operations/guests', payload);
+    return data;
+  }
+  async addGuestNote(id: string, payload: any) {
+    const { data } = await this.client.post(`/api/operations/guests/${id}/notes`, payload);
+    return data;
+  }
+  async updateGuestTags(id: string, tags: string[]) {
+    const { data } = await this.client.post(`/api/operations/guests/${id}/tags`, { tags });
+    return data;
+  }
+  async getCampaigns() {
+    const { data } = await this.client.get('/api/operations/campaigns');
+    return data;
+  }
+  async createCampaign(payload: any) {
+    const { data } = await this.client.post('/api/operations/campaigns', payload);
+    return data;
+  }
+  async sendCampaign(id: string) {
+    const { data } = await this.client.post(`/api/operations/campaigns/${id}/send`);
+    return data;
+  }
+  async getManagerLog(params?: any) {
+    const { data } = await this.client.get('/api/operations/manager-log', { params });
+    return data;
+  }
+  async createManagerLog(payload: any) {
+    const { data } = await this.client.post('/api/operations/manager-log', payload);
+    return data;
+  }
+  async acknowledgeManagerLog(id: string) {
+    const { data } = await this.client.post(`/api/operations/manager-log/${id}/acknowledge`);
+    return data;
+  }
+  async getTaskLists(params?: any) {
+    const { data } = await this.client.get('/api/operations/tasks', { params });
+    return data;
+  }
+  async createTaskList(payload: any) {
+    const { data } = await this.client.post('/api/operations/tasks', payload);
+    return data;
+  }
+  async addTaskItem(id: string, payload: any) {
+    const { data } = await this.client.post(`/api/operations/tasks/${id}/items`, payload);
+    return data;
+  }
+  async toggleTaskItem(id: string) {
+    const { data } = await this.client.post(`/api/operations/task-items/${id}/toggle`);
+    return data;
+  }
+  async getTeamChannels(params?: any) {
+    const { data } = await this.client.get('/api/operations/channels', { params });
+    return data;
+  }
+  async createTeamChannel(payload: any) {
+    const { data } = await this.client.post('/api/operations/channels', payload);
+    return data;
+  }
+  async sendTeamMessage(id: string, body: string) {
+    const { data } = await this.client.post(`/api/operations/channels/${id}/messages`, { body });
+    return data;
+  }
+  async getEmployeeDocuments() {
+    const { data } = await this.client.get('/api/operations/documents');
+    return data;
+  }
+  async createEmployeeDocument(payload: any) {
+    const { data } = await this.client.post('/api/operations/documents', payload);
+    return data;
+  }
+  async acknowledgeEmployeeDocument(id: string, payload: any) {
+    const { data } = await this.client.post(`/api/operations/documents/${id}/acknowledge`, payload);
+    return data;
+  }
+  async getPayrollPreview(params?: any) {
+    const { data } = await this.client.get('/api/operations/payroll/preview', { params });
+    return data;
+  }
+  async createPayrollExport(payload: any) {
+    const { data } = await this.client.post('/api/operations/payroll/exports', payload);
+    return data;
+  }
+  async getTipPools(params?: any) {
+    const { data } = await this.client.get('/api/operations/tip-pools', { params });
+    return data;
+  }
+  async createTipPool(payload: any) {
+    const { data } = await this.client.post('/api/operations/tip-pools', payload);
+    return data;
+  }
+  async getHiringOverview(params?: any) {
+    const { data } = await this.client.get('/api/operations/hiring', { params });
+    return data;
+  }
+  async createJobPosting(payload: any) {
+    const { data } = await this.client.post('/api/operations/hiring/postings', payload);
+    return data;
+  }
+  async createCandidate(id: string, payload: any) {
+    const { data } = await this.client.post(`/api/operations/hiring/postings/${id}/candidates`, payload);
+    return data;
+  }
+  async getIntegrations() {
+    const { data } = await this.client.get('/api/operations/integrations');
+    return data;
+  }
+  async createIntegrationConnection(payload: any) {
+    const { data } = await this.client.post('/api/operations/integrations/connections', payload);
+    return data;
+  }
+
   // Reports
   async getSalesReport(params?: any) {
     const { data } = await this.client.get('/api/reports/sales', { params });

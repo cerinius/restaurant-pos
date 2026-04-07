@@ -95,6 +95,7 @@ function Sidebar({
       label: 'Overview',
       items: [
         { href: getRestaurantAdminPath(restaurantId), label: 'Dashboard', Icon: HomeIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'control-center'), label: 'Control Center', Icon: ChartBarIcon },
       ],
     },
     {
@@ -131,6 +132,9 @@ function Sidebar({
       items: [
         { href: getRestaurantAdminPath(restaurantId, 'staff'), label: 'Staff', Icon: UserGroupIcon },
         { href: getRestaurantAdminPath(restaurantId, 'workforce'), label: 'Workforce', Icon: CalendarDaysIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'people-ops'), label: 'People Ops', Icon: ClipboardDocumentListIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'payroll'), label: 'Payroll & Tips', Icon: ChartBarIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'hiring'), label: 'Hiring', Icon: UserGroupIcon },
         { href: getRestaurantAdminPath(restaurantId, 'reports'), label: 'Reports', Icon: ChartBarIcon },
         { href: getRestaurantAdminPath(restaurantId, 'audit'), label: 'Audit Log', Icon: ClipboardDocumentListIcon },
       ],
@@ -140,6 +144,7 @@ function Sidebar({
       items: [
         { href: getRestaurantAdminPath(restaurantId, 'stations'), label: 'KDS Stations', Icon: FireIcon },
         { href: getRestaurantAdminPath(restaurantId, 'inventory'), label: 'Inventory', Icon: CubeIcon },
+        { href: getRestaurantAdminPath(restaurantId, 'integrations'), label: 'Integrations', Icon: BoltIcon },
         { href: getRestaurantAdminPath(restaurantId, 'workflows'), label: 'Workflows', Icon: BoltIcon },
         { href: getRestaurantAdminPath(restaurantId, 'settings'), label: 'Settings', Icon: Cog6ToothIcon },
       ],
@@ -441,6 +446,11 @@ export default function RestaurantAdminLayout({ children }: { children: React.Re
         );
         safePrefetch(['staff'], () => api.getStaff());
         safePrefetch(['tables-floor', locationId], () => api.getTables({ locationId }));
+        return;
+      }
+
+      if (['control-center', 'people-ops', 'payroll', 'hiring', 'integrations', 'guests', 'marketing'].includes(suffix)) {
+        safePrefetch(['ops-overview', locationId], () => api.getOperationsOverview({ locationId }));
         return;
       }
 

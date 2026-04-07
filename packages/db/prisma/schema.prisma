@@ -47,6 +47,18 @@ model Restaurant {
   supportAgents    SupportAgent[]
   supportCustomers SupportCustomer[]
   reservations     Reservation[]
+  guests           Guest[]
+  guestTags        GuestTag[]
+  campaigns        Campaign[]
+  managerLogs      ManagerLogEntry[]
+  taskLists        TaskList[]
+  teamChannels     TeamChannel[]
+  employeeDocuments EmployeeDocument[]
+  payrollExports   PayrollExportBatch[]
+  tipPools         TipPool[]
+  jobPostings      JobPosting[]
+  candidates       Candidate[]
+  integrationConnections IntegrationConnection[]
 
   @@map("restaurants")
 }
@@ -69,6 +81,14 @@ model Location {
   stations   Station[]
   userLocations UserLocation[]
   reservations Reservation[]
+  guests       Guest[]
+  managerLogs  ManagerLogEntry[]
+  taskLists    TaskList[]
+  teamChannels TeamChannel[]
+  payrollExports PayrollExportBatch[]
+  tipPools     TipPool[]
+  jobPostings  JobPosting[]
+  integrationConnections IntegrationConnection[]
 
   @@map("locations")
 }
@@ -96,6 +116,24 @@ model User {
   auditLogs     AuditLog[]
   clockEvents   ClockEvent[]
   sessions      UserSession[]
+  guestNotes    GuestNote[]
+  createdCampaigns Campaign[]
+  createdManagerLogs ManagerLogEntry[] @relation("ManagerLogCreatedBy")
+  acknowledgedManagerLogs ManagerLogEntry[] @relation("ManagerLogAcknowledgedBy")
+  createdTaskLists TaskList[] @relation("TaskListCreatedBy")
+  assignedTasks TaskItem[] @relation("TaskAssignedUser")
+  completedTasks TaskItem[] @relation("TaskCompletedBy")
+  createdChannels TeamChannel[] @relation("TeamChannelCreatedBy")
+  teamMessages  TeamMessage[]
+  employeeDocuments EmployeeDocument[] @relation("EmployeeDocumentSubject")
+  uploadedDocuments EmployeeDocument[] @relation("DocumentUploadedBy")
+  acknowledgements EmployeeAcknowledgement[]
+  payrollExportsCreated PayrollExportBatch[] @relation("PayrollExportCreatedBy")
+  payrollExportEntries PayrollExportEntry[]
+  tipPoolsCreated TipPool[] @relation("TipPoolCreatedBy")
+  tipPoolShares  TipPoolShare[]
+  createdJobPostings JobPosting[] @relation("JobPostingCreatedBy")
+  candidateNotes Candidate[] @relation("CandidateAssignedManager")
 
   @@unique([restaurantId, email])
   @@map("users")
@@ -379,6 +417,7 @@ model Reservation {
   id                String            @id @default(cuid())
   restaurantId      String
   locationId        String
+  guestId           String?
   tableId           String?
   orderId           String?           @unique
   guestName         String
@@ -404,11 +443,13 @@ model Reservation {
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   location   Location   @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  guest      Guest?     @relation(fields: [guestId], references: [id], onDelete: SetNull)
   table      Table?     @relation(fields: [tableId], references: [id], onDelete: SetNull)
   order      Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, locationId, reservationAt])
   @@index([restaurantId, status, reservationAt])
+  @@index([guestId])
   @@map("reservations")
 }
 
@@ -420,6 +461,7 @@ model Order {
   id             String      @id @default(cuid())
   restaurantId   String
   locationId     String
+  guestId        String?
   tableId        String?
   tableName      String?
   serverId       String
@@ -444,6 +486,7 @@ model Order {
 
   restaurant  Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   location    Location        @relation(fields: [locationId], references: [id])
+  guest       Guest?          @relation(fields: [guestId], references: [id], onDelete: SetNull)
   table       Table?          @relation(fields: [tableId], references: [id])
   server      User            @relation(fields: [serverId], references: [id])
   items       OrderItem[]
@@ -453,6 +496,7 @@ model Order {
   auditLogs   AuditLog[]
   reservation Reservation?
 
+  @@index([guestId])
   @@map("orders")
 }
 
@@ -785,6 +829,454 @@ model AuditLog {
 }
 
 // ==========================================
+// OPERATIONS FOUNDATION
+// ==========================================
+
+model Guest {
+  id                  String   @id @default(cuid())
+  restaurantId        String
+  locationId          String?
+  firstName           String?
+  lastName            String?
+  fullName            String
+  email               String?
+  phone               String?
+  birthday            DateTime?
+  notes               String?
+  dietaryPreferences  String[] @default([])
+  allergens           String[] @default([])
+  preferences         Json     @default("{}")
+  isVip               Boolean  @default(false)
+  vipLevel            Int      @default(0)
+  marketingOptInSms   Boolean  @default(false)
+  marketingOptInEmail Boolean  @default(false)
+  visitCount          Int      @default(0)
+  totalSpend          Float    @default(0)
+  averageCheck        Float    @default(0)
+  firstVisitAt        DateTime?
+  lastVisitAt         DateTime?
+  lastCampaignAt      DateTime?
+  metadata            Json     @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  restaurant         Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location           Location?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  reservations       Reservation[]
+  orders             Order[]
+  visits             GuestVisit[]
+  notesLog           GuestNote[]
+  tagLinks           GuestTagAssignment[]
+  campaignRecipients CampaignRecipient[]
+
+  @@index([restaurantId, fullName])
+  @@index([restaurantId, email])
+  @@index([restaurantId, phone])
+  @@map("guests")
+}
+
+model GuestVisit {
+  id            String   @id @default(cuid())
+  guestId        String
+  reservationId  String?
+  orderId        String?
+  locationId     String?
+  visitedAt      DateTime
+  partySize      Int?
+  totalSpend     Float    @default(0)
+  source         String?
+  createdAt      DateTime @default(now())
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([guestId, visitedAt])
+  @@map("guest_visits")
+}
+
+model GuestTag {
+  id           String   @id @default(cuid())
+  restaurantId String
+  name         String
+  color        String?
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  guests     GuestTagAssignment[]
+
+  @@unique([restaurantId, name])
+  @@map("guest_tags")
+}
+
+model GuestTagAssignment {
+  guestId String
+  tagId   String
+
+  guest Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  tag   GuestTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([guestId, tagId])
+  @@map("guest_tag_assignments")
+}
+
+model GuestNote {
+  id           String   @id @default(cuid())
+  guestId       String
+  restaurantId  String
+  authorUserId  String?
+  noteType      String   @default("service")
+  body          String
+  createdAt     DateTime @default(now())
+
+  guest  Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([guestId, createdAt])
+  @@map("guest_notes")
+}
+
+model Campaign {
+  id              String          @id @default(cuid())
+  restaurantId    String
+  createdByUserId String?
+  name            String
+  status          CampaignStatus  @default(DRAFT)
+  channel         CampaignChannel
+  trigger         CampaignTrigger @default(MANUAL)
+  segmentName     String
+  segmentRules    Json            @default("{}")
+  subject         String?
+  message         String
+  scheduledAt     DateTime?
+  lastSentAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdBy  User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  recipients CampaignRecipient[]
+
+  @@index([restaurantId, status])
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id                String                 @id @default(cuid())
+  campaignId        String
+  guestId           String
+  channel           CampaignChannel
+  status            CampaignDeliveryStatus @default(PENDING)
+  sentAt            DateTime?
+  openedAt          DateTime?
+  convertedAt       DateTime?
+  revenueAttributed Float                  @default(0)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  guest    Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, guestId, channel])
+  @@map("campaign_recipients")
+}
+
+model ManagerLogEntry {
+  id                   String   @id @default(cuid())
+  restaurantId         String
+  locationId           String?
+  createdByUserId      String?
+  acknowledgedByUserId String?
+  shiftDate            DateTime
+  category             String
+  title                String
+  body                 String
+  priority             String   @default("normal")
+  followUpRequired     Boolean  @default(false)
+  acknowledgedAt       DateTime?
+  createdAt            DateTime @default(now())
+
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location       Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy      User?      @relation("ManagerLogCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  acknowledgedBy User?      @relation("ManagerLogAcknowledgedBy", fields: [acknowledgedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, shiftDate])
+  @@map("manager_log_entries")
+}
+
+model TaskList {
+  id              String   @id @default(cuid())
+  restaurantId    String
+  locationId      String?
+  createdByUserId String?
+  name            String
+  category        String   @default("ops")
+  shiftDate       DateTime?
+  dueAt           DateTime?
+  status          String   @default("open")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location   Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("TaskListCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items      TaskItem[]
+
+  @@index([restaurantId, status])
+  @@map("task_lists")
+}
+
+model TaskItem {
+  id                String   @id @default(cuid())
+  taskListId        String
+  assignedUserId    String?
+  completedByUserId String?
+  title             String
+  notes             String?
+  status            String   @default("open")
+  sortOrder         Int      @default(0)
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+
+  taskList     TaskList @relation(fields: [taskListId], references: [id], onDelete: Cascade)
+  assignedUser User?    @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  completedBy  User?    @relation("TaskCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([taskListId, status])
+  @@map("task_items")
+}
+
+model TeamChannel {
+  id              String   @id @default(cuid())
+  restaurantId    String
+  locationId      String?
+  createdByUserId String?
+  name            String
+  channelType     String   @default("ops")
+  isPrivate       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location   Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("TeamChannelCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  messages   TeamMessage[]
+
+  @@unique([restaurantId, name])
+  @@map("team_channels")
+}
+
+model TeamMessage {
+  id           String   @id @default(cuid())
+  channelId     String
+  senderUserId  String?
+  body          String
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+
+  channel TeamChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender  User?       @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, createdAt])
+  @@map("team_messages")
+}
+
+model EmployeeDocument {
+  id               String   @id @default(cuid())
+  restaurantId     String
+  userId           String
+  uploadedByUserId String?
+  documentType     String
+  title            String
+  storageKey       String?
+  status           String   @default("active")
+  expiresAt        DateTime?
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  restaurant       Restaurant               @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user             User                     @relation("EmployeeDocumentSubject", fields: [userId], references: [id], onDelete: Cascade)
+  uploadedBy       User?                    @relation("DocumentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  acknowledgements EmployeeAcknowledgement[]
+
+  @@index([restaurantId, userId])
+  @@map("employee_documents")
+}
+
+model EmployeeAcknowledgement {
+  id            String   @id @default(cuid())
+  documentId    String
+  userId        String
+  signedName    String
+  signatureData String?
+  ipAddress     String?
+  signedAt      DateTime @default(now())
+
+  document EmployeeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@map("employee_acknowledgements")
+}
+
+model PayrollExportBatch {
+  id              String   @id @default(cuid())
+  restaurantId    String
+  locationId      String?
+  createdByUserId String?
+  provider        String   @default("csv")
+  status          String   @default("draft")
+  periodStart     DateTime
+  periodEnd       DateTime
+  totals          Json     @default("{}")
+  createdAt       DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location   Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("PayrollExportCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  entries    PayrollExportEntry[]
+
+  @@index([restaurantId, periodStart, periodEnd])
+  @@map("payroll_export_batches")
+}
+
+model PayrollExportEntry {
+  id                  String   @id @default(cuid())
+  batchId             String
+  userId              String
+  regularMinutes      Int      @default(0)
+  overtimeMinutes     Int      @default(0)
+  payRate             Float    @default(0)
+  overtimeRate        Float    @default(0)
+  grossTips           Float    @default(0)
+  declaredTips        Float    @default(0)
+  tipPoolContribution Float    @default(0)
+  totalPay            Float    @default(0)
+
+  batch PayrollExportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, userId])
+  @@map("payroll_export_entries")
+}
+
+model TipPool {
+  id              String   @id @default(cuid())
+  restaurantId    String
+  locationId      String?
+  createdByUserId String?
+  shiftDate       DateTime
+  name            String
+  status          String   @default("draft")
+  totalTips       Float    @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location   Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("TipPoolCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  shares     TipPoolShare[]
+
+  @@index([restaurantId, shiftDate])
+  @@map("tip_pools")
+}
+
+model TipPoolShare {
+  id        String @id @default(cuid())
+  tipPoolId String
+  userId    String
+  role      String
+  points    Float  @default(1)
+  amount    Float  @default(0)
+
+  tipPool TipPool @relation(fields: [tipPoolId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tipPoolId, userId])
+  @@map("tip_pool_shares")
+}
+
+model JobPosting {
+  id              String   @id @default(cuid())
+  restaurantId    String
+  locationId      String?
+  createdByUserId String?
+  title           String
+  department      String
+  employmentType  String
+  status          String   @default("open")
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location   Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("JobPostingCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  candidates Candidate[]
+
+  @@index([restaurantId, status])
+  @@map("job_postings")
+}
+
+model Candidate {
+  id                String   @id @default(cuid())
+  restaurantId      String
+  jobPostingId      String
+  assignedManagerId String?
+  firstName         String
+  lastName          String
+  email             String?
+  phone             String?
+  stage             String   @default("applied")
+  source            String   @default("manual")
+  notes             String?
+  appliedAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  jobPosting      JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  assignedManager User?      @relation("CandidateAssignedManager", fields: [assignedManagerId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, stage])
+  @@map("candidates")
+}
+
+model IntegrationApp {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  category     String
+  status       String   @default("active")
+  authType     String   @default("api_key")
+  description  String?
+  configSchema Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  connections IntegrationConnection[]
+
+  @@map("integration_apps")
+}
+
+model IntegrationConnection {
+  id              String   @id @default(cuid())
+  restaurantId    String
+  locationId      String?
+  appId           String
+  createdByUserId String?
+  displayName     String
+  status          String   @default("disconnected")
+  config          Json     @default("{}")
+  lastSyncAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location   Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  app        IntegrationApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@map("integration_connections")
+}
+
+// ==========================================
 // ENUMS
 // ==========================================
 
@@ -920,6 +1412,36 @@ enum ReservationSource {
   ONLINE
   WALK_IN
   APP
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum CampaignChannel {
+  SMS
+  EMAIL
+}
+
+enum CampaignTrigger {
+  MANUAL
+  BIRTHDAY
+  LAPSE
+  LOYALTY
+  POST_VISIT
+  SLOW_PERIOD
+}
+
+enum CampaignDeliveryStatus {
+  PENDING
+  SENT
+  OPENED
+  CONVERTED
+  FAILED
 }
 
 // ==========================================

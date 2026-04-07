@@ -74,6 +74,11 @@ export default function TeamHubPage({
     queryFn: () => api.getWorkforceOverview({ locationId: activeLocationId, weekStart }),
     enabled: !!activeLocationId,
   });
+  const operationsQuery = useQuery({
+    queryKey: ['team-ops', activeLocationId],
+    queryFn: () => api.getOperationsOverview({ locationId: activeLocationId }),
+    enabled: !!activeLocationId,
+  });
 
   const overview = data?.data as WorkforceOverviewPayload | undefined;
 
@@ -129,6 +134,9 @@ export default function TeamHubPage({
     () => new Set(myRequests.filter((entry) => entry.status === 'pending').map((entry) => entry.shiftId)),
     [myRequests]
   );
+  const teamChannels = operationsQuery.data?.data?.channels || [];
+  const documents = operationsQuery.data?.data?.documents || [];
+  const myDocuments = documents.filter((entry: any) => entry.user?.id === currentUserId);
 
   useEffect(() => {
     if (!myAvailability.length) return;
@@ -211,6 +219,17 @@ export default function TeamHubPage({
       await refresh();
     },
     onError: (error: any) => toast.error(error?.response?.data?.error || 'Could not submit request'),
+  });
+  const acknowledgeDocumentMutation = useMutation({
+    mutationFn: (documentId: string) =>
+      api.acknowledgeEmployeeDocument(documentId, {
+        signedName: currentMember?.name || user?.name || 'Staff',
+      }),
+    onSuccess: async () => {
+      toast.success('Document acknowledged');
+      await qc.invalidateQueries({ queryKey: ['team-ops'] });
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.error || 'Could not acknowledge document'),
   });
 
   if (!activeLocationId) {
@@ -667,6 +686,68 @@ export default function TeamHubPage({
                 <p className="mt-2 text-xl font-bold text-slate-100">{formatCurrency(myTimesheet?.cost || 0)}</p>
                 <p className="text-xs text-slate-400">Labor estimate based on recorded time and role profile.</p>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="card p-5">
+            <h2 className="text-lg font-semibold text-slate-100">Team Channels</h2>
+            <p className="mt-1 text-sm text-slate-400">Read the current operating thread from managers and the floor team.</p>
+            <div className="mt-4 space-y-4">
+              {teamChannels.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-8 text-center text-sm text-slate-500">
+                  No team channels available yet.
+                </div>
+              ) : (
+                teamChannels.map((channel: any) => (
+                  <div key={channel.id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+                    <p className="text-sm font-semibold text-slate-100">#{channel.name}</p>
+                    <div className="mt-3 space-y-2">
+                      {(channel.messages || []).slice(0, 4).map((message: any) => (
+                        <div key={message.id} className="rounded-2xl bg-white/5 px-3 py-2">
+                          <p className="text-sm text-slate-200">{message.body}</p>
+                          <p className="mt-1 text-xs text-slate-500">{message.sender?.name || 'Team'} | {new Date(message.createdAt).toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <h2 className="text-lg font-semibold text-slate-100">My Documents</h2>
+            <p className="mt-1 text-sm text-slate-400">Acknowledge policy and onboarding documents directly from the staff hub.</p>
+            <div className="mt-4 space-y-3">
+              {myDocuments.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-8 text-center text-sm text-slate-500">
+                  No assigned documents right now.
+                </div>
+              ) : (
+                myDocuments.map((document: any) => {
+                  const alreadyAcknowledged = (document.acknowledgements || []).some((entry: any) => entry.userId === currentUserId);
+                  return (
+                    <div key={document.id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-100">{document.title}</p>
+                          <p className="mt-1 text-xs text-slate-400">{document.documentType}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => acknowledgeDocumentMutation.mutate(document.id)}
+                          disabled={alreadyAcknowledged}
+                          className="btn-secondary px-3 py-2 text-xs"
+                        >
+                          {alreadyAcknowledged ? 'Acknowledged' : 'Acknowledge'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

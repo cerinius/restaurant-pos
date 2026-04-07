@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, TableCellsIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, TableCellsIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
@@ -175,11 +175,11 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   const desktopScale = useMemo(() => {
     if (!activeRoom || desktopViewport.width === 0 || desktopViewport.height === 0) return 1;
 
-    const widthScale = (desktopViewport.width - 24) / canvasSize.width;
-    const heightScale = (desktopViewport.height - 24) / canvasSize.height;
+    const widthScale = (desktopViewport.width - 8) / canvasSize.width;
+    const heightScale = (desktopViewport.height - 8) / canvasSize.height;
 
     // Bias toward larger default table sizing on roomy viewports, while still fitting dense plans.
-    return Math.max(0.62, Math.min(widthScale, heightScale, activeRoom ? 1.45 : 1.25));
+    return Math.max(0.72, Math.min(widthScale, heightScale, activeRoom ? 1.58 : 1.3));
   }, [activeRoom, canvasSize.height, canvasSize.width, desktopViewport.height, desktopViewport.width]);
 
   useEffect(() => {
@@ -191,6 +191,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
     occupied: tables.filter((table: any) => table.status === 'OCCUPIED').length,
     dirty: tables.filter((table: any) => table.status === 'DIRTY').length,
   };
+  const totalAssignedTables = assignmentSummary.reduce((sum, entry) => sum + entry.assigned, 0);
 
   const handleTablePress = (table: any) => {
     const assignment = getTableAssignment(floorPlan.tableAssignments, table.id);
@@ -364,70 +365,76 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="ops-toolbar shrink-0 px-3 py-3 md:px-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <TableCellsIcon className="h-6 w-6 text-slate-300" />
-            <div>
-              <h2 className="text-lg font-black text-white md:text-xl">
-                {focusedSection ? `${focusedSection}` : 'All Rooms'}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-white/10 bg-slate-950/70 px-2 py-2 md:px-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="mr-auto flex min-w-0 items-center gap-2">
+            <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-slate-200">
+              <TableCellsIcon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-black text-white md:text-base">
+                {focusedSection ? focusedSection : 'Floor'}
               </h2>
-              <p className="text-sm text-slate-400">
-                {filtered.length} tables ready to view and manage
+              <p className="truncate text-[11px] text-slate-500">
+                {filtered.length} tables
+                {assignmentSummary.length > 0 ? ` • ${totalAssignedTables} assigned` : ''}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <div className="ops-stat min-w-[110px]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Available</p>
-              <p className="mt-1 text-2xl font-black text-emerald-100">{counts.available}</p>
-            </div>
-            <div className="ops-stat min-w-[110px]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Occupied</p>
-              <p className="mt-1 text-2xl font-black text-sky-100">{counts.occupied}</p>
-            </div>
-            <div className="ops-stat min-w-[110px]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Dirty</p>
-              <p className="mt-1 text-2xl font-black text-amber-100">{counts.dirty}</p>
-            </div>
-            <div className="hidden items-center gap-2 md:flex">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+              {counts.available} open
+            </span>
+            <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-blue-200">
+              {counts.occupied} occupied
+            </span>
+            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
+              {counts.dirty} dirty
+            </span>
+            {assignmentSummary.length > 0 && (
+              <span className="hidden rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300 lg:inline-flex lg:items-center lg:gap-1.5">
+                <UsersIcon className="h-3.5 w-3.5" />
+                {assignmentSummary.length} sections
+              </span>
+            )}
+            <div className="ml-1 hidden items-center gap-1 md:flex">
               <button
                 type="button"
-                onClick={() => setZoomLevel((current) => Math.max(0.8, Number((current - 0.1).toFixed(2))))}
-                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                onClick={() => setZoomLevel((current) => Math.max(0.82, Number((current - 0.08).toFixed(2))))}
+                className="touch-target inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
                 aria-label="Zoom out floor plan"
               >
-                <MagnifyingGlassMinusIcon className="h-5 w-5" />
+                <MagnifyingGlassMinusIcon className="h-4 w-4" />
               </button>
               <button
                 type="button"
                 onClick={() => setZoomLevel(1)}
-                className="touch-target rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                className="touch-target rounded-2xl border border-white/10 bg-white/5 px-2.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
               >
                 Fit
               </button>
               <button
                 type="button"
-                onClick={() => setZoomLevel((current) => Math.min(1.35, Number((current + 0.1).toFixed(2))))}
-                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                onClick={() => setZoomLevel((current) => Math.min(1.42, Number((current + 0.08).toFixed(2))))}
+                className="touch-target inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
                 aria-label="Zoom in floor plan"
               >
-                <MagnifyingGlassPlusIcon className="h-5 w-5" />
+                <MagnifyingGlassPlusIcon className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
           {sections.map((section) => (
             <button
               key={section}
               type="button"
               onClick={() => setActiveSection(section)}
               className={clsx(
-                'touch-target whitespace-nowrap rounded-2xl border px-4 py-2 text-sm font-bold transition-all',
+                'touch-target whitespace-nowrap rounded-xl border px-3 py-1.5 text-xs font-bold transition-all',
                 focusedSection === section
                   ? 'border-cyan-400 bg-cyan-400 text-slate-950'
                   : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white',
@@ -437,26 +444,23 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
             </button>
           ))}
         </div>
-
-        {assignmentSummary.length > 0 && (
-          <details className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-            <summary className="cursor-pointer text-sm font-semibold text-slate-300">
-              Server Assignments
-            </summary>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {assignmentSummary.map((summary) => (
-                <div key={summary.serverId} className="rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-slate-300">
-                  <span className="font-semibold text-slate-100">{summary.serverName}</span>
-                  <span className="ml-2 text-slate-400">{summary.assigned} assigned</span>
-                  <span className="ml-2 text-emerald-400">{summary.open} open</span>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
       </div>
 
-      <div className="flex-1 overflow-auto p-4 md:hidden">
+      {assignmentSummary.length > 0 && (
+        <div className="hidden shrink-0 border-b border-white/10 bg-slate-950/40 px-3 py-1.5 lg:block">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+            {assignmentSummary.map((summary) => (
+              <div key={summary.serverId} className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-300">
+                <span className="font-semibold text-slate-100">{summary.serverName}</span>
+                <span className="ml-1.5 text-slate-500">{summary.assigned}</span>
+                <span className="ml-1 text-emerald-300">{summary.open} open</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto p-3 md:hidden">
         {focusedSection ? (
           mobileTables.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -594,8 +598,8 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
         )}
       </div>
 
-      <div ref={desktopViewportRef} className="relative hidden flex-1 overflow-auto p-3 md:block">
-        <div className="workspace-panel flex min-h-full w-full items-start justify-center p-3">
+      <div ref={desktopViewportRef} className="relative hidden min-h-0 flex-1 overflow-auto bg-slate-950/40 p-1.5 md:block">
+        <div className="workspace-panel flex min-h-full w-full items-start justify-start p-1.5">
           <div
             style={{
               width: canvasSize.width * desktopScale * zoomLevel,
@@ -610,6 +614,8 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                 transform: `scale(${desktopScale * zoomLevel})`,
                 backgroundImage: 'radial-gradient(circle, rgba(71,85,105,0.45) 1px, transparent 1px)',
                 backgroundSize: '30px 30px',
+                borderRadius: '28px',
+                overflow: 'hidden',
               }}
             >
               {!activeRoom && floorPlan.connections.length > 0 && (
@@ -652,15 +658,6 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="hidden shrink-0 items-center gap-4 border-t border-white/10 bg-slate-950/55 px-4 py-2 md:flex">
-        {Object.entries(STATUS_LABELS).map(([status, label]) => (
-          <div key={status} className="flex items-center gap-1.5 text-xs text-slate-400">
-            <div className={`h-3 w-3 rounded-sm border ${STATUS_STYLES[status]}`} />
-            {label}
-          </div>
-        ))}
       </div>
 
       {blockedTable && (

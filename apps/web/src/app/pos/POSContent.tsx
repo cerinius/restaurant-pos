@@ -502,21 +502,33 @@ export default function POSContent({ initialData }: POSContentProps) {
       <main className="flex-1 overflow-hidden px-2 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] pt-2 md:px-3 md:pb-3 md:pt-3">
         <div className={clsx('grid h-full gap-3', getDesktopTicketWidthClass(posTicketPanelMode))}>
           <section className="ops-shell flex min-h-0 flex-col overflow-hidden">
-            <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-3 py-3 md:px-4">
-              <div>
-                <p className="section-kicker">Service flow</p>
-                <h2 className="mt-1 text-lg font-black text-white md:text-xl">{viewLabel}</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  {view === 'tables'
-                    ? 'Tap a table to open or continue service.'
-                    : view === 'open-orders'
-                      ? 'Jump back into any active ticket fast.'
-                      : 'Large, touch-friendly menu for quick entry.'}
-                </p>
+            <div
+              className={clsx(
+                'ops-toolbar flex flex-wrap items-center justify-between gap-2 px-3 md:px-4',
+                view === 'tables' ? 'py-2' : 'py-3',
+              )}
+            >
+              <div className="min-w-0">
+                {view === 'tables' ? (
+                  <>
+                    <h2 className="text-base font-black text-white md:text-lg">Floor</h2>
+                    <p className="text-xs text-slate-500">Tap a table to open or continue service.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="section-kicker">Service flow</p>
+                    <h2 className="mt-1 text-lg font-black text-white md:text-xl">{viewLabel}</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {view === 'open-orders'
+                        ? 'Jump back into any active ticket fast.'
+                        : 'Large, touch-friendly menu for quick entry.'}
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="ops-chip">{initialData.tables.length} tables</span>
+                {view !== 'tables' && <span className="ops-chip">{initialData.tables.length} tables</span>}
                 <span className="ops-chip">{initialData.openOrders.length} open orders</span>
                 {activeHappyHour && (
                   <span className="ops-chip border-amber-300/20 bg-amber-400/10 text-amber-100">

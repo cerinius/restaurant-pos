@@ -37,6 +37,7 @@ import saasRoutes from './routes/saas';
 import workforceRoutes from './routes/workforce';
 import supportRoutes from './routes/support';
 import reservationRoutes from './routes/reservations';
+import operationsRoutes from './routes/operations';
 
 const KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -210,6 +211,7 @@ async function bootstrap() {
   await app.register(workforceRoutes,  { prefix: '/api/workforce' });
   await app.register(supportRoutes,    { prefix: '/api/support' });
   await app.register(reservationRoutes,{ prefix: '/api/reservations' });
+  await app.register(operationsRoutes, { prefix: '/api/operations' });
   await app.register(wsRoutes,         { prefix: '/ws' });
 
   // ââ Start âââââââââââââââââââââââââââââââââââââââââââââââââ
