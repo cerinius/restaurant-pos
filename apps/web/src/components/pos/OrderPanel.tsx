@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowsPointingOutIcon,
@@ -28,6 +28,230 @@ interface Props {
   mobile?: boolean;
   panelMode?: 'expanded' | 'collapsed' | 'hidden';
   onPanelModeChange?: (mode: 'expanded' | 'collapsed' | 'hidden') => void;
+}
+
+function formatCurrency(value: number) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function ItemSection({
+  title,
+  subtitle,
+  items,
+  expandedItemId,
+  onExpandedItemChange,
+  onIncrement,
+  onDecrement,
+  onVoid,
+  onUpdate,
+  isVoidPending,
+  tone = 'default',
+}: {
+  title: string;
+  subtitle: string;
+  items: any[];
+  expandedItemId: string | null;
+  onExpandedItemChange: (itemId: string | null) => void;
+  onIncrement: (itemId: string, quantity: number) => void;
+  onDecrement: (itemId: string, quantity: number) => void;
+  onVoid: (item: any) => void;
+  onUpdate: (itemId: string, payload: any) => void;
+  isVoidPending: boolean;
+  tone?: 'default' | 'fired';
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.03]">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <div>
+          <p className="text-sm font-black text-slate-100">{title}</p>
+          <p className="text-xs text-slate-500">{subtitle}</p>
+        </div>
+        <span
+          className={clsx(
+            'rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em]',
+            tone === 'fired'
+              ? 'border border-emerald-300/20 bg-emerald-400/10 text-emerald-100'
+              : 'border border-amber-300/20 bg-amber-400/10 text-amber-100',
+          )}
+        >
+          {items.length}
+        </span>
+      </div>
+
+      <div className="space-y-3 p-3">
+        <AnimatePresence initial={false}>
+          {items.map((item: any) => {
+            const isExpanded = expandedItemId === item.id;
+
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8, height: 0 }}
+                className={clsx(
+                  'rounded-[22px] border border-white/10 bg-slate-950/45 p-4',
+                  item.optimistic && 'highlight-flash',
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-black text-slate-100">{item.menuItemName}</p>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                            Course {item.courseNumber || 1}
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                            {item.seatNumber ? `Seat ${item.seatNumber}` : 'No seat'}
+                          </span>
+                          {item.isFired && (
+                            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+                              Sent
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-lg font-black text-slate-100">
+                        {formatCurrency(item.totalPrice)}
+                      </span>
+                    </div>
+
+                    {Array.isArray(item.modifiers) && item.modifiers.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.modifiers.map((modifier: any) => (
+                          <span
+                            key={`${item.id}-${modifier.modifierId || modifier.modifierName}`}
+                            className="rounded-full border border-cyan-300/18 bg-cyan-400/8 px-2.5 py-1 text-[11px] font-semibold text-cyan-100"
+                          >
+                            {modifier.modifierName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {item.notes && (
+                      <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-400/10 px-3 py-2.5">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-200/80">Note</p>
+                        <p className="mt-1 text-sm font-medium leading-6 text-amber-50">{item.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  {!item.isFired ? (
+                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1">
+                      <button
+                        type="button"
+                        onClick={() => onDecrement(item.id, item.quantity)}
+                        disabled={item.quantity <= 1}
+                        className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-slate-100 transition hover:bg-white/10 disabled:opacity-40"
+                      >
+                        <MinusIcon className="h-5 w-5" />
+                      </button>
+                      <span className="min-w-[2.5rem] text-center text-lg font-black text-slate-100">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onIncrement(item.id, item.quantity)}
+                        className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-slate-100 transition hover:bg-white/10"
+                      >
+                        <PlusIcon className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-300">
+                      Qty {item.quantity}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onExpandedItemChange(isExpanded ? null : item.id)}
+                      className="touch-target rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/10"
+                    >
+                      {isExpanded ? 'Close options' : 'Options'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onVoid(item)}
+                      disabled={isVoidPending}
+                      className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-transparent text-slate-500 transition hover:border-red-300/20 hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="mt-4 border-t border-white/10 pt-4"
+                  >
+                    <div className="space-y-3">
+                      <div>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                          Course
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {[1, 2, 3].map((course) => (
+                            <button
+                              key={course}
+                              type="button"
+                              onClick={() => onUpdate(item.id, { courseNumber: course })}
+                              className={clsx(
+                                'touch-target rounded-2xl px-3 py-2 text-sm font-bold transition-all',
+                                item.courseNumber === course
+                                  ? 'bg-cyan-300 text-slate-950'
+                                  : 'border border-white/10 bg-white/5 text-slate-300',
+                              )}
+                            >
+                              Course {course}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                          Seat
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {[1, 2, 3, 4].map((seat) => (
+                            <button
+                              key={seat}
+                              type="button"
+                              onClick={() => onUpdate(item.id, { seatNumber: seat })}
+                              className={clsx(
+                                'touch-target rounded-2xl px-3 py-2 text-sm font-bold transition-all',
+                                item.seatNumber === seat
+                                  ? 'bg-fuchsia-500 text-white'
+                                  : 'border border-white/10 bg-white/5 text-slate-300',
+                              )}
+                            >
+                              Seat {seat}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    </section>
+  );
 }
 
 export function OrderPanel({
@@ -90,6 +314,18 @@ export function OrderPanel({
   const displayItems = courseFilter
     ? activeItems.filter((item: any) => (item.courseNumber || 1) === courseFilter)
     : activeItems;
+  const pendingItems = useMemo(
+    () => displayItems.filter((item: any) => !item.isFired),
+    [displayItems],
+  );
+  const firedItems = useMemo(
+    () => displayItems.filter((item: any) => item.isFired),
+    [displayItems],
+  );
+  const pendingTotal = pendingItems.reduce(
+    (sum: number, item: any) => sum + Number(item.totalPrice || 0),
+    0,
+  );
 
   const handleVoidItem = (item: any) => {
     const requiresReason = item.isFired || ['OWNER', 'MANAGER'].includes(user?.role || '');
@@ -119,7 +355,8 @@ export function OrderPanel({
         </div>
         <h2 className="mt-5 text-2xl font-black text-slate-100">No active order</h2>
         <p className="mt-2 max-w-sm text-sm leading-6 text-slate-400">
-          Start by choosing a table, then this panel becomes the running ticket with totals and the fastest actions.
+          Start by choosing a table, then this panel becomes the running ticket with totals and the
+          fastest actions.
         </p>
       </div>
     );
@@ -181,18 +418,25 @@ export function OrderPanel({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <div className="ops-stat">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Subtotal</p>
-            <p className="mt-1 text-xl font-black text-slate-100">${subtotal.toFixed(2)}</p>
+        <div className="mt-4 grid gap-3">
+          <div className="rounded-[24px] border border-cyan-300/18 bg-cyan-300/10 px-4 py-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-100/80">Total due</p>
+                <p className="mt-1 text-3xl font-black text-cyan-100">{formatCurrency(total)}</p>
+              </div>
+              <div className="text-right text-xs text-cyan-50/85">
+                <p>Subtotal {formatCurrency(subtotal)}</p>
+                <p>Tax {formatCurrency(taxTotal)}</p>
+                {discountTotal > 0 && <p>Discount -{formatCurrency(discountTotal)}</p>}
+              </div>
+            </div>
           </div>
-          <div className="ops-stat">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Tax</p>
-            <p className="mt-1 text-xl font-black text-slate-100">${taxTotal.toFixed(2)}</p>
-          </div>
-          <div className="ops-stat">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Total</p>
-            <p className="mt-1 text-xl font-black text-cyan-300">${total.toFixed(2)}</p>
+
+          <div className="flex flex-wrap gap-2">
+            <span className="ops-chip">{pendingItems.length} ready to fire</span>
+            <span className="ops-chip">{firedItems.length} sent</span>
+            <span className="ops-chip">{formatCurrency(pendingTotal)} pending value</span>
           </div>
         </div>
 
@@ -206,7 +450,7 @@ export function OrderPanel({
                 !courseFilter ? 'bg-cyan-300 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-300',
               )}
             >
-              All Courses
+              All courses
             </button>
             {courses.map((course) => (
               <button
@@ -228,151 +472,32 @@ export function OrderPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        <AnimatePresence initial={false}>
-          {displayItems.map((item: any) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10, height: 0 }}
-              className={clsx(
-                'mb-3 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 transition-all',
-                item.isFired && 'opacity-85',
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex shrink-0 flex-col items-center gap-2">
-                  {!item.isFired && (
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        updateItemMutation.mutate({ itemId: item.id, quantity: item.quantity + 1 });
-                      }}
-                      className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                    </button>
-                  )}
-                  <span className="w-10 text-center text-xl font-black text-slate-100">{item.quantity}</span>
-                  {!item.isFired && item.quantity > 1 && (
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        updateItemMutation.mutate({ itemId: item.id, quantity: item.quantity - 1 });
-                      }}
-                      className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10"
-                    >
-                      <MinusIcon className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
+        <ItemSection
+          title="Ready to fire"
+          subtitle="Newest items stay visible for a quick review before sending."
+          items={pendingItems}
+          expandedItemId={expandedItemId}
+          onExpandedItemChange={setExpandedItemId}
+          onIncrement={(itemId, quantity) => updateItemMutation.mutate({ itemId, quantity: quantity + 1 })}
+          onDecrement={(itemId, quantity) => updateItemMutation.mutate({ itemId, quantity: quantity - 1 })}
+          onVoid={handleVoidItem}
+          onUpdate={(itemId, payload) => updateItemMutation.mutate({ itemId, ...payload })}
+          isVoidPending={voidItemMutation.isPending}
+        />
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-bold text-slate-100">{item.menuItemName}</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {item.seatNumber ? `Seat ${item.seatNumber}` : 'No seat'} · Course {item.courseNumber || 1}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-lg font-black text-slate-100">${Number(item.totalPrice || 0).toFixed(2)}</span>
-                  </div>
-
-                  {Array.isArray(item.modifiers) && item.modifiers.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {item.modifiers.map((modifier: any) => (
-                        <span
-                          key={`${item.id}-${modifier.modifierId || modifier.modifierName}`}
-                          className="rounded-full border border-white/10 bg-slate-950/45 px-2.5 py-1 text-xs font-medium text-slate-300"
-                        >
-                          {modifier.modifierName}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {item.notes && (
-                    <div className="mt-3 rounded-2xl border border-amber-300/15 bg-amber-400/10 px-3 py-2.5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-200/80">Note</p>
-                      <p className="mt-1 text-sm font-medium leading-6 text-amber-50">{item.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
-                      className="touch-target rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/10"
-                    >
-                      Options
-                    </button>
-                    {item.isFired && (
-                      <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-100">
-                        Fired
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleVoidItem(item);
-                  }}
-                  disabled={voidItemMutation.isPending}
-                  className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-transparent text-slate-500 transition hover:border-red-300/20 hover:bg-red-500/10 hover:text-red-300"
-                >
-                  <TrashIcon className="h-5 w-5" />
-                </button>
-              </div>
-
-              {expandedItemId === item.id && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="mt-4 border-t border-white/10 pt-4"
-                >
-                  <div className="flex flex-wrap gap-2">
-                    {[1, 2, 3].map((course) => (
-                      <button
-                        key={course}
-                        type="button"
-                        onClick={() => updateItemMutation.mutate({ itemId: item.id, courseNumber: course })}
-                        className={clsx(
-                          'touch-target rounded-2xl px-3 py-2 text-sm font-bold transition-all',
-                          item.courseNumber === course
-                            ? 'bg-cyan-300 text-slate-950'
-                            : 'border border-white/10 bg-white/5 text-slate-300',
-                        )}
-                      >
-                        Course {course}
-                      </button>
-                    ))}
-                    {[1, 2, 3, 4].map((seat) => (
-                      <button
-                        key={seat}
-                        type="button"
-                        onClick={() => updateItemMutation.mutate({ itemId: item.id, seatNumber: seat })}
-                        className={clsx(
-                          'touch-target rounded-2xl px-3 py-2 text-sm font-bold transition-all',
-                          item.seatNumber === seat
-                            ? 'bg-fuchsia-500 text-white'
-                            : 'border border-white/10 bg-white/5 text-slate-300',
-                        )}
-                      >
-                        Seat {seat}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        <ItemSection
+          title="Sent to kitchen"
+          subtitle="Already fired items stay grouped below pending work."
+          items={firedItems}
+          expandedItemId={expandedItemId}
+          onExpandedItemChange={setExpandedItemId}
+          onIncrement={(itemId, quantity) => updateItemMutation.mutate({ itemId, quantity: quantity + 1 })}
+          onDecrement={(itemId, quantity) => updateItemMutation.mutate({ itemId, quantity: quantity - 1 })}
+          onVoid={handleVoidItem}
+          onUpdate={(itemId, payload) => updateItemMutation.mutate({ itemId, ...payload })}
+          isVoidPending={voidItemMutation.isPending}
+          tone="fired"
+        />
 
         {activeItems.length === 0 && (
           <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[28px] border border-dashed border-white/10 bg-white/[0.03] text-center text-slate-400">
@@ -382,40 +507,46 @@ export function OrderPanel({
         )}
       </div>
 
-      <div className="border-t border-white/10 bg-slate-950/45 p-4">
+      <div className="border-t border-white/10 bg-slate-950/50 p-4">
         <button
           type="button"
           onClick={() => setShowDiscounts((current) => !current)}
           className="touch-target mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 bg-white/[0.03] py-3 text-sm font-bold text-slate-300 transition hover:bg-white/[0.06]"
         >
           <TagIcon className="h-5 w-5" />
-          Apply Discount
+          Apply discount
           <ChevronDownIcon className={clsx('h-5 w-5 transition-transform', showDiscounts && 'rotate-180')} />
         </button>
 
         {showDiscounts && <DiscountPicker onApply={(payload) => addDiscountMutation.mutate(payload)} />}
 
-        <div className="mt-4 space-y-2 text-base">
-          <div className="flex justify-between font-medium text-slate-300">
-            <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
-          </div>
-          {discountTotal > 0 && (
-            <div className="flex justify-between font-medium text-emerald-300">
-              <span>Discount</span>
-              <span>-${discountTotal.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-medium text-slate-300">
-            <span>Tax</span>
-            <span>${taxTotal.toFixed(2)}</span>
-          </div>
-          {tipTotal > 0 && (
+        <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4">
+          <div className="space-y-2 text-base">
             <div className="flex justify-between font-medium text-slate-300">
-              <span>Tip</span>
-              <span>${tipTotal.toFixed(2)}</span>
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotal)}</span>
             </div>
-          )}
+            {discountTotal > 0 && (
+              <div className="flex justify-between font-medium text-emerald-300">
+                <span>Discount</span>
+                <span>-{formatCurrency(discountTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-medium text-slate-300">
+              <span>Tax</span>
+              <span>{formatCurrency(taxTotal)}</span>
+            </div>
+            {tipTotal > 0 && (
+              <div className="flex justify-between font-medium text-slate-300">
+                <span>Tip</span>
+                <span>{formatCurrency(tipTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-white/10 pt-3 text-lg font-black text-slate-100">
+              <span>Total</span>
+              <span>{formatCurrency(total)}</span>
+            </div>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3">
@@ -449,7 +580,7 @@ export function OrderPanel({
                     className="touch-target flex items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-sm font-black text-white disabled:opacity-60"
                   >
                     <FireIcon className="h-5 w-5" />
-                    {isFiring ? 'Sending...' : 'Fire Now'}
+                    {isFiring ? 'Sending...' : 'Fire now'}
                   </button>
                 </div>
               </motion.div>
@@ -461,11 +592,11 @@ export function OrderPanel({
                 exit={{ opacity: 0 }}
                 type="button"
                 onClick={() => setFireConfirm(true)}
-                disabled={isFiring || activeItems.length === 0}
+                disabled={isFiring || pendingItems.length === 0}
                 className="touch-target flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-300/25 bg-orange-500/12 py-4 text-base font-black text-orange-200 transition hover:bg-orange-500/18 disabled:opacity-50"
               >
                 <FireIcon className="h-6 w-6" />
-                Fire to Kitchen
+                Fire {pendingItems.length} item{pendingItems.length === 1 ? '' : 's'}
               </motion.button>
             )}
           </AnimatePresence>
@@ -477,7 +608,7 @@ export function OrderPanel({
             className="touch-target flex w-full items-center justify-center gap-3 rounded-2xl bg-emerald-400 py-4 text-lg font-black text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
           >
             <CreditCardIcon className="h-6 w-6" />
-            Pay ${total.toFixed(2)}
+            Pay {formatCurrency(total)}
           </button>
         </div>
       </div>

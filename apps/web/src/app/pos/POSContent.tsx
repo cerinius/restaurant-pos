@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WSEventType } from '@pos/shared';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { RectangleStackIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 import { POSHeader } from '@/components/pos/POSHeader';
 import type { POSView } from '@/components/pos/type';
@@ -30,7 +30,7 @@ const MenuGrid = dynamic(
 const OrderPanel = dynamic(
   () => import('@/components/pos/OrderPanel').then((module) => module.OrderPanel),
   {
-    loading: () => <div className="h-full animate-pulse rounded-t-3xl bg-slate-900 xl:rounded-none" />,
+    loading: () => <div className="h-full animate-pulse rounded-t-3xl bg-slate-900 lg:rounded-none" />,
   },
 );
 const TableMap = dynamic(
@@ -149,19 +149,19 @@ function applyOptimisticItems(snapshot: ReturnType<typeof snapshotActiveOrder>, 
 
 function getDesktopTicketWidthClass(mode: 'expanded' | 'collapsed' | 'hidden') {
   if (mode === 'expanded') {
-    return 'xl:grid-cols-[minmax(0,0.92fr)_minmax(460px,0.88fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(520px,0.9fr)]';
+    return 'lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)] xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(500px,0.9fr)]';
   }
 
   if (mode === 'collapsed') {
-    return 'xl:grid-cols-[minmax(0,1.28fr)_360px] 2xl:grid-cols-[minmax(0,1.35fr)_380px]';
+    return 'lg:grid-cols-[minmax(0,1.35fr)_340px] xl:grid-cols-[minmax(0,1.35fr)_360px]';
   }
 
-  return 'xl:grid-cols-1';
+  return 'lg:grid-cols-1';
 }
 
 export default function POSContent({ initialData }: POSContentProps) {
   const { locationId, setLocation } = useAuthStore();
-  const { orderId, setOrder, clearOrder } = useOrderStore();
+  const { orderId, items, tableName, orderType, total, setOrder, clearOrder } = useOrderStore();
   const { posTicketPanelMode, setPosTicketPanelMode } = useUIStore();
   const queryClient = useQueryClient();
   const [view, setView] = useState<POSView>('tables');
@@ -427,9 +427,15 @@ export default function POSContent({ initialData }: POSContentProps) {
   const activeHappyHour = menuData?.data?.activeHappyHour;
   const hasActiveTicket = !!orderId;
   const desktopTicketVisible = posTicketPanelMode !== 'hidden';
-  const showMobileTicketOverlay = hasActiveTicket && posTicketPanelMode !== 'hidden';
-  const viewLabel =
-    view === 'tables' ? 'Floor' : view === 'open-orders' ? 'Open checks' : 'Menu';
+  const showTabletTicketOverlay = hasActiveTicket && posTicketPanelMode !== 'hidden';
+  const activeItemCount = items.filter((item: any) => !item.isVoided).length;
+  const pendingItemCount = items.filter((item: any) => !item.isVoided && !item.isFired).length;
+  const activeContextLabel =
+    view === 'tables' ? 'Floor' : view === 'open-orders' ? 'Open checks' : 'Order entry';
+  const ticketLabel = tableName
+    ? `Table ${tableName}`
+    : String(orderType || 'Order').replace('_', ' ');
+
   const mainPanel = useMemo(() => {
     if (view === 'tables') {
       return (
@@ -488,8 +494,6 @@ export default function POSContent({ initialData }: POSContentProps) {
         onNewOrder={handleNewOrder}
         hasActiveOrder={!!orderId}
         isOffline={isOffline}
-        ticketPanelMode={posTicketPanelMode}
-        onTicketPanelModeChange={setPosTicketPanelMode}
       />
 
       {isOffline && (
@@ -499,66 +503,60 @@ export default function POSContent({ initialData }: POSContentProps) {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden px-2 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] pt-2 md:px-3 md:pb-3 md:pt-3">
+      <main className="flex-1 overflow-hidden px-2 pb-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] pt-2 md:px-3 md:pt-3 md:pb-3">
         <div className={clsx('grid h-full gap-3', getDesktopTicketWidthClass(posTicketPanelMode))}>
           <section className="ops-shell flex min-h-0 flex-col overflow-hidden">
-            <div
-              className={clsx(
-                'ops-toolbar flex flex-wrap items-center justify-between gap-2 px-3 md:px-4',
-                view === 'tables' ? 'py-2' : 'py-3',
-              )}
-            >
+            <div className="ops-toolbar flex flex-wrap items-center justify-between gap-3 px-3 py-3 md:px-4">
               <div className="min-w-0">
-                {view === 'tables' ? (
-                  <>
-                    <h2 className="text-base font-black text-white md:text-lg">Floor</h2>
-                    <p className="text-xs text-slate-500">Tap a table to open or continue service.</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="section-kicker">Service flow</p>
-                    <h2 className="mt-1 text-lg font-black text-white md:text-xl">{viewLabel}</h2>
-                    <p className="mt-1 text-sm text-slate-400">
-                      {view === 'open-orders'
-                        ? 'Jump back into any active ticket fast.'
-                        : 'Large, touch-friendly menu for quick entry.'}
-                    </p>
-                  </>
-                )}
+                <p className="section-kicker">Service workspace</p>
+                <h2 className="mt-1 text-lg font-black text-white md:text-xl">{activeContextLabel}</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  {view === 'tables'
+                    ? 'Tap a table to open or continue service.'
+                    : view === 'open-orders'
+                      ? 'Jump back into any live check without leaving service.'
+                      : hasActiveTicket
+                        ? `${ticketLabel} · ${activeItemCount} item${activeItemCount === 1 ? '' : 's'}`
+                        : 'Add items fast and keep the active check visible.'}
+                </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {view !== 'tables' && <span className="ops-chip">{initialData.tables.length} tables</span>}
-                <span className="ops-chip">{initialData.openOrders.length} open orders</span>
-                {activeHappyHour && (
-                  <span className="ops-chip border-amber-300/20 bg-amber-400/10 text-amber-100">
-                    Happy hour live
-                  </span>
+                {hasActiveTicket && (
+                  <>
+                    <span className="ops-chip">{ticketLabel}</span>
+                    <span className="ops-chip">{pendingItemCount} ready to fire</span>
+                    <span className="ops-chip">${total.toFixed(2)} total</span>
+                  </>
                 )}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPosTicketPanelMode(
-                      posTicketPanelMode === 'hidden' ? 'expanded' : 'hidden',
-                    )
-                  }
-                  className={clsx(
-                    'touch-target rounded-2xl border px-3 py-2 text-sm font-semibold transition xl:hidden',
-                    posTicketPanelMode === 'hidden'
-                      ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
-                      : 'border-white/10 bg-white/5 text-slate-200',
-                  )}
-                >
-                  {posTicketPanelMode === 'hidden' ? 'Show Check' : 'Hide Check'}
-                </button>
+                {view !== 'tables' && (
+                  <span className="ops-chip">{initialData.openOrders.length} open orders</span>
+                )}
+                {view === 'menu' && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPosTicketPanelMode(posTicketPanelMode === 'hidden' ? 'expanded' : 'hidden')
+                    }
+                    className={clsx(
+                      'touch-target inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition lg:hidden',
+                      posTicketPanelMode === 'hidden'
+                        ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                        : 'border-white/10 bg-white/5 text-slate-200',
+                    )}
+                  >
+                    <RectangleStackIcon className="h-4 w-4" />
+                    {posTicketPanelMode === 'hidden' ? 'Show Check' : 'Hide Check'}
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="min-h-0 flex-1">{mainPanel}</div>
           </section>
 
-          {desktopTicketVisible && (
-            <section className="ops-shell hidden min-h-0 overflow-hidden xl:block">
+          {desktopTicketVisible && view === 'menu' && (
+            <section className="ops-shell hidden min-h-0 overflow-hidden lg:block">
               <OrderPanel
                 onFire={(courseNumber, priority) =>
                   fireMutation.mutate({ courseNumber, priority })
@@ -573,12 +571,12 @@ export default function POSContent({ initialData }: POSContentProps) {
         </div>
       </main>
 
-      {showMobileTicketOverlay && (
-        <div className="fixed inset-y-0 right-0 z-30 hidden w-full max-w-[min(92vw,540px)] border-l border-white/10 bg-slate-950/96 shadow-2xl backdrop-blur-xl md:block xl:hidden">
+      {showTabletTicketOverlay && view === 'menu' && (
+        <div className="fixed inset-y-0 right-0 z-30 hidden w-full max-w-[min(92vw,540px)] border-l border-white/10 bg-slate-950/96 shadow-2xl backdrop-blur-xl md:block lg:hidden">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Active check</p>
-              <p className="text-sm font-semibold text-slate-100">Ticket workspace</p>
+              <p className="text-sm font-semibold text-slate-100">{ticketLabel}</p>
             </div>
             <button
               type="button"
