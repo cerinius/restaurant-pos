@@ -367,6 +367,10 @@ class ApiClient {
     const { data } = await this.client.patch(`/api/reservations/${id}`, payload);
     return data;
   }
+  async getReservationSuggestions(id: string) {
+    const { data } = await this.client.get(`/api/reservations/${id}/suggestions`);
+    return data;
+  }
   async seatReservation(id: string, payload: any) {
     const { data } = await this.client.post(`/api/reservations/${id}/seat`, payload);
     return data;

@@ -135,6 +135,120 @@ function buildStats(reservations: any[]) {
   );
 }
 
+async function buildReservationSuggestions(reservationId: string, restaurantId: string) {
+  const reservation = await prisma.reservation.findFirst({
+    where: { id: reservationId, restaurantId },
+  });
+
+  if (!reservation) {
+    return null;
+  }
+
+  const windowStart = new Date(reservation.reservationAt.getTime() - 90 * 60 * 1000);
+  const windowEnd = new Date(reservation.reservationAt.getTime() + 90 * 60 * 1000);
+
+  const [tables, activeOrders, nearbyReservations, servers] = await Promise.all([
+    prisma.table.findMany({
+      where: {
+        locationId: reservation.locationId,
+        isActive: true,
+      },
+      orderBy: [{ section: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.order.findMany({
+      where: {
+        restaurantId,
+        locationId: reservation.locationId,
+        tableId: { not: null },
+        status: { in: ACTIVE_ORDER_STATUSES as any },
+      },
+      select: { tableId: true },
+    }),
+    prisma.reservation.findMany({
+      where: {
+        restaurantId,
+        locationId: reservation.locationId,
+        id: { not: reservation.id },
+        tableId: { not: null },
+        status: { in: ['CONFIRMED', 'ARRIVED', 'SEATED'] as any },
+        reservationAt: {
+          gte: windowStart,
+          lte: windowEnd,
+        },
+      },
+      select: {
+        tableId: true,
+      },
+    }),
+    prisma.user.findMany({
+      where: {
+        restaurantId,
+        isActive: true,
+        role: { in: ['SERVER', 'BARTENDER'] as any },
+        locations: { some: { locationId: reservation.locationId } },
+      },
+      orderBy: [{ lastSeatedAt: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        lastSeatedAt: true,
+      },
+    }),
+  ]);
+
+  const blockedTableIds = new Set<string>();
+  activeOrders.forEach((order) => {
+    if (order.tableId) blockedTableIds.add(order.tableId);
+  });
+  nearbyReservations.forEach((entry) => {
+    if (entry.tableId) blockedTableIds.add(entry.tableId);
+  });
+
+  const suggestedTables = tables
+    .map((table) => {
+      const capacity = Number(table.capacity || 0);
+      const score =
+        (table.id === reservation.tableId ? 40 : 0) +
+        (table.status === 'AVAILABLE' ? 25 : 0) +
+        (table.status === 'RESERVED' && table.id === reservation.tableId ? 8 : 0) +
+        Math.max(0, 18 - Math.abs(capacity - reservation.partySize) * 4) -
+        (capacity < reservation.partySize ? 100 : 0) -
+        (blockedTableIds.has(table.id) ? 120 : 0) -
+        (table.status === 'BLOCKED' ? 120 : 0) -
+        (table.status === 'DIRTY' ? 80 : 0);
+
+      return {
+        id: table.id,
+        name: table.name,
+        capacity: table.capacity,
+        status: table.status,
+        section: table.section,
+        score,
+        recommended: score > -40,
+      };
+    })
+    .filter((table) => table.score > -110)
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    .slice(0, 6);
+
+  const suggestedServers = servers
+    .map((server, index) => ({
+      id: server.id,
+      name: server.name,
+      role: server.role,
+      lastSeatedAt: server.lastSeatedAt,
+      priority: index + 1,
+    }))
+    .slice(0, 6);
+
+  return {
+    reservation,
+    suggestedTables,
+    suggestedServers,
+  };
+}
+
 export default async function reservationRoutes(app: FastifyInstance) {
   const auth = {
     preHandler: [async (request: any, reply: any) => app.authenticate(request, reply)],
@@ -408,6 +522,18 @@ export default async function reservationRoutes(app: FastifyInstance) {
     wsManager.broadcast(user.restaurantId, WSEventType.RESERVATION_UPDATED, updated, locationId);
 
     return reply.send({ success: true, data: updated });
+  });
+
+  app.get('/:id/suggestions', auth, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+
+    const suggestions = await buildReservationSuggestions(id, user.restaurantId);
+    if (!suggestions) {
+      return reply.code(404).send({ success: false, error: 'Reservation not found' });
+    }
+
+    return reply.send({ success: true, data: suggestions });
   });
 
   app.post('/:id/seat', auth, async (request, reply) => {
