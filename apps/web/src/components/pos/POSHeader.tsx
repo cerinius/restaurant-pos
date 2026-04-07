@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { useState, type ComponentType, type SVGProps } from 'react';
+import { useEffect, useState, type ComponentType, type SVGProps } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
@@ -61,13 +61,25 @@ export function POSHeader({
   const router = useRouter();
   const [showMobileActions, setShowMobileActions] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [timeLabel, setTimeLabel] = useState('');
 
   const canOpenAdmin = canAccessAdmin(user?.role);
-  const now = new Date();
-  const timeLabel = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+
+  useEffect(() => {
+    const formatTime = () =>
+      new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+    setTimeLabel(formatTime());
+
+    const interval = window.setInterval(() => {
+      setTimeLabel(formatTime());
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   const closeMobileActions = () => setShowMobileActions(false);
 
@@ -120,8 +132,9 @@ export function POSHeader({
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-black uppercase tracking-[0.18em] text-slate-100">Service</p>
-            <p className="truncate text-xs text-slate-400">
-              {user?.name || 'Staff'} · {user?.role || 'Team'} · {timeLabel}
+            <p className="truncate text-xs text-slate-400" suppressHydrationWarning>
+              {user?.name || 'Staff'} | {user?.role || 'Team'}
+              {timeLabel ? ` | ${timeLabel}` : ''}
             </p>
           </div>
 
@@ -244,7 +257,7 @@ export function POSHeader({
                 <p className="truncate text-xs text-slate-400">{user?.role || 'Staff'}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-medium">
                   <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-200">
-                    {timeLabel}
+                    {timeLabel || '--:--'}
                   </span>
                   {isOffline && (
                     <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-amber-100">

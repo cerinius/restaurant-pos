@@ -6,6 +6,71 @@ import { wsManager } from '../websocket/manager';
 const ACTIVE_ORDER_STATUSES = ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] as const;
 const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'DIRTY', 'BLOCKED'] as const;
 
+const ACTIVE_ORDER_LIST_SELECT = {
+  id: true,
+  restaurantId: true,
+  locationId: true,
+  tableId: true,
+  tableName: true,
+  serverId: true,
+  serverName: true,
+  status: true,
+  type: true,
+  guestCount: true,
+  subtotal: true,
+  taxTotal: true,
+  discountTotal: true,
+  tipTotal: true,
+  total: true,
+  notes: true,
+  customerName: true,
+  customerPhone: true,
+  customerEmail: true,
+  firedAt: true,
+  paidAt: true,
+  closedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  items: {
+    where: { isVoided: false },
+    select: {
+      id: true,
+      menuItemName: true,
+      quantity: true,
+      totalPrice: true,
+      status: true,
+    },
+  },
+  server: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+} as const;
+
+const ACTIVE_ORDER_DETAIL_SELECT = {
+  ...ACTIVE_ORDER_LIST_SELECT,
+  payments: true,
+  discounts: true,
+} as const;
+
+const TABLE_BASE_SELECT = {
+  id: true,
+  locationId: true,
+  name: true,
+  capacity: true,
+  status: true,
+  positionX: true,
+  positionY: true,
+  shape: true,
+  section: true,
+  width: true,
+  height: true,
+  isActive: true,
+  createdAt: true,
+} as const;
+
 export default async function tableRoutes(app: FastifyInstance) {
   const auth = {
     preHandler: [async (request: any, reply: any) => app.authenticate(request, reply)],
@@ -23,22 +88,11 @@ export default async function tableRoutes(app: FastifyInstance) {
         ...(section ? { section } : {}),
         ...(status ? { status: status as any } : {}),
       },
-      include: {
+      select: {
+        ...TABLE_BASE_SELECT,
         orders: {
           where: { status: { in: ACTIVE_ORDER_STATUSES as any } },
-          include: {
-            items: {
-              where: { isVoided: false },
-              select: {
-                id: true,
-                menuItemName: true,
-                quantity: true,
-                totalPrice: true,
-                status: true,
-              },
-            },
-            server: { select: { id: true, name: true } },
-          },
+          select: ACTIVE_ORDER_LIST_SELECT,
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
@@ -55,14 +109,11 @@ export default async function tableRoutes(app: FastifyInstance) {
 
     const table = await prisma.table.findFirst({
       where: { id, location: { restaurantId: user.restaurantId } },
-      include: {
+      select: {
+        ...TABLE_BASE_SELECT,
         orders: {
           where: { status: { in: ACTIVE_ORDER_STATUSES as any } },
-          include: {
-            items: { where: { isVoided: false } },
-            payments: true,
-            discounts: true,
-          },
+          select: ACTIVE_ORDER_DETAIL_SELECT,
         },
       },
     });

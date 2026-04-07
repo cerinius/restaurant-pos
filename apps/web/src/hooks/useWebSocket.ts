@@ -1,12 +1,52 @@
-
-import { useEffect, useRef, useCallback } from 'react';
-import { useAuthStore } from '@/store';
-import { useNotificationStore } from '@/store';
+import { useEffect, useRef } from 'react';
 import { WSEventType } from '@pos/shared';
+
+import { useNotificationStore } from '@/store';
+import { useAuthStore } from '@/store';
 
 type WSMessageHandler = (event: WSEventType, payload: any) => void;
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+function normalizeWebSocketBaseUrl(rawUrl: string) {
+  const trimmed = rawUrl.trim().replace(/\/+$/, '');
+  const isSecurePage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+  if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
+    if (isSecurePage && trimmed.startsWith('ws://')) {
+      return `wss://${trimmed.slice('ws://'.length)}`;
+    }
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('http://')) {
+    return `ws://${trimmed.slice('http://'.length)}`;
+  }
+
+  if (trimmed.startsWith('https://')) {
+    return `wss://${trimmed.slice('https://'.length)}`;
+  }
+
+  return trimmed;
+}
+
+function getWebSocketBaseUrl() {
+  const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
+
+  if (configuredUrl) {
+    return normalizeWebSocketBaseUrl(configuredUrl);
+  }
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (apiUrl) {
+    return normalizeWebSocketBaseUrl(apiUrl);
+  }
+
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}`;
+  }
+
+  return 'ws://localhost:3001';
+}
 
 class POSWebSocket {
   private ws: WebSocket | null = null;
@@ -18,45 +58,6 @@ class POSWebSocket {
   private token: string | null = null;
   private isConnecting = false;
 
-  // connect(token: string) {
-  //   if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) return;
-  //   this.token = token;
-  //   this.isConnecting = true;
-
-  //   try {
-  //     this.ws = new WebSocket(`${WS_URL}/ws/live`);
-
-  //     this.ws.onopen = () => {
-  //       this.isConnecting = false;
-  //       this.reconnectDelay = 2000;
-  //       this.ws!.send(JSON.stringify({ type: 'AUTH', token }));
-  //       this.startPing();
-  //     };
-
-  //     this.ws.onmessage = (event) => {
-  //       try {
-  //         const msg = JSON.parse(event.data);
-  //         this.emit(msg.type, msg.payload);
-  //       } catch {
-  //         console.warn('WS: Failed to parse message');
-  //       }
-  //     };
-
-  //     this.ws.onclose = () => {
-  //       this.isConnecting = false;
-  //       this.stopPing();
-  //       this.scheduleReconnect();
-  //     };
-
-  //     this.ws.onerror = () => {
-  //       this.isConnecting = false;
-  //     };
-  //   } catch {
-  //     this.isConnecting = false;
-  //     this.scheduleReconnect();
-  //   }
-  // }
-
   connect(token: string) {
     if (typeof window === 'undefined') return;
     if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) return;
@@ -65,7 +66,8 @@ class POSWebSocket {
     this.isConnecting = true;
 
     try {
-      this.ws = new WebSocket(`${WS_URL}/ws/live`);
+      const wsBaseUrl = getWebSocketBaseUrl();
+      this.ws = new WebSocket(`${wsBaseUrl}/ws/live`);
 
       this.ws.onopen = () => {
         this.isConnecting = false;
@@ -98,6 +100,7 @@ class POSWebSocket {
       this.scheduleReconnect();
     }
   }
+
   disconnect() {
     this.stopPing();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
@@ -108,7 +111,7 @@ class POSWebSocket {
 
   on(event: string, handler: WSMessageHandler) {
     if (!this.handlers.has(event)) this.handlers.set(event, new Set());
-    this.handlers.get(event)!.add(handler);
+    this.handlers.get(event)?.add(handler);
     return () => this.off(event, handler);
   }
 
@@ -117,8 +120,8 @@ class POSWebSocket {
   }
 
   private emit(event: string, payload: any) {
-    this.handlers.get(event)?.forEach((h) => h(event as WSEventType, payload));
-    this.handlers.get('*')?.forEach((h) => h(event as WSEventType, payload));
+    this.handlers.get(event)?.forEach((handler) => handler(event as WSEventType, payload));
+    this.handlers.get('*')?.forEach((handler) => handler(event as WSEventType, payload));
   }
 
   private startPing() {
@@ -172,13 +175,12 @@ export function useWebSocket(
       }
     });
 
-    return () => unsubscribers.forEach((u) => u());
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, deps);
 
   return { isConnected: posWS.isConnected };
 }
 
-// Global WS listener for notifications
 export function useGlobalWSNotifications() {
   const { addNotification } = useNotificationStore();
 
@@ -190,17 +192,17 @@ export function useGlobalWSNotifications() {
         message: `Order created for ${payload?.tableName || payload?.type || 'table'}`,
       });
     },
-    [WSEventType.ORDER_FIRED]: (payload) => {
+    [WSEventType.ORDER_FIRED]: () => {
       addNotification({
         type: 'info',
         title: 'Order Fired',
-        message: `Order sent to kitchen`,
+        message: 'Order sent to kitchen',
       });
     },
     [WSEventType.ITEM_86]: (payload) => {
       addNotification({
         type: 'warning',
-        title: '86\'d Item',
+        title: "86'd Item",
         message: `${payload?.itemName} is now out of stock`,
       });
     },
@@ -216,7 +218,7 @@ export function useGlobalWSNotifications() {
         addNotification({
           type: 'success',
           title: 'Payment Received',
-          message: `Order paid â $${payload?.totalPaid?.toFixed(2)}`,
+          message: `Order paid - $${payload?.totalPaid?.toFixed(2)}`,
         });
       }
     },
