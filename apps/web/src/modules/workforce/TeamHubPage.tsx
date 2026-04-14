@@ -268,7 +268,7 @@ export default function TeamHubPage({
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Team Hub</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-300">Team Hub</p>
             <h1 className="mt-1 text-2xl font-bold text-slate-100">
               {currentMember?.name || 'Staff'} schedule and shift center
             </h1>
@@ -556,7 +556,7 @@ export default function TeamHubPage({
                   <p className="text-sm text-slate-500">No tables assigned yet.</p>
                 ) : (
                   myAssignments.map((assignment) => (
-                    <span key={assignment.id} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-100">
+                    <span key={assignment.id} className="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-100">
                       {assignment.tableName}
                       {assignment.roomName ? ` | ${assignment.roomName}` : ''}
                     </span>

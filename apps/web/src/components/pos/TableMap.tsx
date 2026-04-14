@@ -71,7 +71,7 @@ const FILTER_META: Array<{
   {
     id: 'ALL',
     label: 'All',
-    activeClass: 'border-cyan-300/30 bg-cyan-300 text-slate-950',
+    activeClass: 'border-amber-300/30 bg-amber-300 text-slate-950',
   },
   {
     id: 'AVAILABLE',
@@ -120,7 +120,7 @@ function EmptyFloorState({
   return (
     <div className="flex h-full min-h-[280px] items-center justify-center px-4 py-6 md:min-h-[360px] md:px-8">
       <div className="flex max-w-md flex-col items-center rounded-[28px] border border-dashed border-white/12 bg-slate-950/72 px-6 py-8 text-center shadow-[0_24px_80px_rgba(2,6,23,0.34)] backdrop-blur-xl md:px-8">
-        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-3xl border border-cyan-300/18 bg-cyan-300/10 text-cyan-200">
+        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-3xl border border-amber-300/18 bg-amber-300/10 text-amber-200">
           <TableCellsIcon className="h-7 w-7" />
         </div>
         <h3 className="text-lg font-black text-slate-50 md:text-xl">{title}</h3>
@@ -129,7 +129,7 @@ function EmptyFloorState({
           <button
             type="button"
             onClick={onOpenAdmin}
-            className="touch-target mt-5 inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-200"
+            className="touch-target mt-5 inline-flex items-center gap-2 rounded-2xl bg-amber-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-200"
           >
             <ArrowTopRightOnSquareIcon className="h-4 w-4" />
             Open Floor Plan Admin
@@ -447,7 +447,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               className={clsx(
                 'border-2 flex flex-col items-center justify-center px-2 text-center transition-all backdrop-blur-sm shadow-md',
                 STATUS_STYLES[table.status] || STATUS_STYLES.AVAILABLE,
-                isSelected ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900' : 'hover:ring-2 hover:ring-cyan-400',
+                isSelected ? 'ring-4 ring-amber-300 ring-offset-2 ring-offset-slate-900' : 'hover:ring-2 hover:ring-amber-300',
                 isBarSeat ? 'border-amber-400/80' : '',
                 table.status === 'BLOCKED' ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
               )}
@@ -526,7 +526,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                 className={clsx(
                   'touch-target whitespace-nowrap rounded-2xl border px-3 py-2 text-xs font-bold transition-all md:px-3.5',
                   focusedSection === section
-                    ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                    ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                     : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
                 )}
               >
@@ -622,7 +622,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
                     'touch-target flex min-h-[112px] flex-col rounded-[26px] border-2 p-4 text-left transition-all',
                     STATUS_STYLES[table.status] || STATUS_STYLES.AVAILABLE,
                     isSelected
-                      ? 'ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-900'
+                      ? 'ring-4 ring-amber-300 ring-offset-2 ring-offset-slate-900'
                       : 'hover:bg-slate-800/50',
                     table.status === 'BLOCKED' ? 'opacity-60' : ''
                   )}
@@ -795,7 +795,7 @@ export function TableMap({ locationId, onTableSelect, selectedTableId, initialTa
               <button
                 type="button"
                 onClick={() => setBlockedTable(null)}
-                className="touch-target rounded-2xl bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-950 transition-all hover:bg-cyan-300"
+                className="touch-target rounded-2xl bg-amber-300 px-5 py-2 text-sm font-semibold text-slate-950 transition-all hover:bg-amber-200"
               >
                 Close
               </button>

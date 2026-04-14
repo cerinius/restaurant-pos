@@ -178,9 +178,9 @@ export default function KDSContent({ initialData }: KDSContentProps) {
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Pending</p>
               <p className="mt-2 text-3xl font-black text-amber-100 tabular-nums">{stats.pending ?? 0}</p>
             </div>
-            <div className="ops-stat border-cyan-300/20 bg-cyan-400/8">
+            <div className="ops-stat border-blue-300/20 bg-blue-500/10">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">In Progress</p>
-              <p className="mt-2 text-3xl font-black text-cyan-100 tabular-nums">{stats.inProgress ?? 0}</p>
+              <p className="mt-2 text-3xl font-black text-blue-100 tabular-nums">{stats.inProgress ?? 0}</p>
             </div>
             <div className="ops-stat border-emerald-300/20 bg-emerald-400/8">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Avg Time</p>

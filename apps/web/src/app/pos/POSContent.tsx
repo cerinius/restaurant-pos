@@ -557,7 +557,7 @@ export default function POSContent({ initialData }: POSContentProps) {
                       className={clsx(
                         'touch-target inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition lg:hidden',
                         posTicketPanelMode === 'hidden'
-                          ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                          ? 'border-amber-300/30 bg-amber-300/12 text-amber-100'
                           : 'border-white/10 bg-white/5 text-slate-200',
                       )}
                     >

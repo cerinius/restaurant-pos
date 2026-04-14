@@ -133,7 +133,7 @@ export function MenuGrid({
                 className={clsx(
                   'touch-target inline-flex items-center gap-2 whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-bold transition-all',
                   isActive
-                    ? 'bg-cyan-300 text-slate-950 shadow-[0_12px_32px_rgba(34,211,238,0.22)]'
+                    ? 'bg-amber-300 text-slate-950 shadow-[0_12px_32px_rgba(214,166,74,0.2)]'
                     : 'border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10',
                 )}
               >
@@ -181,8 +181,8 @@ export function MenuGrid({
                   disabled={unavailable}
                   className={clsx(
                     'group flex min-h-[188px] flex-col rounded-[24px] border border-white/10 bg-white/[0.04] p-3 text-left transition-all',
-                    'focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-950',
-                    unavailable ? 'cursor-not-allowed opacity-45' : 'hover:border-cyan-300/25 hover:bg-white/[0.08]',
+                    'focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2 focus:ring-offset-slate-950',
+                    unavailable ? 'cursor-not-allowed opacity-45' : 'hover:border-amber-300/25 hover:bg-white/[0.08]',
                   )}
                 >
                   <div className="relative overflow-hidden rounded-[18px] bg-slate-800">
@@ -222,7 +222,7 @@ export function MenuGrid({
                         {formatCurrency(Number(item.basePrice || 0))}
                       </span>
                       {hasModifiers && (
-                        <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100">
+                        <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100">
                           Customize
                         </span>
                       )}

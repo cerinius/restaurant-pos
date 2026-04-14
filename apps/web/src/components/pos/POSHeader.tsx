@@ -124,14 +124,14 @@ export function POSHeader({
     <>
       <WSStatusBanner bar />
 
-      <header className="relative z-20 shrink-0 border-b border-white/10 bg-slate-950/88 backdrop-blur-xl">
-        <div className="flex min-h-[54px] items-center gap-2 px-2.5 py-2 md:px-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-300 text-[11px] font-black text-slate-950 shadow-[0_12px_28px_rgba(34,211,238,0.16)]">
+      <header className="relative z-20 shrink-0 border-b border-white/10 bg-[linear-gradient(180deg,rgba(19,32,51,0.96),rgba(11,19,32,0.9))] backdrop-blur-xl">
+        <div className="flex min-h-[64px] items-center gap-2 px-2.5 py-2 md:px-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-300 text-[11px] font-black text-slate-950 shadow-[0_12px_28px_rgba(214,166,74,0.18)]">
             POS
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-black uppercase tracking-[0.16em] text-slate-100">Service</p>
+            <p className="truncate text-xs font-black uppercase tracking-[0.16em] text-slate-100">Service workspace</p>
             <p className="truncate text-xs text-slate-400" suppressHydrationWarning>
               {user?.name || 'Staff'} | {user?.role || 'Team'}
               {timeLabel ? ` | ${timeLabel}` : ''}
@@ -150,7 +150,7 @@ export function POSHeader({
                     className={clsx(
                       'touch-target inline-flex min-h-[40px] items-center gap-2 rounded-xl px-3 text-[13px] font-semibold transition',
                       active
-                        ? 'bg-cyan-300 text-slate-950'
+                        ? 'bg-amber-300 text-slate-950'
                         : 'text-slate-200 hover:bg-white/8 hover:text-white',
                     )}
                   >
@@ -249,9 +249,9 @@ export function POSHeader({
             aria-label="Close POS actions"
           />
 
-          <div className="absolute inset-x-4 top-20 rounded-[28px] border border-white/10 bg-slate-950/95 p-4 shadow-2xl">
+          <div className="absolute inset-x-4 top-20 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,32,51,0.98),rgba(11,19,32,0.96))] p-4 shadow-2xl">
             <div className="flex items-start gap-3 border-b border-white/10 pb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-base font-bold text-slate-950">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-300 text-base font-bold text-slate-950">
                 {user?.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
               <div className="min-w-0 flex-1">
@@ -371,7 +371,7 @@ export function POSHeader({
                 className={clsx(
                   'touch-target flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-2 text-[11px] font-semibold transition',
                   active
-                    ? 'bg-cyan-300 text-slate-950'
+                    ? 'bg-amber-300 text-slate-950'
                     : 'bg-white/5 text-slate-400 hover:bg-white/8 hover:text-slate-100',
                 )}
               >

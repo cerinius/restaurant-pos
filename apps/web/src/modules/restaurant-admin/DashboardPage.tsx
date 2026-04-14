@@ -182,7 +182,7 @@ export default function RestaurantAdminDashboardPage() {
             {restaurantId && (
               <Link
                 href={getRestaurantPOSPath(restaurantId)}
-                className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/15"
+                className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-300/15"
               >
                 Open POS
               </Link>
@@ -233,7 +233,7 @@ export default function RestaurantAdminDashboardPage() {
                 href={module.href}
                 className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
               >
-                <module.Icon className="h-5 w-5 text-cyan-300" />
+                <module.Icon className="h-5 w-5 text-amber-300" />
                 <p className="mt-3 text-sm font-bold text-white">{module.label}</p>
                 <p className="mt-1 text-xs text-slate-400">{module.description}</p>
               </Link>
@@ -291,7 +291,7 @@ export default function RestaurantAdminDashboardPage() {
                   value: String(kds.pending || 0),
                   tone: (kds.pending || 0) > 5 ? 'text-red-300' : 'text-white',
                 },
-                { label: 'In progress', value: String(kds.inProgress || 0), tone: 'text-cyan-200' },
+                { label: 'In progress', value: String(kds.inProgress || 0), tone: 'text-blue-200' },
                 {
                   label: 'Average ticket time',
                   value: `${Math.floor((kds.averageTicketSeconds || 0) / 60)}:${String((kds.averageTicketSeconds || 0) % 60).padStart(2, '0')}`,
@@ -320,7 +320,7 @@ export default function RestaurantAdminDashboardPage() {
         <div className="grid gap-5 xl:grid-cols-3">
           <section className="card p-4 xl:p-5">
             <div className="mb-4 flex items-center gap-3">
-              <TableCellsIcon className="h-5 w-5 text-cyan-300" />
+              <TableCellsIcon className="h-5 w-5 text-amber-300" />
               <div>
                 <p className="section-kicker">Floor</p>
                 <h2 className="mt-1 text-lg font-black text-white">Table status</h2>
@@ -329,7 +329,7 @@ export default function RestaurantAdminDashboardPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="soft-panel px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Occupied</p>
-                <p className="mt-1 text-2xl font-black text-cyan-100">{floorCounts.occupied}</p>
+                <p className="mt-1 text-2xl font-black text-blue-100">{floorCounts.occupied}</p>
               </div>
               <div className="soft-panel px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Available</p>
@@ -348,7 +348,7 @@ export default function RestaurantAdminDashboardPage() {
 
           <section className="card p-4 xl:p-5">
             <div className="mb-4 flex items-center gap-3">
-              <CalendarDaysIcon className="h-5 w-5 text-cyan-300" />
+              <CalendarDaysIcon className="h-5 w-5 text-amber-300" />
               <div>
                 <p className="section-kicker">Reservations</p>
                 <h2 className="mt-1 text-lg font-black text-white">Today&apos;s book</h2>
@@ -390,7 +390,7 @@ export default function RestaurantAdminDashboardPage() {
 
           <section className="card p-4 xl:p-5">
             <div className="mb-4 flex items-center gap-3">
-              <UserGroupIcon className="h-5 w-5 text-cyan-300" />
+              <UserGroupIcon className="h-5 w-5 text-amber-300" />
               <div>
                 <p className="section-kicker">Staffing</p>
                 <h2 className="mt-1 text-lg font-black text-white">Shift readiness</h2>
@@ -403,7 +403,7 @@ export default function RestaurantAdminDashboardPage() {
               </div>
               <div className="soft-panel flex items-center justify-between px-4 py-3">
                 <p className="text-sm text-slate-400">Active staff</p>
-                <p className="text-xl font-black text-cyan-100">{activeStaff.length}</p>
+                <p className="text-xl font-black text-blue-100">{activeStaff.length}</p>
               </div>
             </div>
             <div className="mt-4 space-y-2">
@@ -432,7 +432,7 @@ export default function RestaurantAdminDashboardPage() {
                 <h2 className="mt-1 text-xl font-black text-white">Low stock alerts</h2>
               </div>
               {lowStock.length > 0 && restaurantId && (
-                <Link href={getRestaurantAdminPath(restaurantId, 'inventory')} className="text-xs font-semibold text-cyan-400 hover:underline">
+                <Link href={getRestaurantAdminPath(restaurantId, 'inventory')} className="text-xs font-semibold text-amber-300 hover:underline">
                   View inventory →
                 </Link>
               )}

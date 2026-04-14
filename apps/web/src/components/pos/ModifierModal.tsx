@@ -97,7 +97,7 @@ export function ModifierModal({ item, onConfirm, onClose }: Props) {
           <div>
             <p className="section-kicker">Customize item</p>
             <h2 className="mt-1 text-2xl font-black text-white">{item.name}</h2>
-            <p className="mt-1 text-base font-semibold text-cyan-300">${Number(item.basePrice || 0).toFixed(2)}</p>
+            <p className="mt-1 text-base font-semibold text-amber-300">${Number(item.basePrice || 0).toFixed(2)}</p>
           </div>
           <button
             type="button"
@@ -142,7 +142,7 @@ export function ModifierModal({ item, onConfirm, onClose }: Props) {
                             className={clsx(
                               'touch-target flex min-h-[72px] items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all',
                               isSelected
-                                ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                                ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                                 : 'border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]',
                               !modifier.isAvailable && 'cursor-not-allowed opacity-45',
                             )}
@@ -200,7 +200,7 @@ export function ModifierModal({ item, onConfirm, onClose }: Props) {
 
             <div className="mt-4 rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Total</p>
-              <p className="mt-2 text-3xl font-black text-cyan-300">${totalPrice.toFixed(2)}</p>
+              <p className="mt-2 text-3xl font-black text-amber-300">${totalPrice.toFixed(2)}</p>
               <p className="mt-2 text-sm text-slate-500">Includes modifiers and quantity.</p>
             </div>
 

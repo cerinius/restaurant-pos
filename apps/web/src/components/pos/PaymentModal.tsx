@@ -251,7 +251,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                         className={clsx(
                           'touch-target rounded-2xl border px-3 py-3 text-sm font-bold transition-all',
                           splitMode === option.id
-                            ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                            ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                             : 'border-white/10 bg-white/[0.03] text-slate-200',
                           option.id !== 'FULL' && !canSplitChecks && 'cursor-not-allowed opacity-50',
                         )}
@@ -279,7 +279,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                             className={clsx(
                               'touch-target rounded-2xl border p-4 text-left transition-all',
                               (selectedSeatKey || seatSplits[0]?.key) === seat.key
-                                ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                                ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                                 : 'border-white/10 bg-white/[0.03] text-slate-100',
                             )}
                           >
@@ -321,7 +321,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                         className={clsx(
                           'touch-target flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl border text-sm font-bold transition-all',
                           method === id
-                            ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                            ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                             : 'border-white/10 bg-white/[0.03] text-slate-100',
                         )}
                       >
@@ -374,7 +374,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                       className={clsx(
                         'touch-target rounded-2xl border py-2 text-sm font-bold transition-all',
                         tipPercent === null && !customTip
-                          ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                          ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                           : 'border-white/10 bg-white/[0.03] text-slate-200',
                       )}
                     >
@@ -391,7 +391,7 @@ export function PaymentModal({ orderId, onClose, onPaid }: Props) {
                         className={clsx(
                           'touch-target rounded-2xl border py-2 text-sm font-bold transition-all',
                           tipPercent === percent && !customTip
-                            ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                            ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                             : 'border-white/10 bg-white/[0.03] text-slate-200',
                         )}
                       >

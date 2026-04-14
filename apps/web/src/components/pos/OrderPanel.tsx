@@ -125,7 +125,7 @@ function ItemSection({
                         {item.modifiers.map((modifier: any) => (
                           <span
                             key={`${item.id}-${modifier.modifierId || modifier.modifierName}`}
-                            className="rounded-full border border-cyan-300/18 bg-cyan-400/8 px-2.5 py-1 text-[11px] font-semibold text-cyan-100"
+                            className="rounded-full border border-amber-300/18 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100"
                           >
                             {modifier.modifierName}
                           </span>
@@ -210,7 +210,7 @@ function ItemSection({
                               className={clsx(
                                 'touch-target rounded-2xl px-3 py-2 text-sm font-bold transition-all',
                                 item.courseNumber === course
-                                  ? 'bg-cyan-300 text-slate-950'
+                                  ? 'bg-amber-300 text-slate-950'
                                   : 'border border-white/10 bg-white/5 text-slate-300',
                               )}
                             >
@@ -402,7 +402,7 @@ export function OrderPanel({
                   className={clsx(
                     'touch-target inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition',
                     panelMode === 'expanded'
-                      ? 'border-cyan-300/30 bg-cyan-300 text-slate-950'
+                      ? 'border-amber-300/30 bg-amber-300 text-slate-950'
                       : 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10',
                   )}
                   aria-label="Expand active check panel"
@@ -419,11 +419,11 @@ export function OrderPanel({
         </div>
 
         <div className="mt-4 grid gap-3">
-          <div className="rounded-[24px] border border-cyan-300/18 bg-cyan-300/10 px-4 py-4">
+          <div className="rounded-[24px] border border-amber-300/18 bg-amber-400/10 px-4 py-4">
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-100/80">Total due</p>
-                <p className="mt-1 text-3xl font-black text-cyan-100">{formatCurrency(total)}</p>
+                <p className="mt-1 text-3xl font-black text-amber-100">{formatCurrency(total)}</p>
               </div>
               <div className="text-right text-xs text-cyan-50/85">
                 <p>Subtotal {formatCurrency(subtotal)}</p>
@@ -447,7 +447,7 @@ export function OrderPanel({
               onClick={() => setCourseFilter(null)}
               className={clsx(
                 'touch-target rounded-2xl px-4 py-2 text-sm font-bold transition-all',
-                !courseFilter ? 'bg-cyan-300 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-300',
+                !courseFilter ? 'bg-amber-300 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-300',
               )}
             >
               All courses
@@ -460,7 +460,7 @@ export function OrderPanel({
                 className={clsx(
                   'touch-target rounded-2xl px-4 py-2 text-sm font-bold transition-all',
                   courseFilter === course
-                    ? 'bg-cyan-300 text-slate-950'
+                    ? 'bg-amber-300 text-slate-950'
                     : 'border border-white/10 bg-white/5 text-slate-300',
                 )}
               >

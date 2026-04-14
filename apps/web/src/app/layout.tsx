@@ -1,12 +1,18 @@
-import { Manrope } from 'next/font/google';
+import { Fraunces, Plus_Jakarta_Sans } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 
 import './globals.css';
 import Providers from './providers';
 
-const bodyFont = Manrope({
+const bodyFont = Plus_Jakarta_Sans({
   subsets: ['latin'],
   display: 'swap',
+});
+
+const displayFont = Fraunces({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-display',
 });
 
 export default function RootLayout({
@@ -16,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="bg-slate-950">
-      <body className={`${bodyFont.className} min-h-screen bg-slate-950 text-slate-50`}>
+      <body className={`${bodyFont.className} ${displayFont.variable} min-h-screen bg-slate-950 text-slate-50`}>
         <Analytics />
         <Providers>{children}</Providers>
       </body>
