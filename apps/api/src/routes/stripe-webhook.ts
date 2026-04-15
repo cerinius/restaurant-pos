@@ -86,7 +86,7 @@ export default async function stripeWebhookRoutes(app: FastifyInstance) {
         }
 
         case 'checkout.session.completed': {
-          const session = event.data.object as Stripe.CheckoutSession;
+          const session = event.data.object as Stripe.Checkout.Session;
           await handleCheckoutCompleted(session, stripe);
           break;
         }
@@ -339,7 +339,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   });
 }
 
-async function handleCheckoutCompleted(session: Stripe.CheckoutSession, stripe: Stripe) {
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session, stripe: Stripe) {
   const restaurantId = session.metadata?.restaurantId;
   if (!restaurantId || session.mode !== 'subscription') return;
 

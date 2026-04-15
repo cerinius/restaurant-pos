@@ -323,7 +323,7 @@
   }
 
   .drawer-overlay {
-    @apply fixed inset-0 z-40 bg-slate-950/72 backdrop-blur-sm;
+    @apply fixed inset-0 z-40 bg-slate-950/[0.72] backdrop-blur-sm;
   }
 
   .drawer-panel {
