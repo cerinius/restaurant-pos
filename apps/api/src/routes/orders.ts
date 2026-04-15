@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { prisma } from '@pos/db';
+import { OrderStatus, prisma } from '@pos/db';
 import { WSEventType } from '@pos/shared';
 import { wsManager } from '../websocket/manager';
 
@@ -530,22 +530,53 @@ export default async function orderRoutes(app: FastifyInstance) {
     const user = (request as any).user;
     const { locationId } = request.query as { locationId?: string };
 
+    const where = {
+      restaurantId: user.restaurantId,
+      ...(locationId ? { locationId } : {}),
+      status: { in: ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] as OrderStatus[] },
+      ...(isSectionRestrictedRole(user.role) ? { serverId: user.id } : {}),
+    };
+
     const orders = await prisma.order.findMany({
-      where: {
-        restaurantId: user.restaurantId,
-        ...(locationId ? { locationId } : {}),
-        status: { in: ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] },
-        ...(isSectionRestrictedRole(user.role) ? { serverId: user.id } : {}),
-      },
-      include: {
-        items: { where: { isVoided: false } },
+      where,
+      select: {
+        id: true,
+        restaurantId: true,
+        locationId: true,
+        tableId: true,
+        tableName: true,
+        serverId: true,
+        serverName: true,
+        status: true,
+        type: true,
+        guestCount: true,
+        subtotal: true,
+        taxTotal: true,
+        discountTotal: true,
+        tipTotal: true,
+        total: true,
+        notes: true,
+        customerName: true,
+        customerPhone: true,
+        customerEmail: true,
+        firedAt: true,
+        paidAt: true,
+        closedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        items: {
+          where: { isVoided: false },
+        },
         payments: true,
         table: { select: { name: true, section: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
 
-    return reply.send({ success: true, data: orders });
+    return reply.send({
+      success: true,
+      data: orders,
+    });
   });
 
   // ── GET single order ──────────────────────────────────────

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@pos/db';
 import { WSEventType } from '@pos/shared';
+import { isPrismaSchemaMissingError } from '../lib/prisma-schema-compat';
 import { wsManager } from '../websocket/manager';
 
 const ACTIVE_ORDER_STATUSES = ['OPEN', 'SENT', 'IN_PROGRESS', 'READY'] as const;
@@ -280,14 +281,36 @@ export default async function reservationRoutes(app: FastifyInstance) {
       ];
     }
 
-    const reservations = await prisma.reservation.findMany({
-      where,
-      include: {
-        table: { select: { id: true, name: true, capacity: true, status: true } },
-        order: { select: { id: true, status: true, tableName: true, serverName: true } },
-      },
-      orderBy: [{ reservationAt: 'asc' }, { createdAt: 'asc' }],
-    });
+    let reservations: any[];
+
+    try {
+      reservations = await prisma.reservation.findMany({
+        where,
+        include: {
+          table: { select: { id: true, name: true, capacity: true, status: true } },
+          order: { select: { id: true, status: true, tableName: true, serverName: true } },
+        },
+        orderBy: [{ reservationAt: 'asc' }, { createdAt: 'asc' }],
+      });
+    } catch (error) {
+      if (!isPrismaSchemaMissingError(error, { code: 'P2021', table: 'public.reservations' })) {
+        throw error;
+      }
+
+      app.log.warn(
+        { err: error, route: '/api/reservations' },
+        'Database schema is missing public.reservations; returning empty reservations response',
+      );
+
+      return reply.send({
+        success: true,
+        data: {
+          reservations: [],
+          stats: buildStats([]),
+          compatibilityWarning: 'reservations_table_missing',
+        },
+      });
+    }
 
     return reply.send({
       success: true,
