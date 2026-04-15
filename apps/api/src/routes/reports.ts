@@ -33,7 +33,16 @@ export default async function reportRoutes(app: FastifyInstance) {
 
     const orders = await prisma.order.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        status: true,
+        type: true,
+        serverId: true,
+        serverName: true,
+        total: true,
+        tipTotal: true,
+        discountTotal: true,
+        createdAt: true,
         items: { where: { isVoided: false } },
         payments: { where: { status: 'CAPTURED' } },
         discounts: true,
