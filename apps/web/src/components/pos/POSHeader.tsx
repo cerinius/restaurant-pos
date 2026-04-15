@@ -22,7 +22,7 @@ import { NotificationDrawer } from '@/components/ui/NotificationDrawer';
 import { WSStatusBanner } from '@/components/ui/WSStatusBanner';
 import { posWS } from '@/hooks/useWebSocket';
 import api from '@/lib/api';
-import { getRestaurantAdminPath, getRestaurantLoginPath, getRestaurantTeamPath } from '@/lib/paths';
+import { getRestaurantAdminPath, getRestaurantLoginPath, getRestaurantPortalPath, getRestaurantTeamPath } from '@/lib/paths';
 import { useAuthStore, useNotificationStore } from '@/store';
 
 interface Props {
@@ -112,7 +112,9 @@ export function POSHeader({
   const goToTeam = () => {
     closeMobileActions();
     if (!user?.restaurantId) return;
-    router.push(getRestaurantTeamPath(user.restaurantId));
+    // Non-manager staff go to their personal portal (schedule/timesheet/paycheck)
+    // Managers can navigate to Workforce Admin from within the portal
+    router.push(getRestaurantPortalPath(user.restaurantId));
   };
 
   const handleNewOrder = () => {

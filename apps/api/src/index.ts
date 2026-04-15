@@ -34,6 +34,7 @@ import giftCardRoutes from './routes/giftCards';
 import comboRoutes from './routes/combos';
 import auditRoutes from './routes/audit';
 import saasRoutes from './routes/saas';
+import stripeWebhookRoutes from './routes/stripe-webhook';
 import workforceRoutes from './routes/workforce';
 import supportRoutes from './routes/support';
 import reservationRoutes from './routes/reservations';
@@ -114,9 +115,15 @@ async function bootstrap() {
   });
 
   // ââ Auth ââââââââââââââââââââââââââââââââââââââââââââââââââ
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret || jwtSecret.length < 32) {
+    app.log.error('FATAL: JWT_SECRET is not set or is too short (minimum 32 characters). Generate one with: openssl rand -base64 32');
+    process.exit(1);
+  }
+
   await app.register(jwt, {
-    secret: process.env.JWT_SECRET || 'fallback-secret-change-me',
-    sign: { expiresIn: process.env.JWT_EXPIRES_IN || '15m' },
+    secret: jwtSecret,
+    sign: { expiresIn: process.env.JWT_EXPIRES_IN || '12h' },
   });
 
   // ââ WebSocket âââââââââââââââââââââââââââââââââââââââââââââ
@@ -176,6 +183,17 @@ async function bootstrap() {
         if (!roles.includes(request.user.role)) {
           return reply.code(403).send({ success: false, error: 'Forbidden: insufficient permissions' });
         }
+        // Also validate restaurant is active
+        const restaurant = await prisma.restaurant.findUnique({
+          where: { id: request.user.restaurantId },
+          select: { settings: true, isActive: true },
+        });
+        if (!restaurant || !restaurant.isActive) {
+          return reply.code(403).send({ success: false, error: 'Restaurant account is not active' });
+        }
+        if (isTrialExpired(restaurant.settings)) {
+          return reply.code(403).send({ success: false, error: 'Your trial has expired. Please upgrade your plan.' });
+        }
       } catch {
         return reply.code(401).send({ success: false, error: 'Unauthorized' });
       }
@@ -184,7 +202,22 @@ async function bootstrap() {
 
   // ââ Health Check âââââââââââââââââââââââââââââââââââââââââ
   app.get('/health', async (_request, reply) => {
-    return reply.send({ status: 'ok' });
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return reply.send({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        version: process.env.npm_package_version || '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+      });
+    } catch (err) {
+      app.log.error({ err }, 'Health check DB ping failed');
+      return reply.code(503).send({
+        status: 'degraded',
+        error: 'Database connectivity issue',
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   // ââ Routes ââââââââââââââââââââââââââââââââââââââââââââââââ
@@ -212,6 +245,7 @@ async function bootstrap() {
   await app.register(supportRoutes,    { prefix: '/api/support' });
   await app.register(reservationRoutes,{ prefix: '/api/reservations' });
   await app.register(operationsRoutes, { prefix: '/api/operations' });
+  await app.register(stripeWebhookRoutes, { prefix: '/api' });
   await app.register(wsRoutes,         { prefix: '/ws' });
 
   // ââ Start âââââââââââââââââââââââââââââââââââââââââââââââââ

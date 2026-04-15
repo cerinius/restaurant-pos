@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import type { FastifyInstance } from 'fastify';
 
 import { prisma } from '@pos/db';
@@ -23,9 +23,20 @@ import {
 } from '../services/workforce';
 
 const MANAGER_ROLES = ['OWNER', 'MANAGER'];
+const BCRYPT_ROUNDS = 10;
 
-function hashPin(pin: string) {
-  return crypto.createHash('sha256').update(pin + 'pos-salt-2024').digest('hex');
+async function hashPin(pin: string): Promise<string> {
+  return bcrypt.hash(pin, BCRYPT_ROUNDS);
+}
+
+async function verifyPin(pin: string, hash: string): Promise<boolean> {
+  // Support legacy SHA-256 hashes during migration period
+  if (hash && hash.length === 64 && !hash.startsWith('$2')) {
+    const crypto = await import('crypto');
+    const legacyHash = crypto.createHash('sha256').update(pin + 'pos-salt-2024').digest('hex');
+    return legacyHash === hash;
+  }
+  return bcrypt.compare(pin, hash);
 }
 
 function isManager(role?: string) {
@@ -570,14 +581,27 @@ export function createWorkforceHandlers(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: 'Manager PIN is required to start a shift' });
       }
 
-      const approvingManager = await prisma.user.findFirst({
+      // Fetch all active managers and verify PIN with bcrypt (no direct DB lookup by hash)
+      const managerCandidates = await prisma.user.findMany({
         where: {
           restaurantId: user.restaurantId,
           isActive: true,
           role: { in: MANAGER_ROLES as any[] },
-          pin: hashPin(body.managerPin),
         },
       });
+
+      let approvingManager: typeof managerCandidates[0] | null = null;
+      for (const candidate of managerCandidates) {
+        if (candidate.pin && await verifyPin(body.managerPin, candidate.pin)) {
+          // Auto-upgrade legacy SHA-256 hash to bcrypt on first use
+          if (candidate.pin.length === 64 && !candidate.pin.startsWith('$2')) {
+            const newHash = await hashPin(body.managerPin);
+            await prisma.user.update({ where: { id: candidate.id }, data: { pin: newHash } });
+          }
+          approvingManager = candidate;
+          break;
+        }
+      }
 
       if (!approvingManager) {
         return reply.code(403).send({ success: false, error: 'Manager PIN was not accepted' });
@@ -781,6 +805,121 @@ export function createWorkforceHandlers(app: FastifyInstance) {
 
       await saveLocationWorkforce(location, nextWorkforce, nextSettings);
       return reply.send({ success: true, data: nextAssignments });
+    },
+
+    // ─── Staff self-service: personal timesheet + paycheck ──────────────────
+
+    getMyTimesheet: async (request: any, reply: any) => {
+      const user = request.user;
+      const { locationId, weekStart } = request.query as { locationId?: string; weekStart?: string };
+
+      const scoped = await getScopedLocation(user, locationId);
+      if (scoped.error) return reply.code(400).send({ success: false, error: scoped.error });
+
+      const location = scoped.location;
+      const weekRange = getWeekRange(weekStart);
+
+      // Get workforce state for attendance sessions (stored in location settings)
+      const workforce = getWorkforceStateFromLocationSettings(location.settings);
+      const mySessions = workforce.attendance.filter((session) => session.userId === user.id);
+
+      // Get clock events from DB for this user (the authoritative source)
+      const clockEvents = await prisma.clockEvent.findMany({
+        where: {
+          userId: user.id,
+          timestamp: { gte: weekRange.start, lte: weekRange.end },
+        },
+        orderBy: { timestamp: 'asc' },
+      });
+
+      // Build paired clock-in/clock-out entries
+      const timesheetEntries: Array<{
+        date: string;
+        clockIn: string;
+        clockOut: string | null;
+        durationMinutes: number;
+        notes: string | null;
+        source: 'db' | 'session';
+      }> = [];
+
+      // Pair DB clock events (CLOCK_IN → CLOCK_OUT)
+      const clockIns: any[] = [];
+      for (const event of clockEvents) {
+        if (event.type === 'CLOCK_IN') {
+          clockIns.push(event);
+        } else if (event.type === 'CLOCK_OUT' && clockIns.length > 0) {
+          const clockIn = clockIns.pop();
+          const durationMs = new Date(event.timestamp).getTime() - new Date(clockIn.timestamp).getTime();
+          timesheetEntries.push({
+            date: new Date(clockIn.timestamp).toISOString().slice(0, 10),
+            clockIn: new Date(clockIn.timestamp).toISOString(),
+            clockOut: new Date(event.timestamp).toISOString(),
+            durationMinutes: Math.max(0, Math.round(durationMs / 60000)),
+            notes: clockIn.notes || event.notes || null,
+            source: 'db',
+          });
+        }
+      }
+
+      // Include any open session (currently clocked in) from session state
+      const openSession = mySessions.find((session) => !session.endedAt);
+      if (openSession) {
+        const clockInTime = new Date(openSession.startedAt);
+        const nowMs = Date.now() - clockInTime.getTime();
+        timesheetEntries.push({
+          date: clockInTime.toISOString().slice(0, 10),
+          clockIn: openSession.startedAt,
+          clockOut: null,
+          durationMinutes: Math.max(0, Math.round(nowMs / 60000)),
+          notes: openSession.notes,
+          source: 'session',
+        });
+      }
+
+      timesheetEntries.sort((a, b) => a.clockIn.localeCompare(b.clockIn));
+
+      // Totals
+      const totalMinutes = timesheetEntries.reduce((sum, entry) => sum + entry.durationMinutes, 0);
+      const regularMinutes = Math.min(totalMinutes, 40 * 60); // 40h regular
+      const overtimeMinutes = Math.max(0, totalMinutes - regularMinutes);
+
+      // Get hourly rate from workforce profile
+      const profile = workforce.profiles.find((entry) => entry.userId === user.id);
+      const hourlyRate = profile?.hourlyRate || 0;
+      const overtimeRate = profile?.overtimeRate || hourlyRate * 1.5;
+
+      const regularPay = (regularMinutes / 60) * hourlyRate;
+      const overtimePay = (overtimeMinutes / 60) * overtimeRate;
+
+      // Shifts scheduled for this week
+      const myShiftsThisWeek = workforce.shifts.filter((shift) => {
+        if (shift.userId !== user.id) return false;
+        const shiftStart = new Date(shift.startsAt);
+        return shiftStart >= weekRange.start && shiftStart <= weekRange.end;
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          userId: user.id,
+          userName: user.name || 'Staff',
+          role: user.role,
+          weekStart: weekRange.start.toISOString(),
+          weekEnd: weekRange.end.toISOString(),
+          entries: timesheetEntries,
+          summary: {
+            totalMinutes,
+            regularMinutes,
+            overtimeMinutes,
+            hourlyRate,
+            overtimeRate,
+            regularPay: Math.round(regularPay * 100) / 100,
+            overtimePay: Math.round(overtimePay * 100) / 100,
+            estimatedGrossPay: Math.round((regularPay + overtimePay) * 100) / 100,
+          },
+          shifts: myShiftsThisWeek,
+        },
+      });
     },
   };
 }

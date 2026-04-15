@@ -163,4 +163,234 @@ export default async function saasRoutes(app: FastifyInstance) {
       },
     });
   });
+  // Get single restaurant detail with full user list
+  app.get('/restaurants/:id', async (request, reply) => {
+    const authResult = await authenticateSaasAdmin(request, reply, app);
+    if (authResult) return authResult;
+
+    const { id } = request.params as { id: string };
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      include: {
+        users: {
+          select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        locations: {
+          select: { id: true, name: true, isActive: true, createdAt: true },
+        },
+        _count: {
+          select: { orders: true, users: true, locations: true },
+        },
+      },
+    });
+
+    if (!restaurant) {
+      return reply.code(404).send({ success: false, error: 'Restaurant not found' });
+    }
+
+    // Calculate recent activity
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentOrderCount = await prisma.order.count({
+      where: { restaurantId: id, createdAt: { gte: thirtyDaysAgo } },
+    });
+    const recentRevenue = await prisma.payment.aggregate({
+      where: {
+        order: { restaurantId: id },
+        status: 'CAPTURED',
+        processedAt: { gte: thirtyDaysAgo },
+      },
+      _sum: { amount: true },
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        ...restaurant,
+        saas: normalizeRestaurantSaasSettings(restaurant.settings),
+        urls: getRestaurantUrls(restaurant.id),
+        activity: {
+          ordersLast30Days: recentOrderCount,
+          revenueLast30Days: recentRevenue._sum.amount || 0,
+        },
+      },
+    });
+  });
+
+  // Extend trial for a restaurant
+  app.post('/restaurants/:id/extend-trial', async (request, reply) => {
+    const authResult = await authenticateSaasAdmin(request, reply, app);
+    if (authResult) return authResult;
+
+    const { id } = request.params as { id: string };
+    const { days = 7, reason } = request.body as { days?: number; reason?: string };
+
+    if (!Number.isInteger(days) || days < 1 || days > 90) {
+      return reply.code(400).send({ success: false, error: 'days must be an integer between 1 and 90' });
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      select: { id: true, name: true, settings: true },
+    });
+
+    if (!restaurant) {
+      return reply.code(404).send({ success: false, error: 'Restaurant not found' });
+    }
+
+    const settings = restaurant.settings as any;
+    const currentTrialEnd = settings?.trial?.endsAt || settings?.trialEndsAt
+      ? new Date(settings?.trial?.endsAt || settings?.trialEndsAt)
+      : new Date();
+
+    // Extend from current end date (or now if already expired)
+    const baseDate = currentTrialEnd < new Date() ? new Date() : currentTrialEnd;
+    const newTrialEndsAt = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
+
+    const updatedSettings = {
+      ...settings,
+      trialEndsAt: newTrialEndsAt.toISOString(),
+      trial: {
+        ...(settings?.trial || {}),
+        endsAt: newTrialEndsAt.toISOString(),
+        extendedDays: (settings?.trial?.extendedDays || 0) + days,
+        lastExtendedAt: new Date().toISOString(),
+        extensionReason: reason || 'SaaS admin extension',
+      },
+      saas: {
+        ...(settings?.saas || {}),
+        billingStatus: 'demo',
+        demoMode: true,
+        trialEndsAt: newTrialEndsAt.toISOString(),
+      },
+    };
+
+    await prisma.restaurant.update({
+      where: { id },
+      data: { settings: updatedSettings, isActive: true },
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        restaurantId: id,
+        newTrialEndsAt: newTrialEndsAt.toISOString(),
+        daysAdded: days,
+      },
+    });
+  });
+
+  // Get platform-level stats
+  app.get('/stats', async (request, reply) => {
+    const authResult = await authenticateSaasAdmin(request, reply, app);
+    if (authResult) return authResult;
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalRestaurants,
+      activeRestaurants,
+      newThisWeek,
+      newThisMonth,
+      totalUsers,
+      totalOrders,
+      recentOrders,
+    ] = await Promise.all([
+      prisma.restaurant.count(),
+      prisma.restaurant.count({ where: { isActive: true } }),
+      prisma.restaurant.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+      prisma.restaurant.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      prisma.user.count(),
+      prisma.order.count(),
+      prisma.order.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+    ]);
+
+    return reply.send({
+      success: true,
+      data: {
+        restaurants: {
+          total: totalRestaurants,
+          active: activeRestaurants,
+          inactive: totalRestaurants - activeRestaurants,
+          newThisWeek,
+          newThisMonth,
+        },
+        users: { total: totalUsers },
+        orders: { total: totalOrders, last30Days: recentOrders },
+      },
+    });
+  });
+
+  // Reset / force-expire trial for a restaurant
+  app.post('/restaurants/:id/expire-trial', async (request, reply) => {
+    const authResult = await authenticateSaasAdmin(request, reply, app);
+    if (authResult) return authResult;
+
+    const { id } = request.params as { id: string };
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      select: { id: true, settings: true },
+    });
+
+    if (!restaurant) {
+      return reply.code(404).send({ success: false, error: 'Restaurant not found' });
+    }
+
+    const settings = restaurant.settings as any;
+    const expiredDate = new Date(Date.now() - 1000).toISOString();
+
+    await prisma.restaurant.update({
+      where: { id },
+      data: {
+        settings: {
+          ...settings,
+          trialEndsAt: expiredDate,
+          trial: { ...(settings?.trial || {}), endsAt: expiredDate },
+        },
+      },
+    });
+
+    return reply.send({ success: true, message: 'Trial expired' });
+  });
+
+  // Block/unblock a restaurant account
+  app.post('/restaurants/:id/toggle-active', async (request, reply) => {
+    const authResult = await authenticateSaasAdmin(request, reply, app);
+    if (authResult) return authResult;
+
+    const { id } = request.params as { id: string };
+    const { reason } = request.body as { reason?: string };
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      select: { id: true, isActive: true, settings: true },
+    });
+
+    if (!restaurant) {
+      return reply.code(404).send({ success: false, error: 'Restaurant not found' });
+    }
+
+    const newActive = !restaurant.isActive;
+    const settings = restaurant.settings as any;
+
+    await prisma.restaurant.update({
+      where: { id },
+      data: {
+        isActive: newActive,
+        ...(newActive === false && reason
+          ? {
+              settings: {
+                ...settings,
+                saas: { ...(settings?.saas || {}), blockedReason: reason },
+              },
+            }
+          : {}),
+      },
+    });
+
+    return reply.send({ success: true, data: { isActive: newActive } });
+  });
 }

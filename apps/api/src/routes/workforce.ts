@@ -26,4 +26,7 @@ export default async function workforceRoutes(app: FastifyInstance) {
 
   app.post('/section-assignments/auto-assign', auth, handlers.autoAssignSections);
   app.post('/section-assignments/save', auth, handlers.saveSectionAssignments);
+
+  // Staff self-service endpoints (accessible to all roles)
+  app.get('/me/timesheet', auth, handlers.getMyTimesheet);
 }

@@ -79,7 +79,9 @@ services:
       CORS_ORIGINS: "http://web:3000,http://localhost:3000,http://nginx:80,http://localhost"
     command: >
         sh -c "
-        npx prisma db push --schema=packages/db/prisma/schema.prisma &&
+        echo 'Running database migrations...' &&
+        npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma &&
+        echo 'Starting API server...' &&
         node apps/api/dist/apps/api/src/index.js
         "
     ports:

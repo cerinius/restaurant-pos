@@ -38,3 +38,16 @@ apps/web/public/worker-*.js
 
 # TypeScript
 *.tsbuildinfo
+
+# ─── Sensitive environment files ──────────────────────────────────────────────
+# Never commit .env files with real credentials
+.env.production
+apps/api/.env
+apps/web/.env
+apps/api/.env.production
+apps/web/.env.production
+
+# But DO allow the examples
+!.env.example
+!apps/api/.env.example
+!apps/web/.env.example

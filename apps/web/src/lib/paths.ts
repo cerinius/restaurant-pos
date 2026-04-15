@@ -34,6 +34,10 @@ export function getRestaurantTeamPath(restaurantId: string) {
   return getRestaurantPath(restaurantId, '/team');
 }
 
+export function getRestaurantPortalPath(restaurantId: string) {
+  return getRestaurantPath(restaurantId, '/me');
+}
+
 export function extractRestaurantIdFromPathname(pathname: string) {
   const match = pathname.match(RESTAURANT_ROUTE_PATTERN);
   return match?.[1] || null;

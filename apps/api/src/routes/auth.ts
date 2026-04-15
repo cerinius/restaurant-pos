@@ -1,7 +1,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@pos/db';
-import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import {
   consumePendingDemoSignup,
   createPendingDemoSignup,
@@ -13,8 +13,24 @@ import { notifySalesInbox, sendEmailOtp, sendSmsOtp } from '../lib/notifier';
 import { mergeRestaurantSaasSettings } from '../lib/saas';
 import { isTrialExpired } from '../lib/trial';
 
-function hashPin(pin: string): string {
-  return crypto.createHash('sha256').update(pin + 'pos-salt-2024').digest('hex');
+const BCRYPT_ROUNDS = 10;
+
+async function hashPin(pin: string): Promise<string> {
+  return bcrypt.hash(pin, BCRYPT_ROUNDS);
+}
+
+async function verifyPin(pin: string, hash: string): Promise<boolean> {
+  // Support legacy SHA-256 hashes during migration period
+  if (hash && hash.length === 64 && !hash.startsWith('$2')) {
+    const crypto = await import('crypto');
+    const legacyHash = crypto.createHash('sha256').update(pin + 'pos-salt-2024').digest('hex');
+    if (legacyHash === hash) {
+      // Upgrade the hash in the background (caller must handle the upgrade)
+      return true;
+    }
+    return false;
+  }
+  return bcrypt.compare(pin, hash);
 }
 
 function issueTokens(app: FastifyInstance, user: any, locationId?: string | null) {
@@ -157,7 +173,7 @@ async function provisionDemoWorkspace(payload: DemoSignupPayload) {
         restaurantId: restaurant.id,
         name: payload.contactName,
         email: payload.email,
-        pin: hashPin(payload.password),
+        pin: await bcrypt.hash(payload.password, BCRYPT_ROUNDS),
         role: 'OWNER',
         isActive: true,
       },
@@ -341,8 +357,17 @@ async function provisionDemoWorkspace(payload: DemoSignupPayload) {
 }
 
 export default async function authRoutes(app: FastifyInstance) {
+  // Strict rate limits for authentication endpoints
+  const authRateLimit = {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+  };
   // PIN Login
-  app.post('/pin-login', async (request, reply) => {
+  app.post('/pin-login', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { pin, restaurantId, locationId } = request.body as {
       pin: string;
       restaurantId: string;
@@ -353,13 +378,10 @@ export default async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ success: false, error: 'pin, restaurantId, and locationId are required' });
     }
 
-    const hashedPin = hashPin(pin);
-
-    const [user, restaurant] = await Promise.all([
-      prisma.user.findFirst({
+    const [candidates, restaurant] = await Promise.all([
+      prisma.user.findMany({
         where: {
           restaurantId,
-          pin: hashedPin,
           isActive: true,
         },
         include: {
@@ -378,6 +400,20 @@ export default async function authRoutes(app: FastifyInstance) {
 
     if (isTrialExpired(restaurant.settings)) {
       return reply.code(403).send({ success: false, error: 'Your 7-day demo has expired' });
+    }
+
+    // Find user by PIN verification (bcrypt compare, with legacy SHA-256 fallback)
+    let user: (typeof candidates)[0] | null = null;
+    for (const candidate of candidates) {
+      if (candidate.pin && await verifyPin(pin, candidate.pin)) {
+        user = candidate;
+        // Upgrade legacy SHA-256 hash to bcrypt if needed
+        if (candidate.pin.length === 64 && !candidate.pin.startsWith('$2')) {
+          const newHash = await hashPin(pin);
+          await prisma.user.update({ where: { id: candidate.id }, data: { pin: newHash } });
+        }
+        break;
+      }
     }
 
     if (!user) {
@@ -413,7 +449,7 @@ export default async function authRoutes(app: FastifyInstance) {
   });
 
   // Email Login (owner/admin)
-  app.post('/login', async (request, reply) => {
+  app.post('/login', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const { email, password, restaurantSlug } = request.body as {
       email: string;
       password: string;
@@ -452,16 +488,21 @@ export default async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ success: false, error: 'Invalid credentials' });
     }
 
-    // For email login, we verify using the same hash mechanism
-    const hashedPassword = hashPin(password);
-    if (user.pin !== hashedPassword) {
+    // Verify password using bcrypt (with legacy SHA-256 fallback)
+    if (!user.pin || !await verifyPin(password, user.pin)) {
       return reply.code(401).send({ success: false, error: 'Invalid credentials' });
+    }
+
+    // Upgrade legacy SHA-256 hash to bcrypt if needed
+    if (user.pin.length === 64 && !user.pin.startsWith('$2')) {
+      const newHash = await hashPin(password);
+      await prisma.user.update({ where: { id: user.id }, data: { pin: newHash } });
     }
 
     return reply.send({ success: true, data: issueTokens(app, user, user.locations[0]?.locationId) });
   });
 
-  app.post('/demo/request-otp', async (request, reply) => {
+  app.post('/demo/request-otp', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
     const {
       contactName,
       restaurantName,
@@ -663,6 +704,122 @@ export default async function authRoutes(app: FastifyInstance) {
     });
   });
 
+  // Forgot Password - sends reset OTP to email
+  app.post('/forgot-password', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
+    const { email, restaurantSlug } = request.body as { email: string; restaurantSlug: string };
+
+    if (!email || !restaurantSlug) {
+      return reply.code(400).send({ success: false, error: 'email and restaurantSlug are required' });
+    }
+
+    // Always respond success to prevent email enumeration
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: restaurantSlug } });
+    const user = restaurant
+      ? await prisma.user.findFirst({ where: { restaurantId: restaurant.id, email: email.trim().toLowerCase(), isActive: true } })
+      : null;
+
+    if (user && restaurant) {
+      // Generate a 6-digit OTP stored as a temporary session
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+      // Store reset token in DB via a transient audit entry
+      await prisma.auditLog.create({
+        data: {
+          restaurantId: restaurant.id,
+          userId: user.id,
+          userName: user.name,
+          action: 'PASSWORD_RESET_REQUESTED',
+          entityType: 'USER',
+          entityId: user.id,
+          details: { resetCode: await bcrypt.hash(code, 6), expiresAt: expiresAt.toISOString() },
+          ipAddress: request.ip,
+        },
+      });
+
+      const { sendEmailOtp: sendOtp } = await import('../lib/notifier');
+      await sendOtp(user.email || email, code).catch(() => {/* ignore delivery errors */});
+    }
+
+    return reply.send({ success: true, message: 'If that account exists, a reset code has been sent.' });
+  });
+
+  // Reset Password - verify OTP and set new password
+  app.post('/reset-password', { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } }, async (request, reply) => {
+    const { email, restaurantSlug, code, newPassword } = request.body as {
+      email: string;
+      restaurantSlug: string;
+      code: string;
+      newPassword: string;
+    };
+
+    if (!email || !restaurantSlug || !code || !newPassword) {
+      return reply.code(400).send({ success: false, error: 'email, restaurantSlug, code, and newPassword are required' });
+    }
+
+    if (newPassword.length < 4) {
+      return reply.code(400).send({ success: false, error: 'New password must be at least 4 characters' });
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: restaurantSlug } });
+    if (!restaurant) {
+      return reply.code(400).send({ success: false, error: 'Invalid reset request' });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { restaurantId: restaurant.id, email: email.trim().toLowerCase(), isActive: true },
+    });
+    if (!user) {
+      return reply.code(400).send({ success: false, error: 'Invalid reset request' });
+    }
+
+    // Find the most recent valid reset log entry
+    const resetLog = await prisma.auditLog.findFirst({
+      where: {
+        restaurantId: restaurant.id,
+        userId: user.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!resetLog) {
+      return reply.code(400).send({ success: false, error: 'No active reset request found' });
+    }
+
+    const details = resetLog.details as any;
+    const expiresAt = new Date(details?.expiresAt || 0);
+
+    if (expiresAt < new Date()) {
+      return reply.code(400).send({ success: false, error: 'Reset code has expired' });
+    }
+
+    const codeValid = await bcrypt.compare(code, details?.resetCode || '');
+    if (!codeValid) {
+      return reply.code(400).send({ success: false, error: 'Invalid reset code' });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { pin: await hashPin(newPassword) },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        restaurantId: restaurant.id,
+        userId: user.id,
+        userName: user.name,
+        action: 'PASSWORD_RESET_COMPLETED',
+        entityType: 'USER',
+        entityId: user.id,
+        details: {},
+        ipAddress: request.ip,
+      },
+    });
+
+    return reply.send({ success: true, message: 'Password updated successfully. Please log in.' });
+  });
+
   // Logout
   app.post('/logout', { preHandler: [app.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
@@ -688,7 +845,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
     if (!dbUser) return reply.code(404).send({ success: false, error: 'User not found' });
 
-    if (dbUser.pin !== hashPin(currentPin)) {
+    if (!dbUser.pin || !await verifyPin(currentPin, dbUser.pin)) {
       return reply.code(401).send({ success: false, error: 'Current PIN is incorrect' });
     }
 
@@ -698,7 +855,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { pin: hashPin(newPin) },
+      data: { pin: await hashPin(newPin) },
     });
 
     return reply.send({ success: true, message: 'PIN changed successfully' });

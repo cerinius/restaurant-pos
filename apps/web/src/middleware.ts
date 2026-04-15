@@ -26,14 +26,14 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith('/admin/')) {
-    const posToken = request.cookies.get('pos_token')?.value;
+    // /admin/* routes are SaaS admin only - require saas_admin_token
     const saasToken = request.cookies.get('saas_admin_token')?.value;
 
-    if (posToken || saasToken) {
+    if (saasToken) {
       return NextResponse.next();
     }
 
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/admin/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }

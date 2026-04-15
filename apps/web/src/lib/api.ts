@@ -139,6 +139,54 @@ class ApiClient {
     });
     return data;
   }
+  async getSaasRestaurantDetail(id: string) {
+    const token = getSaasAdminToken();
+    const { data } = await this.client.get(`/api/saas/restaurants/${id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    return data;
+  }
+  async extendSaasTrial(restaurantId: string, days: number, reason?: string) {
+    const token = getSaasAdminToken();
+    const { data } = await this.client.post(
+      `/api/saas/restaurants/${restaurantId}/extend-trial`,
+      { days, reason },
+      { headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+    );
+    return data;
+  }
+  async expireSaasTrial(restaurantId: string) {
+    const token = getSaasAdminToken();
+    const { data } = await this.client.post(
+      `/api/saas/restaurants/${restaurantId}/expire-trial`,
+      {},
+      { headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+    );
+    return data;
+  }
+  async getSaasStats() {
+    const token = getSaasAdminToken();
+    const { data } = await this.client.get('/api/saas/stats', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    return data;
+  }
+  async createStripeCheckout(priceId: string, successUrl: string, cancelUrl: string) {
+    const { data } = await this.client.post('/api/stripe/create-checkout', { priceId, successUrl, cancelUrl });
+    return data;
+  }
+  async createBillingPortal(returnUrl: string) {
+    const { data } = await this.client.post('/api/stripe/billing-portal', { returnUrl });
+    return data;
+  }
+  async forgotPassword(email: string, restaurantSlug: string) {
+    const { data } = await this.client.post('/api/auth/forgot-password', { email, restaurantSlug });
+    return data;
+  }
+  async resetPassword(email: string, restaurantSlug: string, code: string, newPassword: string) {
+    const { data } = await this.client.post('/api/auth/reset-password', { email, restaurantSlug, code, newPassword });
+    return data;
+  }
 
   // Locations
   async getLocations() {
@@ -491,6 +539,10 @@ class ApiClient {
   }
   async saveSectionAssignments(payload: any) {
     const { data } = await this.client.post('/api/workforce/section-assignments/save', payload);
+    return data;
+  }
+  async getMyTimesheet(params?: any) {
+    const { data } = await this.client.get('/api/workforce/me/timesheet', { params });
     return data;
   }
 

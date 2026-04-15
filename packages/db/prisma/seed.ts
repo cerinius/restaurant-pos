@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -12,8 +12,10 @@ const IDS = {
   bartender: 'user-bartender',
 };
 
-function hashPin(pin: string): string {
-  return crypto.createHash('sha256').update(pin + 'pos-salt-2024').digest('hex');
+const BCRYPT_ROUNDS = 10;
+
+async function hashPin(pin: string): Promise<string> {
+  return bcrypt.hash(pin, BCRYPT_ROUNDS);
 }
 
 async function main() {
@@ -82,13 +84,14 @@ async function main() {
     },
   });
 
+  // Owner uses the operator's personal credentials
   const owner = await prisma.user.create({
     data: {
       id: IDS.owner,
       restaurantId: restaurant.id,
-      name: 'Owner Admin',
-      email: 'owner@grandbistro.com',
-      pin: hashPin('1234'),
+      name: 'Ekjot Singh',
+      email: 'ekjotsingh.1999@gmail.com',
+      pin: await hashPin('Saini-2511'),
       role: 'OWNER',
       isActive: true,
     },
@@ -100,7 +103,7 @@ async function main() {
       restaurantId: restaurant.id,
       name: 'Jane Manager',
       email: 'manager@grandbistro.com',
-      pin: hashPin('2222'),
+      pin: await hashPin('2222'),
       role: 'MANAGER',
       isActive: true,
     },
@@ -112,7 +115,7 @@ async function main() {
       restaurantId: restaurant.id,
       name: 'Alex Server',
       email: 'server@grandbistro.com',
-      pin: hashPin('3333'),
+      pin: await hashPin('3333'),
       role: 'SERVER',
       isActive: true,
     },
@@ -124,7 +127,7 @@ async function main() {
       restaurantId: restaurant.id,
       name: 'Sam Bartender',
       email: 'bartender@grandbistro.com',
-      pin: hashPin('4444'),
+      pin: await hashPin('4444'),
       role: 'BARTENDER',
       isActive: true,
     },
@@ -331,13 +334,20 @@ async function main() {
     },
   });
 
-  console.log('Seed complete.');
-  console.log('Demo restaurant slug: demo-restaurant');
-  console.log('Demo location id: main-location');
-  console.log('Owner PIN: 1234');
-  console.log('Manager PIN: 2222');
-  console.log('Server PIN: 3333');
-  console.log('Bartender PIN: 4444');
+  console.log('\nSeed complete!');
+  console.log('='.repeat(50));
+  console.log('Restaurant slug:  demo-restaurant');
+  console.log('Location ID:      main-location');
+  console.log('');
+  console.log('Owner login:');
+  console.log('  Email:    ekjotsingh.1999@gmail.com');
+  console.log('  Password: Saini-2511');
+  console.log('');
+  console.log('Demo staff PINs:');
+  console.log('  Manager PIN:    2222');
+  console.log('  Server PIN:     3333');
+  console.log('  Bartender PIN:  4444');
+  console.log('='.repeat(50));
 }
 
 main()
